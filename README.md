@@ -168,19 +168,20 @@ We encourage developers, researchers, and community builders to:
 
 ---
 
-## 📊 Standardized Cross-Platform Pricing Comparison (2026 Frontier Stack)
 
-TokenTotals normalizes all LLM costs across **Anthropic** (**Fable 5.1**), **OpenAI** (**GPT-6 Astra** / **o3**), and **Google** (**Google Antigravity** / **Gemini 3**):
+---
+
+## 📊 Standardized Cross-Platform Pricing Comparison (Production API Stack)
+
+TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet**), **OpenAI** (**o3** / **o3-mini**), and **Google** (**Gemini 3.7 Flash** / **Gemini 2.5 Pro**):
 
 ### Standard Turn Cost (10,000 Input / 2,000 Output Tokens)
 
 | Provider | Model | Tier | Standard Turn Cost | Multiplier vs. Baseline |
 | :--- | :--- | :--- | :--- | :--- |
-| **OpenAI** | OpenAI o3-pro | Frontier | **$0.3600** | **266.7x** |
-| **Anthropic** | Fable 5.1 | Frontier | **$0.2000** | **148.1x** |
-| **OpenAI** | GPT-6 Astra | Frontier | **$0.2000** | **148.1x** |
-| **Anthropic** | Claude 3.7 Sonnet | Workhorse | **$0.0600** | **44.4x** |
-| **Google** | Antigravity Pro | Frontier | **$0.0325** | **24.1x** |
+| **Anthropic** | Claude 3.7 Sonnet | Frontier | **$0.0600** | **44.4x** |
+| **OpenAI** | OpenAI o3 | Frontier | **$0.0360** | **26.7x** |
+| **Google** | Gemini 2.5 Pro | Frontier | **$0.0325** | **24.1x** |
 | **OpenAI** | OpenAI o3-mini | Workhorse | **$0.0198** | **14.7x** |
 | **Google** | Gemini 3.7 Flash | Workhorse | **$0.0150** | **11.1x** |
 | **Anthropic** | Claude 3.5 Haiku | Economy | **$0.0160** | **11.8x** |
