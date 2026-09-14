@@ -14,7 +14,7 @@ To give developers complete, reliable transparency into relative model costs, To
 | Tier | Anthropic | OpenAI | Google | Primary Use Cases |
 | :--- | :--- | :--- | :--- | :--- |
 | **Frontier / Advanced** | **Claude 3.7 Sonnet**<br>`$3.00` In / `$15.00` Out | **OpenAI o3**<br>`$2.00` In / `$8.00` Out | **Gemini 2.5 Pro**<br>`$1.25` In / `$10.00` Out | Complex architecture design, deep multi-step reasoning, synthesis |
-| **Workhorse / Standard** | **Claude 3.5 Sonnet**<br>`$3.00` In / `$15.00` Out | **OpenAI o3-mini**<br>`$1.10` In / `$4.40` Out | **Gemini 3.7 Flash**<br>`$0.75` In / `$3.75` Out | General code writing, refactoring, daily agent execution |
+| **Workhorse / Standard** | **Claude 3.5 Sonnet**<br>`$3.00` In / `$15.00` Out | **OpenAI o3-mini**<br>`$1.10` In / `$4.40` Out | **Gemini 3.7 Flash**<br>`$0.15` In / `$0.60` Out | General code writing, refactoring, daily agent execution |
 | **Economy / High-Speed** | **Claude 3.5 Haiku**<br>`$0.80` In / `$4.00` Out | **OpenAI GPT-4o-mini**<br>`$0.15` In / `$0.60` Out | **Gemini 2.0 Flash-Lite**<br>`$0.075` In / `$0.30` Out | Formatting, quick search, classification, simple linting |
 
 ---
