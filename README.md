@@ -1,11 +1,15 @@
 ﻿# 🛡️ TokenTotals by QuietFireAI
 
 > **The Local, Open-Source Airbag for AI Developers & Autonomous Agents.**  
-> *Hard-stop budget protection, local zero-egress proxying, and real-time cost telemetry for Cursor, Windsurf, VS Code, and Python agent swarms.*
+> *Real-time cost estimation, budget notification, and advisory alerts, local zero-egress proxying, and real-time cost telemetry for Cursor, Windsurf, VS Code, and Python agent swarms.*
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Zero Egress](https://img.shields.io/badge/Security-Zero--Egress%20Localhost-brightgreen.svg)]()
+[![Localhost Only](https://img.shields.io/badge/Security-Zero--Egress%20Localhost-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
+
+
+> [!IMPORTANT]
+> **Operational Scope & Liability Disclaimer:** TokenTotals is an independent developer cost calculator, real-time telemetry estimator, and local notification daemon. It calculates estimated spend based on published provider rates and notifies developers when custom threshold limits are met. TokenTotals **does not** guarantee exact third-party vendor billing alignment, nor does it guarantee absolute network-level traffic blocking under all operating system configurations. Users remain solely responsible for monitoring their direct cloud provider accounts.
 
 ---
 
@@ -16,7 +20,7 @@ TokenTotals surfaces real-time cost transparency and budget enforcement everywhe
 ### 1. 🚦 The Look (Glanceable System Tray Icon)
 * 🟢 **Green "T":** In Budget (Cruising safely).
 * 🟡 **Amber "T":** 75%–99% of daily budget (Heads up, heavy agent usage today).
-* 🔴 **Red "T":** 100% Limit Reached / Circuit Breaker Engaged (Zero egress, desktop modal alert requiring `"I UNDERSTAND"` or `[ +$5 Quick Boost ]`).
+* 🔴 **Red "T":** 100% Limit Reached / Budget Threshold Alert Engaged (Desktop modal alert requiring `"I UNDERSTAND"` or `[ +$5 Quick Boost ]`).
 
 ### 2. 🪝 The Hook (Turn-by-Turn Chat Telemetry Badge)
 Every single developer turn or agent interaction renders a clean, live telemetry badge directly in your working context:
@@ -73,8 +77,8 @@ Point your IDE, agent framework, or scripts to `http://127.0.0.1:8080/v1` instea
 
 ## ✨ Key Features
 
-### 1. 🛑 The "Dead Man's Switch" Hard Stop
-* The microsecond a request would breach your daily limit (default: \$10.00), outgoing traffic is **hard-frozen** before provider bandwidth is consumed.
+### 1. 🛑 The Advisory Budget Threshold & Alert
+* The microsecond a request would breach your daily limit (default: \$10.00), TokenTotals triggers an advisory pause and pops an un-ignorable desktop notification alert.
 * An un-ignorable, topmost desktop modal pops up with an audio alert.
 * Requires typing **`"I UNDERSTAND"`** or clicking **`[ +$5 Quick Boost ]`** to unlock.
 
@@ -91,7 +95,7 @@ Left-click the tray icon or visit `http://127.0.0.1:8080/dashboard` in your brow
 * 1-Click configuration copy for all major IDEs.
 * Direct receipts and links to official provider pricing documentation.
 
-### 4. 🔒 Zero-Egress Architecture
+### 4. 🔒 Localhost-Only Architecture
 * **Zero Telemetry:** No tracking, no user accounts, no external analytics.
 * **Direct Encryption:** HTTPS requests travel directly from `127.0.0.1` to the vendor's API. No middleman servers ever touch your keys.
 * **100% Free & Open Source:** Licensed under **GNU GPLv3**.
