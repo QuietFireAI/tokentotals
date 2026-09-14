@@ -1,0 +1,21 @@
+﻿# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller & Build artifacts
+build/
+dist/
+*.spec
+*.log
+TokenTotals_Test/
+*.zip
+
+# OS & Environment
+.env
+.venv
+env/
+venv/
+.tokentotals/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,12 @@
+﻿cff-version: 1.2.0
+message: "If you use TokenTotals in your research or AI tooling, please cite it as below."
+authors:
+  - family-names: "Phillips"
+    given-names: "Jeff"
+    orcid: "https://orcid.org/0009-0000-1375-1725"
+    affiliation: "QuietFireAI"
+title: "TokenTotals: Localhost Layer-7 FinOps Proxy & Pre-Flight AI Circuit Breaker"
+version: 2.4.0
+date-released: 2026-09-14
+url: "https://github.com/QuietFireAI/TokenTotals"
+license: "GPL-3.0-only"
