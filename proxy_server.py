@@ -1,4 +1,4 @@
-﻿import json
+import json
 import time
 import sys
 import os
@@ -172,13 +172,15 @@ async def proxy_openai(request: Request):
     CURRENT_POTENTIAL_SAVING = 0.0
 
     if CURRENT_ROUTINE_FLAG:
-        # What would it cost on Flash / Mini? ($0.15 In vs $2.50 In per 1M -> ~94% savings)
-        economy_cost = (estimated_tokens / 1e6) * 0.15
+        econ_model = "gpt-4o-mini" if "gpt" in model_id.lower() else "gemini-2.0-flash-lite"
+        econ_p = resolve_model(econ_model)
+        econ_rate = econ_p.get("input_price_per_1m", 0.075)
+        economy_cost = (estimated_tokens / 1e6) * econ_rate
         CURRENT_POTENTIAL_SAVING = max(0.0, estimated_cost - economy_cost)
 
         # Opt-In Auto-Economy Pilot (Default: False)
         if conf.get("auto_economy_mode", False):
-            model_id = "gpt-4o-mini" if "gpt" in model_id else "gemini-2.0-flash"
+            model_id = econ_model
 
     # 3. UPSTREAM ROUTING VIA LITELLM
     auth_header = request.headers.get("authorization", "")
