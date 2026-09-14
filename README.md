@@ -1,11 +1,41 @@
 ﻿# 🛡️ TokenTotals by QuietFireAI
 
 > **The Local, Open-Source Airbag for AI Developers & Autonomous Agents.**  
-> *Hard-stop budget protection, local zero-egress proxying, and cost-optimization advisory for Cursor, Windsurf, VS Code, and Python agent swarms.*
+> *Hard-stop budget protection, local zero-egress proxying, and real-time cost telemetry for Cursor, Windsurf, VS Code, and Python agent swarms.*
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Zero Egress](https://img.shields.io/badge/Security-Zero--Egress%20Localhost-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
+
+---
+
+## 👁️ Three Ways You Stay Protected: The Look, The Hook, & The Dash
+
+TokenTotals surfaces real-time cost transparency and budget enforcement everywhere you work:
+
+### 1. 🚦 The Look (Glanceable System Tray Icon)
+* 🟢 **Green "T":** In Budget (Cruising safely).
+* 🟡 **Amber "T":** 75%–99% of daily budget (Heads up, heavy agent usage today).
+* 🔴 **Red "T":** 100% Limit Reached / Circuit Breaker Engaged (Zero egress, desktop modal alert requiring `"I UNDERSTAND"` or `[ +$5 Quick Boost ]`).
+
+### 2. 🪝 The Hook (Turn-by-Turn Chat Telemetry Badge)
+Every single developer turn or agent interaction renders a clean, live telemetry badge directly in your working context:
+
+```text
+🟢 Status: In Budget | Today: $0.42 / $10.00 | Thread: $0.08
+📊 🤖 Model: Gemini 3.7 Flash (gemini-3.7-flash)
+📊 Turn: ~$0.0006 (🧠 42 think / 💬 610 out) | 💾 Cache Savings: ~95%
+⚡ Velocity: ~262.1k tok/turn (28.8M total) | 📈 Session Total: $22.68 USD (109 turns)
+🪟 Context Window: 42.84% (449.2k / 1M max limit)
+ℹ️ Pricing Verification: In $0.75 / Out $3.75 per 1M | Public Sync: 2026-09-09
+```
+
+### 3. 📊 The Dash (Localhost Web Dashboard)
+Visit `http://127.0.0.1:8080/dashboard` in your browser for:
+* Live Spend Fuel Gauge & dollar headroom.
+* Per-thread/task spend tracking.
+* 1-Click configuration copy for Cursor, VS Code, and Python.
+* Verified provider pricing documentation receipts.
 
 ---
 
