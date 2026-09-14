@@ -159,6 +159,57 @@ We encourage developers, researchers, and community builders to:
 2. **Local Contextual Estimation:** All dollar metrics (Today's Spend, Thread Spend, Potential Savings) are **locally computed mathematical estimates** based on the raw token payloads passing through this local proxy, calculated against official published vendor pricing catalogs.
 3. **Pacing & Protection, Not Invoicing:** TokenTotals acts as an on-the-wire airbag and telemetry monitor for your development workflow. It does not replace or modify your official end-of-month provider billing statements.
 
+
+---
+
+## 🔍 The Data Was There All Along
+
+Every single API response from OpenAI, Anthropic, and Google already contains everything you need to calculate your exact spend in real time:
+
+```json
+// What the API already returns in EVERY response:
+{
+  "usage": {
+    "prompt_tokens": 34521,        // <-- They KNEW how many tokens you sent
+    "completion_tokens": 1847,     // <-- They KNEW how many they generated
+    "prompt_tokens_details": {
+      "cached_tokens": 32768       // <-- They KNEW you were being cached at 90% discount
+    }
+  }
+}
+```
+
+The pricing per million tokens is published on their public websites. The math is grade-school multiplication:
+
+```
+(tokens / 1,000,000) x price_per_million = your_cost
+```
+
+**That is all TokenTotals does.** It reads the numbers the providers were already sending you, multiplies by their own published prices, and shows you the running total they chose not to.
+
+> *The frontier AI labs raised $50 billion to build Artificial General Intelligence that can write poetry, pass the bar exam, and design microchips... but somehow, none of them built a gas gauge.*
+
+TokenTotals exists because an independent developer got tired of waiting.
+
+---
+
+## 🏛️ Government, Defense & Enterprise
+
+TokenTotals' zero-egress localhost architecture is uniquely suited for environments where cloud-based FinOps tools are prohibited or infeasible:
+
+### Why Government & Defense Need This:
+* **OMB Budget Accountability:** Federal agencies running AI pilots on GPT-4o or Claude for document processing, intelligence analysis, or citizen services face Congressional audit scrutiny on every line item. TokenTotals provides per-task cost attribution without transmitting classified or sensitive data off-machine.
+* **FedRAMP & FISMA Compliance:** Cloud SaaS FinOps tools (Portkey, Helicone, Langfuse) require years of security certification before deployment in federal environments. A local, zero-egress tool that never transmits data off the machine sails through compliance review.
+* **Air-Gapped & Classified Networks (SCIFs):** Defense and intelligence community workloads on air-gapped networks literally *cannot* use cloud dashboards. A local loopback proxy is the only architecture that works.
+
+### Commercial Enterprise Licensing:
+TokenTotals is free and open-source (GPLv3) for individual developers and open-source projects.
+
+For **government contractors, federal system integrators, and enterprise teams** that require proprietary licensing, SLA-backed support, compliance documentation, and audit trail exports:
+
+📧 **Contact:** quietfireai@gmail.com  
+🔗 **ORCID:** [0009-0000-1375-1725](https://orcid.org/0009-0000-1375-1725)
+
 ## 📜 License & Trust
 
 Distributed under the **GNU General Public License v3.0 (GPLv3)**. See `LICENSE` for details.
