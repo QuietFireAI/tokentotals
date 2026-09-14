@@ -11,7 +11,7 @@
 
 This document serves as both the architectural security specification for **TokenTotals** and an official **Defensive Publication** establishing prior art in the public domain under 35 U.S.C. § 102. 
 
-TokenTotals introduces a local, zero-egress Layer-7 HTTP/WebSocket loopback proxy daemon operating on `127.0.0.1`. It intercepts Large Language Model (LLM) API transactions, parses abstract syntax representations of prompt payloads, calculates pre-flight cryptographic/BPE token counts, compares estimated financial transaction impact against a persistent local state store, and enforces a hard OS-level circuit breaker ("Dead Man's Switch") with active modal human acknowledgment.
+TokenTotals introduces a local, zero-egress Layer-7 HTTP/WebSocket loopback proxy daemon operating on `127.0.0.1`. It intercepts Large Language Model (LLM) API transactions, parses abstract syntax representations of prompt payloads, calculates pre-flight cryptographic/BPE token counts, compares estimated financial transaction impact against a persistent local state store, and enforces a local budget advisory gate and notification modal with active modal human acknowledgment.
 
 By publishing this specification under the GPLv3 open-source license, QuietFireAI dedicates these mechanisms to the public domain, barring any entity from asserting patent claims over:
 1. Local pre-flight Layer-7 LLM cost simulation prior to TCP/TLS socket upstream handshakes.
@@ -21,8 +21,8 @@ By publishing this specification under the GPLv3 open-source license, QuietFireA
 ---
 
 
-### 1.1 Non-Invasive Observability & Billing Differentiation
-It is critical to distinguish TokenTotals from upstream accounting systems. TokenTotals does not communicate with provider billing endpoints, nor does it query user credit balances. TokenTotals operates purely as a stateless, passive-to-active Layer-7 telemetry and pacing governor on localhost. All financial figures represent contextual estimates derived from BPE token frequency multiplied by published vendor rate schedules. It governs transaction execution velocity without modifying or querying provider account states.
+### 1.1 Non-Invasive Observability & Liability Disclaimer
+It is critical to distinguish TokenTotals from upstream accounting systems. TokenTotals is an independent real-time developer cost calculator, telemetry estimation engine, and local notification daemon. TokenTotals does not communicate with provider billing endpoints, query user credit balances, or guarantee absolute network-level traffic blocking. All figures represent estimated calculations derived from local token frequencies multiplied by published vendor rate schedules. TokenTotals provides advisory notifications to inform developer decision-making without guaranteeing vendor billing synchronization. TokenTotals does not communicate with provider billing endpoints, nor does it query user credit balances. TokenTotals operates purely as a stateless, passive-to-active Layer-7 telemetry and pacing governor on localhost. All financial figures represent contextual estimates derived from BPE token frequency multiplied by published vendor rate schedules. It governs transaction execution velocity without modifying or querying provider account states.
 
 ## 2. Threat Model & Zero-Egress Architecture
 
