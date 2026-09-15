@@ -9,7 +9,7 @@ from pathlib import Path
 import config_manager
 
 SCHEMA_VERSION = 1
-MONEY_NANOS_PER_USD = 1_000_000_000
+MONEY_PICOS_PER_USD = 1_000_000_000_000
 _LEDGER_LOCK = threading.RLock()
 _LEDGER_FILE_OVERRIDE = None
 _SEEN_LEDGER_PATH = None
@@ -28,15 +28,14 @@ TOKEN_FIELDS = (
     "unclassified_tokens",
     "reconciliation_delta_tokens",
 )
-
 _TOKEN_BASES = {"observed", "derived", "unavailable"}
-_MODALITIES = {"text", "image", "video", "audio"}
-_TOOL_COUNTERS = {
+_MODALITIES = ("text", "image", "video", "audio")
+_TOOL_COUNTERS = (
     "web_search_requests",
     "web_fetch_requests",
     "search_query_count",
     "maps_used",
-}
+)
 
 
 class LedgerCorruptionError(ValueError):
@@ -49,17 +48,17 @@ def ledger_path():
     return Path(config_manager.APP_DIR) / "turns.jsonl"
 
 
-def usd_to_nanos(value):
+def usd_to_picos(value):
     if value is None:
         return None
-    amount = Decimal(str(value)) * Decimal(MONEY_NANOS_PER_USD)
+    amount = Decimal(str(value)) * Decimal(MONEY_PICOS_PER_USD)
     return int(amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
-def nanos_to_usd(value):
+def picos_to_usd(value):
     if value is None:
         return None
-    return float(Decimal(int(value)) / Decimal(MONEY_NANOS_PER_USD))
+    return float(Decimal(int(value)) / Decimal(MONEY_PICOS_PER_USD))
 
 
 def _obj_get(obj, key, default=None):
@@ -105,16 +104,15 @@ def _iso_time(value):
 
 
 def _latency_ms(start_time, end_time):
-    if isinstance(start_time, datetime) and isinstance(end_time, datetime):
-        try:
-            return max(0, int((end_time - start_time).total_seconds() * 1000))
-        except Exception:
-            return None
-    return None
+    if not isinstance(start_time, datetime) or not isinstance(end_time, datetime):
+        return None
+    try:
+        return max(0, int((end_time - start_time).total_seconds() * 1000))
+    except Exception:
+        return None
 
 
 def _response_usage(response):
-    # Prefer provider-native Google usage when it survived normalization.
     native = _obj_get(response, "usageMetadata", None)
     if native is None:
         native = _obj_get(response, "usage_metadata", None)
@@ -143,13 +141,17 @@ def _details(usage, primary, secondary=None):
     return value
 
 
+def _empty_tokens():
+    return {name: None for name in TOKEN_FIELDS}, {name: "unavailable" for name in TOKEN_FIELDS}
+
+
 def _set_token(tokens, basis, name, value, source_basis):
     value = _as_int(value)
     tokens[name] = value
     basis[name] = source_basis if value is not None else "unavailable"
 
 
-def _sum_modality_map(value):
+def _sum_modalities(value):
     if not isinstance(value, dict):
         return None
     return sum(int(value.get(key, 0) or 0) for key in _MODALITIES)
@@ -158,8 +160,7 @@ def _sum_modality_map(value):
 def _standardize_openai(completion_response, provider_result):
     raw = _response_usage(completion_response)
     normalized = (provider_result or {}).get("usage") or {}
-    tokens = {name: None for name in TOKEN_FIELDS}
-    basis = {name: "unavailable" for name in TOKEN_FIELDS}
+    tokens, basis = _empty_tokens()
 
     raw_input, _ = _first_present(raw, "input_tokens", "prompt_tokens")
     raw_output, _ = _first_present(raw, "output_tokens", "completion_tokens")
@@ -168,7 +169,6 @@ def _standardize_openai(completion_response, provider_result):
 
     input_details = _details(raw, "input_tokens_details", "prompt_tokens_details")
     output_details = _details(raw, "output_tokens_details", "completion_tokens_details")
-
     cached, _ = _first_present(input_details, "cached_tokens")
     cache_write, _ = _first_present(input_details, "cache_write_tokens")
     reasoning, _ = _first_present(output_details, "reasoning_tokens")
@@ -177,16 +177,24 @@ def _standardize_openai(completion_response, provider_result):
     _set_token(tokens, basis, "reasoning_tokens", reasoning, "observed")
 
     if tokens["input_tokens"] is not None and cached is not None and cache_write is not None:
-        uncached = max(0, tokens["input_tokens"] - int(cached) - int(cache_write))
-        _set_token(tokens, basis, "uncached_input_tokens", uncached, "derived")
+        _set_token(
+            tokens,
+            basis,
+            "uncached_input_tokens",
+            max(0, tokens["input_tokens"] - int(cached) - int(cache_write)),
+            "derived",
+        )
 
     provider_total, _ = _first_present(raw, "total_tokens")
     _set_token(tokens, basis, "provider_reported_total_tokens", provider_total, "observed")
-
     if tokens["input_tokens"] is not None and tokens["output_tokens"] is not None:
-        reconstructed = tokens["input_tokens"] + tokens["output_tokens"]
-        _set_token(tokens, basis, "reconstructed_total_tokens", reconstructed, "derived")
-
+        _set_token(
+            tokens,
+            basis,
+            "reconstructed_total_tokens",
+            tokens["input_tokens"] + tokens["output_tokens"],
+            "derived",
+        )
     if tokens["provider_reported_total_tokens"] is not None and tokens["reconstructed_total_tokens"] is not None:
         delta = tokens["provider_reported_total_tokens"] - tokens["reconstructed_total_tokens"]
         _set_token(tokens, basis, "reconciliation_delta_tokens", delta, "derived")
@@ -195,38 +203,35 @@ def _standardize_openai(completion_response, provider_result):
     modalities = {}
     audio_in, _ = _first_present(input_details, "audio_tokens")
     audio_out, _ = _first_present(output_details, "audio_tokens")
-    if audio_in is not None or audio_out is not None:
-        modalities = {
-            "input": {"audio": _as_int(audio_in) if audio_in is not None else None},
-            "output": {"audio": _as_int(audio_out) if audio_out is not None else None},
-        }
-
+    if audio_in is not None:
+        modalities.setdefault("input", {})["audio"] = _as_int(audio_in)
+    if audio_out is not None:
+        modalities.setdefault("output", {})["audio"] = _as_int(audio_out)
     return tokens, basis, modalities, {}, normalized
 
 
 def _standardize_anthropic(completion_response, provider_result):
     raw = _response_usage(completion_response)
     normalized = (provider_result or {}).get("usage") or {}
-    tokens = {name: None for name in TOKEN_FIELDS}
-    basis = {name: "unavailable" for name in TOKEN_FIELDS}
+    tokens, basis = _empty_tokens()
 
-    base_input = _as_int(normalized.get("input_tokens")) if normalized.get("input_basis_complete") else None
-    total_input = _as_int(normalized.get("total_input_tokens")) if normalized.get("input_basis_complete") else None
-    output = _as_int(normalized.get("output_tokens"))
+    input_observed = _first_present(raw, "input_tokens", "prompt_tokens")[0] is not None
+    output_observed = _first_present(raw, "output_tokens", "completion_tokens")[0] is not None
+    input_basis_complete = bool(normalized.get("input_basis_complete"))
 
-    _set_token(tokens, basis, "input_tokens", total_input, "derived")
-    _set_token(tokens, basis, "uncached_input_tokens", base_input, "derived")
-    _set_token(tokens, basis, "output_tokens", output, "observed" if _first_present(raw, "output_tokens", "completion_tokens")[0] is not None else "derived")
+    if input_observed and input_basis_complete:
+        _set_token(tokens, basis, "input_tokens", normalized.get("total_input_tokens"), "derived")
+        _set_token(tokens, basis, "uncached_input_tokens", normalized.get("input_tokens"), "derived")
+    if output_observed:
+        _set_token(tokens, basis, "output_tokens", normalized.get("output_tokens"), "observed")
 
-    cache_create_exposed = any(
-        _obj_has(raw, key)
-        for key in ("cache_creation_input_tokens",)
+    prompt_details = _obj_get(raw, "prompt_tokens_details", None)
+    cache_create_exposed = (
+        _obj_has(raw, "cache_creation_input_tokens")
+        or _obj_has(prompt_details, "cache_creation_tokens")
+        or _obj_has(prompt_details, "cache_write_tokens")
     )
-    cache_read_exposed = _obj_has(raw, "cache_read_input_tokens")
-    raw_prompt_details = _obj_get(raw, "prompt_tokens_details", None)
-    cache_create_exposed = cache_create_exposed or _obj_has(raw_prompt_details, "cache_creation_tokens") or _obj_has(raw_prompt_details, "cache_write_tokens")
-    cache_read_exposed = cache_read_exposed or _obj_has(raw_prompt_details, "cached_tokens")
-
+    cache_read_exposed = _obj_has(raw, "cache_read_input_tokens") or _obj_has(prompt_details, "cached_tokens")
     if cache_create_exposed:
         _set_token(tokens, basis, "cache_write_tokens", normalized.get("cache_creation_input_tokens"), "observed")
     if cache_read_exposed:
@@ -238,83 +243,101 @@ def _standardize_anthropic(completion_response, provider_result):
 
     provider_total, _ = _first_present(raw, "total_tokens")
     _set_token(tokens, basis, "provider_reported_total_tokens", provider_total, "observed")
-    if total_input is not None and output is not None:
-        _set_token(tokens, basis, "reconstructed_total_tokens", total_input + output, "derived")
+    if tokens["input_tokens"] is not None and tokens["output_tokens"] is not None:
+        _set_token(
+            tokens,
+            basis,
+            "reconstructed_total_tokens",
+            tokens["input_tokens"] + tokens["output_tokens"],
+            "derived",
+        )
     if tokens["provider_reported_total_tokens"] is not None and tokens["reconstructed_total_tokens"] is not None:
         delta = tokens["provider_reported_total_tokens"] - tokens["reconstructed_total_tokens"]
         _set_token(tokens, basis, "reconciliation_delta_tokens", delta, "derived")
         _set_token(tokens, basis, "unclassified_tokens", max(0, delta), "derived")
 
     server_tools = {}
+    raw_tools = _obj_get(raw, "server_tool_use", None)
     for key in ("web_search_requests", "web_fetch_requests"):
-        value = normalized.get(key)
-        if value is not None:
-            server_tools[key] = int(value or 0)
-
+        if _obj_has(raw_tools, key):
+            server_tools[key] = int(_obj_get(raw_tools, key, 0) or 0)
     return tokens, basis, {}, server_tools, normalized
 
 
-def _google_raw_field(raw, camel, snake=None):
-    value, key = _first_present(raw, camel, snake) if snake else _first_present(raw, camel)
-    return value, key
+def _google_modality_details_present(raw, source_shape, kind):
+    if source_shape == "google_raw":
+        fields = {
+            "uncached_input": ("promptTokensDetails", "prompt_tokens_details"),
+            "cached_input": ("cacheTokensDetails", "cache_tokens_details"),
+            "output": ("candidatesTokensDetails", "responseTokensDetails", "candidates_tokens_details", "response_tokens_details"),
+            "tool_input": ("toolUsePromptTokensDetails", "tool_use_prompt_tokens_details"),
+        }
+    else:
+        fields = {
+            "uncached_input": ("prompt_tokens_details",),
+            "cached_input": ("prompt_tokens_details",),
+            "output": ("completion_tokens_details",),
+            "tool_input": ("prompt_tokens_details",),
+        }
+    return any(_obj_has(raw, field) for field in fields.get(kind, ()))
 
 
 def _standardize_google(completion_response, provider_result):
     raw = _response_usage(completion_response)
     normalized = (provider_result or {}).get("usage") or {}
-    tokens = {name: None for name in TOKEN_FIELDS}
-    basis = {name: "unavailable" for name in TOKEN_FIELDS}
+    tokens, basis = _empty_tokens()
     source_shape = normalized.get("source_shape")
 
-    prompt = _as_int(normalized.get("prompt_total_tokens")) if source_shape != "missing" else None
-    _set_token(tokens, basis, "input_tokens", prompt, "observed" if prompt is not None else "unavailable")
-
-    cached_explicit = False
-    tool_explicit = False
-    reasoning_explicit = False
-    provider_total_explicit = False
-
     if source_shape == "google_raw":
+        input_explicit = _obj_has(raw, "promptTokenCount") or _obj_has(raw, "prompt_token_count")
+        output_explicit = (
+            _obj_has(raw, "candidatesTokenCount")
+            or _obj_has(raw, "candidates_token_count")
+            or _obj_has(raw, "responseTokenCount")
+            or _obj_has(raw, "response_token_count")
+        )
         cached_explicit = _obj_has(raw, "cachedContentTokenCount") or _obj_has(raw, "cached_content_token_count")
         tool_explicit = _obj_has(raw, "toolUsePromptTokenCount") or _obj_has(raw, "tool_use_prompt_token_count")
         reasoning_explicit = _obj_has(raw, "thoughtsTokenCount") or _obj_has(raw, "thoughts_token_count")
-        provider_total_explicit = _obj_has(raw, "totalTokenCount") or _obj_has(raw, "total_token_count")
+        total_explicit = _obj_has(raw, "totalTokenCount") or _obj_has(raw, "total_token_count")
     elif source_shape == "litellm_normalized":
-        details = _obj_get(raw, "prompt_tokens_details", None)
+        prompt_details = _obj_get(raw, "prompt_tokens_details", None)
         completion_details = _obj_get(raw, "completion_tokens_details", None)
-        cached_explicit = _obj_has(details, "cached_tokens") or _obj_has(raw, "cache_read_input_tokens")
-        tool_explicit = _obj_has(details, "tool_use_tokens")
+        input_explicit = _obj_has(raw, "prompt_tokens")
+        output_explicit = _obj_has(raw, "completion_tokens")
+        cached_explicit = _obj_has(prompt_details, "cached_tokens") or _obj_has(raw, "cache_read_input_tokens")
+        tool_explicit = _obj_has(prompt_details, "tool_use_tokens")
         reasoning_explicit = _obj_has(completion_details, "reasoning_tokens") or _obj_has(raw, "reasoning_tokens")
-        provider_total_explicit = _obj_has(raw, "total_tokens")
+        total_explicit = _obj_has(raw, "total_tokens")
+    else:
+        input_explicit = output_explicit = cached_explicit = False
+        tool_explicit = reasoning_explicit = total_explicit = False
 
+    prompt = _as_int(normalized.get("prompt_total_tokens")) if input_explicit else None
+    _set_token(tokens, basis, "input_tokens", prompt, "observed")
     if cached_explicit:
         cached = _as_int(normalized.get("cached_tokens"))
         _set_token(tokens, basis, "cached_input_tokens", cached, "observed")
         if prompt is not None and cached is not None:
             _set_token(tokens, basis, "uncached_input_tokens", max(0, prompt - cached), "derived")
-
     if tool_explicit:
         _set_token(tokens, basis, "tool_input_tokens", normalized.get("tool_use_prompt_tokens"), "observed")
-
     if reasoning_explicit:
         _set_token(tokens, basis, "reasoning_tokens", normalized.get("thinking_tokens"), "observed")
 
-    output_including_reasoning = _as_int(normalized.get("output_tokens_including_thinking"))
-    if output_including_reasoning is not None:
+    if output_explicit:
+        output_including_reasoning = _as_int(normalized.get("output_tokens_including_thinking"))
         output_excluding_reasoning = output_including_reasoning
-        if tokens["reasoning_tokens"] is not None and source_shape == "litellm_normalized":
+        if source_shape == "litellm_normalized" and tokens["reasoning_tokens"] is not None:
             output_excluding_reasoning = max(0, output_including_reasoning - tokens["reasoning_tokens"])
         elif source_shape == "google_raw":
-            candidate_modalities = normalized.get("candidate_output_modalities") or {}
-            candidate_sum = _sum_modality_map(candidate_modalities)
+            candidate_sum = _sum_modalities(normalized.get("candidate_output_modalities") or {})
             if candidate_sum is not None:
                 output_excluding_reasoning = candidate_sum
         _set_token(tokens, basis, "output_tokens", output_excluding_reasoning, "derived")
 
-    if provider_total_explicit:
+    if total_explicit:
         _set_token(tokens, basis, "provider_reported_total_tokens", normalized.get("total_tokens"), "observed")
-
-    if tokens["provider_reported_total_tokens"] is not None:
         unattributed = _as_int(normalized.get("unattributed_tokens"))
         if unattributed is not None:
             _set_token(tokens, basis, "unclassified_tokens", unattributed, "derived")
@@ -325,43 +348,33 @@ def _standardize_google(completion_response, provider_result):
                 max(0, tokens["provider_reported_total_tokens"] - unattributed),
                 "derived",
             )
-            _set_token(
-                tokens,
-                basis,
-                "reconciliation_delta_tokens",
-                unattributed,
-                "derived",
-            )
-    elif tokens["input_tokens"] is not None and tokens["output_tokens"] is not None:
-        tool = tokens["tool_input_tokens"] or 0
-        reasoning = tokens["reasoning_tokens"] or 0
-        reconstructed = tokens["input_tokens"] + tool + tokens["output_tokens"] + reasoning
-        _set_token(tokens, basis, "reconstructed_total_tokens", reconstructed, "derived")
+            _set_token(tokens, basis, "reconciliation_delta_tokens", unattributed, "derived")
 
     modalities = {}
-    for output_name, normalized_name in (
+    for bucket, normalized_name in (
         ("uncached_input", "uncached_input_modalities"),
         ("cached_input", "cached_input_modalities"),
         ("output", "candidate_output_modalities"),
         ("tool_input", "tool_use_prompt_modalities"),
     ):
         value = normalized.get(normalized_name)
-        if isinstance(value, dict) and (any(int(value.get(k, 0) or 0) for k in _MODALITIES) or normalized_name == "tool_use_prompt_modalities"):
-            modalities[output_name] = {key: _as_int(value.get(key)) for key in _MODALITIES if value.get(key) is not None}
+        if not _google_modality_details_present(raw, source_shape, bucket) or not isinstance(value, dict):
+            continue
+        cleaned = {key: _as_int(value.get(key)) for key in _MODALITIES if value.get(key) is not None}
+        if cleaned:
+            modalities[bucket] = cleaned
 
-    grounding = normalized.get("grounding") or {}
     server_tools = {}
+    grounding = normalized.get("grounding") or {}
     if grounding.get("grounding_metadata_observed"):
         server_tools["search_query_count"] = int(grounding.get("search_query_count", 0) or 0)
         server_tools["maps_used"] = bool(grounding.get("maps_used", False))
-
     return tokens, basis, modalities, server_tools, normalized
 
 
 def _standardize_generic(completion_response):
     raw = _response_usage(completion_response)
-    tokens = {name: None for name in TOKEN_FIELDS}
-    basis = {name: "unavailable" for name in TOKEN_FIELDS}
+    tokens, basis = _empty_tokens()
     input_value, _ = _first_present(raw, "input_tokens", "prompt_tokens")
     output_value, _ = _first_present(raw, "output_tokens", "completion_tokens")
     provider_total, _ = _first_present(raw, "total_tokens")
@@ -378,8 +391,13 @@ def _standardize_generic(completion_response):
     if tokens["input_tokens"] is not None and cached is not None:
         _set_token(tokens, basis, "uncached_input_tokens", max(0, tokens["input_tokens"] - int(cached)), "derived")
     if tokens["input_tokens"] is not None and tokens["output_tokens"] is not None:
-        reconstructed = tokens["input_tokens"] + tokens["output_tokens"]
-        _set_token(tokens, basis, "reconstructed_total_tokens", reconstructed, "derived")
+        _set_token(
+            tokens,
+            basis,
+            "reconstructed_total_tokens",
+            tokens["input_tokens"] + tokens["output_tokens"],
+            "derived",
+        )
     if tokens["provider_reported_total_tokens"] is not None and tokens["reconstructed_total_tokens"] is not None:
         delta = tokens["provider_reported_total_tokens"] - tokens["reconstructed_total_tokens"]
         _set_token(tokens, basis, "reconciliation_delta_tokens", delta, "derived")
@@ -429,11 +447,8 @@ def build_turn_record(
 ):
     provider = infer_provider(requested_model_id, provider_result)
     tokens, token_basis, modalities, server_tools, normalized_usage = standardize_tokens(
-        provider,
-        completion_response,
-        provider_result,
+        provider, completion_response, provider_result
     )
-
     observed_model = (provider_result or {}).get("response_model_id") or _response_model(completion_response)
     canonical_model = (provider_result or {}).get("canonical_model_id")
     verified_at = (provider_result or {}).get("verified_at")
@@ -441,14 +456,13 @@ def build_turn_record(
     observed_tier = None
     if provider == "openai" and (provider_result or {}).get("service_tier_source") == "response":
         observed_tier = (provider_result or {}).get("service_tier")
-    elif provider in {"anthropic", "google"}:
-        observed_tier = normalized_usage.get("service_tier") if isinstance(normalized_usage, dict) else None
+    elif provider in {"anthropic", "google"} and isinstance(normalized_usage, dict):
+        observed_tier = normalized_usage.get("service_tier")
 
     state_after = state_after or {}
-    turn_key = str(turn_id or uuid.uuid4().hex)
     return {
         "schema_version": SCHEMA_VERSION,
-        "turn_id": turn_key,
+        "turn_id": str(turn_id or uuid.uuid4().hex),
         "thread_id": str(thread_id or "default"),
         "started_at": _iso_time(start_time),
         "completed_at": _iso_time(end_time),
@@ -465,7 +479,7 @@ def build_turn_record(
         "modalities": modalities,
         "server_tools": server_tools,
         "estimated_cost_usd": float(estimated_cost_usd) if estimated_cost_usd is not None else None,
-        "estimated_cost_nanos": usd_to_nanos(estimated_cost_usd),
+        "estimated_cost_picos": usd_to_picos(estimated_cost_usd),
         "pricing_components_usd": (provider_result or {}).get("components_usd") or {},
         "cost_basis": str(cost_basis or "unavailable"),
         "estimate_complete": bool(estimate_complete),
@@ -490,7 +504,12 @@ def build_turn_record(
 
 def _numeric_tree(value):
     if isinstance(value, dict):
-        return {str(k): _numeric_tree(v) for k, v in value.items() if _numeric_tree(v) is not None}
+        cleaned = {}
+        for key, child in value.items():
+            parsed = _numeric_tree(child)
+            if parsed is not None:
+                cleaned[str(key)] = parsed
+        return cleaned
     if isinstance(value, bool):
         return value
     if isinstance(value, (int, float)):
@@ -499,10 +518,10 @@ def _numeric_tree(value):
 
 
 def _sanitize_record(record):
-    tokens = {}
-    basis = {}
     raw_tokens = record.get("tokens") if isinstance(record.get("tokens"), dict) else {}
     raw_basis = record.get("token_basis") if isinstance(record.get("token_basis"), dict) else {}
+    tokens = {}
+    basis = {}
     for name in TOKEN_FIELDS:
         value = _as_int(raw_tokens.get(name))
         tokens[name] = value
@@ -525,9 +544,8 @@ def _sanitize_record(record):
         if key in raw_tools:
             server_tools[key] = bool(raw_tools[key]) if key == "maps_used" else int(raw_tools[key] or 0)
 
-    cleaned_components = _numeric_tree(record.get("pricing_components_usd") or {}) or {}
     notes = record.get("notes") if isinstance(record.get("notes"), list) else []
-
+    cost = float(record["estimated_cost_usd"]) if record.get("estimated_cost_usd") is not None else None
     return {
         "schema_version": SCHEMA_VERSION,
         "turn_id": str(record.get("turn_id") or "").strip(),
@@ -546,9 +564,9 @@ def _sanitize_record(record):
         "token_basis": basis,
         "modalities": modalities,
         "server_tools": server_tools,
-        "estimated_cost_usd": float(record["estimated_cost_usd"]) if record.get("estimated_cost_usd") is not None else None,
-        "estimated_cost_nanos": usd_to_nanos(record.get("estimated_cost_usd")),
-        "pricing_components_usd": cleaned_components,
+        "estimated_cost_usd": cost,
+        "estimated_cost_picos": usd_to_picos(cost),
+        "pricing_components_usd": _numeric_tree(record.get("pricing_components_usd") or {}) or {},
         "cost_basis": str(record.get("cost_basis") or "unavailable"),
         "estimate_complete": bool(record.get("estimate_complete", False)),
         "notes": [str(note) for note in notes],
@@ -588,13 +606,12 @@ def _ensure_seen_ids_locked(path):
     global _SEEN_LEDGER_PATH, _SEEN_TURN_IDS
     resolved = str(path.resolve())
     if _SEEN_TURN_IDS is None or _SEEN_LEDGER_PATH != resolved:
-        records = _read_lines_locked(path)
-        _SEEN_TURN_IDS = {str(record["turn_id"]) for record in records}
+        _SEEN_TURN_IDS = {str(record["turn_id"]) for record in _read_lines_locked(path)}
         _SEEN_LEDGER_PATH = resolved
 
 
 def append_turn(record):
-    """Append one whitelisted telemetry record. Returns False for duplicate turn IDs."""
+    """Append one whitelisted telemetry record. Return False for duplicate turn IDs."""
     cleaned = _sanitize_record(record)
     if not cleaned["turn_id"]:
         raise ValueError("turn_id must be non-empty")
@@ -619,8 +636,8 @@ def read_turns(*, thread_id=None):
         records = _read_lines_locked(path)
     if thread_id is None:
         return records
-    thread_key = str(thread_id)
-    return [record for record in records if str(record.get("thread_id")) == thread_key]
+    key = str(thread_id)
+    return [record for record in records if str(record.get("thread_id")) == key]
 
 
 def _new_token_summary():
@@ -636,9 +653,9 @@ def _add_record_to_summary(summary, record):
             continue
         summary["tokens"][name]["sum"] += int(value)
         summary["tokens"][name]["observed_turns"] += 1
-    nanos = record.get("estimated_cost_nanos")
-    if nanos is not None:
-        summary["estimated_cost_nanos"] += int(nanos)
+    picos = record.get("estimated_cost_picos")
+    if picos is not None:
+        summary["estimated_cost_picos"] += int(picos)
         summary["cost_observed_turns"] += 1
 
 
@@ -648,7 +665,7 @@ def summarize_thread(thread_id):
         "thread_id": str(thread_id),
         "turn_count": 0,
         "tokens": _new_token_summary(),
-        "estimated_cost_nanos": 0,
+        "estimated_cost_picos": 0,
         "estimated_cost_usd": 0.0,
         "cost_observed_turns": 0,
         "by_model": {},
@@ -667,14 +684,14 @@ def summarize_thread(thread_id):
                 "provider": record.get("provider") or "unknown",
                 "turn_count": 0,
                 "tokens": _new_token_summary(),
-                "estimated_cost_nanos": 0,
+                "estimated_cost_picos": 0,
                 "estimated_cost_usd": 0.0,
                 "cost_observed_turns": 0,
             },
         )
         _add_record_to_summary(model_summary, record)
 
-    summary["estimated_cost_usd"] = nanos_to_usd(summary["estimated_cost_nanos"])
+    summary["estimated_cost_usd"] = picos_to_usd(summary["estimated_cost_picos"])
     for model_summary in summary["by_model"].values():
-        model_summary["estimated_cost_usd"] = nanos_to_usd(model_summary["estimated_cost_nanos"])
+        model_summary["estimated_cost_usd"] = picos_to_usd(model_summary["estimated_cost_picos"])
     return summary
