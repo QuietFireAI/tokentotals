@@ -1,6 +1,8 @@
 from pathlib import Path
 import re
 
+import runtime_compat
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -39,6 +41,17 @@ def test_ci_uses_clean_constrained_environments_on_linux_and_windows():
     assert "build-tool-smoke-windows:" in workflow
     assert workflow.count("python -m venv .venv") >= 4
     assert workflow.count("constraints-py312.txt") >= 4
+
+
+def test_python_runtime_contract_is_daily_and_consistent():
+    workflow = (ROOT / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8-sig")
+    build = (ROOT / "build.ps1").read_text(encoding="utf-8-sig")
+
+    assert runtime_compat.SUPPORTED_PYTHON == (3, 12)
+    assert "cron: '17 09 * * *'" in workflow
+    assert workflow.count("python-version: '3.12'") >= 4
+    assert workflow.count("runtime_compat.py") >= 4
+    assert 'Trim() -ne "3.12"' in build
 
 
 def test_windows_build_is_python312_and_constraint_bound():
