@@ -16,7 +16,7 @@ See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_ST
 - Checked-in, dated base pricing catalog with official provider receipt URLs.
 - Official-source OpenAI pricing checker for the supported OpenAI models in this revision.
 - Validated OpenAI candidate snapshots that are promoted separately from the last verified runtime snapshot.
-- Non-destructive daily source-drift validation for the dated Anthropic and Google matrix rates.
+- Non-destructive daily source-drift validation for the dated Anthropic and Google matrix base rates and represented conservative guard rates.
 - Unknown model pricing **fails closed** instead of using a generic dollar fallback.
 - Conservative pre-flight reservation for estimated input **and bounded output** tokens.
 - Atomic in-process budget check/reservation and post-response reconciliation.
@@ -38,7 +38,7 @@ See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_ST
 - Pre-flight token counts are **not represented as provider/model BPE counts**. The current local estimator is a conservative UTF-8 length heuristic.
 - TokenTotals does not claim invoice parity or guaranteed identity with provider billing.
 - The current OpenAI source synchronization is not the same thing as a complete OpenAI billing adapter. Service-tier, cache, context-band, regional, tool, modality, storage, and other billing-event accounting are implemented only when specifically documented and tested.
-- Anthropic and Google do not yet have the dynamic official-source synchronization path implemented for OpenAI; they remain dated verified catalog entries in this revision. Their live source-drift check validates those dated entries but does not automatically promote new rates into runtime pricing.
+- Anthropic and Google do not yet have the dynamic official-source synchronization path implemented for OpenAI; they remain dated verified catalog entries in this revision. Their live source-drift check validates represented base/standard and conservative guard rates but does not automatically promote new rates into runtime pricing.
 - It does not intercept applications that bypass the configured local proxy.
 - It does not provide a TokenTotals WebSocket proxy endpoint.
 - It does not inject a telemetry badge into every IDE/chat turn.
@@ -65,7 +65,7 @@ Official pricing receipts used by this revision:
 - Anthropic: https://platform.claude.com/docs/en/about-claude/pricing
 - Google Cloud: https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
 
-Anthropic and Google continue to use the checked-in dated catalog until equivalent official-source adapters are separately implemented and tested. `matrix_source_check.py` independently checks their represented base/standard matrix rates against those official pages every day and on relevant pricing changes. It is deliberately non-destructive: drift, a parsing ambiguity, a missing model row, or an expired effective-dated rate fails the check rather than rewriting runtime pricing.
+Anthropic and Google continue to use the checked-in dated catalog until equivalent official-source adapters are separately implemented and tested. `matrix_source_check.py` independently checks their represented base/standard rates and conservative guard rates against those official pages every day and on relevant pricing changes. It is deliberately non-destructive: drift, a parsing ambiguity, a missing model row, an unsupported guard value, or an expired effective-dated rate fails the check rather than rewriting runtime pricing.
 
 The Google Gemini 3.6/3.7/3.8 Flash promotional rates represented in this revision are effective only through **2026-12-31**. Their catalog records carry that expiration so the validator cannot continue treating the historical promotional number as current after its effective window ends.
 
@@ -93,10 +93,10 @@ This table is generated from the same `pricing_engine` view used by the proxy an
 | Anthropic | `claude-haiku-4.5` | $1 | $5 | $0.020000 | $0.030000 |
 | Anthropic | `claude-opus-5` | $5 | $25 | $0.100000 | $0.150000 |
 | Anthropic | `claude-sonnet-5` | $2 | $10 | $0.040000 | $0.060000 |
-| Google | `gemini-3.1-flash-lite` | $0.25 | $1.5 | $0.005500 | $0.008800 |
+| Google | `gemini-3.1-flash-lite` | $0.25 | $1.5 | $0.005500 | $0.010890 |
 | Google | `gemini-3.1-pro-preview` | $2 | $12 | $0.044000 | $0.136800 |
 | Google | `gemini-3.5-flash` | $1.5 | $9 | $0.033000 | $0.065340 |
-| Google | `gemini-3.5-flash-lite` | $0.3 | $2.5 | $0.008000 | $0.011440 |
+| Google | `gemini-3.5-flash-lite` | $0.3 | $2.5 | $0.008000 | $0.015840 |
 | Google | `gemini-3.6-flash` | $0.75 | $3.75 | $0.015000 | $0.029700 |
 | Google | `gemini-3.7-flash` | $0.75 | $3.75 | $0.015000 | $0.029700 |
 | Google | `gemini-3.8-flash` | $0.75 | $3.75 | $0.015000 | $0.029700 |
@@ -255,7 +255,7 @@ The forensic hardening suite now covers:
 - review-required handling when source content changes without a recognized pricing/rule change;
 - committed matrix and README pricing-block drift detection against the base verified pricing view;
 - Anthropic/Google live matrix-source parsing anchored to their base/standard pricing sections;
-- live source-rate drift rejection rather than silent catalog acceptance;
+- live base-rate and guard-rate drift rejection rather than silent catalog acceptance;
 - effective-date expiry enforcement for promotional matrix rates;
 - clean-install use of the real declared LiteLLM dependency rather than a test-injected stand-in;
 - public-claim guards that prevent a blanket all-provider “audited live” claim and preserve the actual provider synchronization scope;
@@ -264,7 +264,7 @@ The forensic hardening suite now covers:
 - Python 3.12 agreement across the compatibility contract, CI, and Windows build path;
 - constrained Windows PyInstaller packaging dependencies.
 
-The latest focused regression revision passed **48 tests / 0 failures** on Ubuntu/Python 3.12 before this generated-pricing synchronization change. Separate clean-environment jobs continue to exercise the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The non-destructive matrix-source workflow previously passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass. This is regression/source-validation evidence, not a substitute for live-provider integration, broader load, final executable packaging, or security testing.
+The latest focused regression revision passed **48 tests / 0 failures** on Ubuntu/Python 3.12 before this generated-pricing synchronization and guard-rate correction. Separate clean-environment jobs continue to exercise the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The non-destructive matrix-source workflow previously passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass; the current change extends that daily check to the represented conservative guard rates as well. This is regression/source-validation evidence, not a substitute for live-provider integration, broader load, final executable packaging, or security testing.
 
 See [`docs/IR-007_OUTPUT_RESERVATION_PROOF.md`](docs/IR-007_OUTPUT_RESERVATION_PROOF.md) for output-reservation evidence, [`docs/IR-008_CONCURRENT_RESERVATION_PROOF.md`](docs/IR-008_CONCURRENT_RESERVATION_PROOF.md) for in-process contention evidence, [`docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md`](docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md) for request-context isolation evidence, [`docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md`](docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md) for unlock acknowledgment evidence, [`docs/IR-011_BOOST_AND_BROWSER_ORIGIN_PROOF.md`](docs/IR-011_BOOST_AND_BROWSER_ORIGIN_PROOF.md) for budget-control/browser-origin evidence, [`docs/IR-012_DASHBOARD_TELEMETRY_INTEGRITY_PROOF.md`](docs/IR-012_DASHBOARD_TELEMETRY_INTEGRITY_PROOF.md) for dashboard telemetry-integrity evidence, [`docs/IR-013_TELEMETRY_BADGE_CLAIM_PROOF.md`](docs/IR-013_TELEMETRY_BADGE_CLAIM_PROOF.md) for the in-context badge claim boundary, and [`docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md`](docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md) for dependency-reproducibility and daily Python compatibility evidence.
 
