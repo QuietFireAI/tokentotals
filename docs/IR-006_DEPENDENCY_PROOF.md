@@ -51,45 +51,38 @@ The test suite no longer injects a fake `litellm` module that could make a missi
 
 ## Dedicated runtime-only clean-install proof
 
-The GitHub Actions `tests` workflow now contains a separate `runtime-smoke` job that does **not** install `requirements-dev.txt` or pytest.
+The GitHub Actions workflow now performs clean runtime smoke checks independently of the pytest dependency set. Each smoke job creates a fresh virtual environment, installs the declared runtime requirements through the validated Python 3.12 constraints, runs `pip check`, imports both `litellm` and the production `proxy_server`, and verifies that `proxy_server.litellm` is the installed LiteLLM module.
 
-On a fresh Ubuntu / Python 3.12 runner it performs:
-
-```text
-python -m pip install -r requirements.txt
-python -m pip check
-```
-
-It then imports both `litellm` and the production `proxy_server`, verifies that `proxy_server.litellm` is the same installed module, verifies that `litellm.acompletion` is callable, and reports the installed LiteLLM package version.
+The runtime-only proof now runs on both Ubuntu and Windows.
 
 ### 2026-09-15 result
 
-- runtime requirements installation: **PASS**
-- `pip check`: **PASS** — `No broken requirements found.`
-- LiteLLM installed from `requirements.txt`: **PASS**
-- resolved LiteLLM version in that run: **1.101.0**
-- production `proxy_server` import: **PASS**
-- identity check (`proxy_server.litellm is litellm`): **PASS**
-- normal regression suite on the same branch revision: **PASS**
+- clean runtime requirements installation: **PASS** on Ubuntu and Windows;
+- `pip check`: **PASS**;
+- LiteLLM installed from the declared runtime requirements: **PASS**;
+- constrained LiteLLM version: **1.101.0**;
+- production `proxy_server` import: **PASS** on Ubuntu and Windows;
+- identity check (`proxy_server.litellm is litellm`): **PASS**;
+- normal constrained regression suite on the final IR-020 revision: **33 passed / 0 failed**.
 
-This proves the repaired runtime dependency declaration works in a fresh environment independently of the development/test dependency set.
+This proves the repaired runtime dependency declaration works in fresh environments independently of the development/test dependency set.
 
 ## Packaging path
 
-`build.ps1` installs `requirements.txt` before invoking PyInstaller, so the Windows build path consumes the same declared runtime dependency list rather than a developer-private dependency directory.
+`build.ps1` consumes the same declared runtime dependency list and the validated Python 3.12 constraints before invoking PyInstaller. The Windows build-tool smoke job separately verifies the constrained packaging dependency graph.
 
-This is evidence about dependency declaration and installation. It is **not** a claim that the final Windows executable has completed release-level packaging validation on every supported machine.
+This is evidence about dependency declaration, constrained installation, and the packaging dependency path. It is **not** a claim that the final Windows executable has completed release-level packaging validation on every supported machine.
 
-## Separate follow-up risk: dependency reproducibility
+## Reproducibility follow-up resolved separately
 
-The current `requirements.txt` entries are unpinned, and this revision does not contain a lock or constraints file.
+The unpinned-dependency limitation originally recorded during IR-006 was kept separate from the missing-dependency defect. It is now tracked and repaired as **IR-020 — dependency reproducibility**.
 
-That does **not** reopen IR-006: the required dependency is now declared and clean-installable. It does mean that installs performed on different dates can resolve different package versions and transitive dependency graphs.
+See [`IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md`](IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md) for the measured Linux/Windows dependency graph, `constraints-py312.txt`, constrained PyInstaller toolchain, clean-venv proof, Python 3.12 compatibility contract, and daily runtime-version/dependency-drift watch.
 
-Treat reproducible dependency locking / constraints as a separate hardening item rather than calling IR-006 incomplete.
+IR-020 provides version reproducibility for the validated dependency graph; it does not claim cryptographic package-artifact/hash pinning.
 
 ## Verdict
 
 **IR-006 — PASS: REPAIRED AND REVALIDATED.**
 
-The original missing-runtime-dependency defect is removed, the real package is exercised in clean CI, and a runtime-only smoke job now makes the dependency invariant independently testable.
+The original missing-runtime-dependency defect is removed, the real package is exercised in clean CI, and clean runtime smoke jobs make the dependency invariant independently testable on both Linux and Windows.
