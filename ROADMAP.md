@@ -55,46 +55,55 @@ Verification receipt:
 
 ### 3. Turn/thread telemetry presentation and Turn Notice
 
-**Status:** Next engineering item.
+**Status:** Complete and verified.
 
-Use the ledger to expose the token and cost metrics developers can inspect while a session is still running. Prefer factual/derived labels over ambiguous financial or capability language.
+TokenTotals now exposes a privacy-safe presentation layer derived from the append-only turn ledger. The local API and dashboard preserve data coverage rather than presenting missing fields as zero.
 
-Priority turn metrics include:
+Implemented turn/thread presentation includes, when available:
 
-- requested/observed model and provider;
-- input, uncached input, cached input, cache-write, output, reasoning/thinking, tool-use, and modality categories when exposed;
-- provider-reported total tokens;
-- TokenTotals reconstructed total tokens;
-- unclassified/residual token count when totals do not reconcile;
-- cache share of observed input, without equating token share to dollar savings;
-- input/output and reasoning shares where meaningful;
-- context occupancy against a documented model context limit only when a defensible source is available;
-- latency and true output tokens/second where measurable;
-- estimated turn cost, cost components, pricing basis, registry verification date, and complete/incomplete estimate status.
+- requested/canonical/observed model identity and provider;
+- input, uncached input, cached input, cache-write/create, output, reasoning/thinking, tool-use, provider-total, reconstructed-total, and residual/unclassified token categories;
+- observed / derived / unavailable basis for token values;
+- turn cost, cost basis, pricing-registry verification date, and complete/incomplete estimate state;
+- per-field thread coverage, local estimated-cost coverage, average/median/P95 turn-token size, latency, and wall-clock output token rate;
+- observed cached-input share without equating token share to dollar savings; and
+- independent totals by model/provider inside one continuing mixed-model thread.
 
-Priority historical/thread metrics include:
+The presentation endpoint is:
 
-- total turns and total observed/reconstructed tokens;
-- totals by model/provider inside the same thread;
-- model-switch timeline;
-- input / cached / uncached / cache-write / output / reasoning / tool / modality totals;
-- average, median, and P95 tokens per turn;
-- largest token turn and most expensive estimated turn;
-- context-growth history only where defensibly measurable;
-- cumulative local estimated thread cost with its estimate basis/coverage preserved.
+- `GET /api/telemetry/thread?thread_id=<id>`
 
-**Turn Notice** is the generic notification event name. A configurable Turn Notice may fire when an individual preflight or completed-turn estimate crosses a user-selected reminder value. The notice must say what was estimated/observed and why it fired; it must not imply provider-account clearance or a guaranteed maximum cost for the next action.
+It returns the normalized presentation object rather than raw JSONL. Unknown threads, blank identifiers, and ledger corruption have explicit HTTP behavior.
 
-The configured dollar threshold is a **local Reminder Threshold**, not an upstream provider balance, credit limit, spending allowance, or statement such as `you have $X left`. Launch-facing copy should avoid `remaining budget`, `available financial headroom`, or `runway` language that could be interpreted by a human or autonomous agent as financial permission for the next turn.
+**Turn Notice is implemented as an opt-in derived notification event, not accounting state.** The configuration key `turn_notice_threshold_usd` defaults to `null`/disabled. When the user selects a positive local per-turn reminder value, TokenTotals can emit separate preflight and completed-turn notices. Preflight notices explicitly state that the estimate is input-side and final turn cost can differ; completed notices preserve the settled cost basis/completeness and state that provider account records remain authoritative.
+
+Turn Notice is available through:
+
+- `GET /api/turn-notice`
+- `POST /api/turn-notice/config`
+- the localhost dashboard; and
+- the desktop tray notification surface in the normal same-process desktop runtime.
+
+The tray deduplicates by event ID and consumes stale events while notices are disabled so re-enabling does not resurrect an old notification. The local lock popup also now states the real boundary: it pauses new requests routed through this TokenTotals proxy; direct requests outside TokenTotals, already in-flight provider work, and provider-account billing remain outside that local lock.
+
+Context occupancy remains unavailable rather than fabricated until a defensible normalized source is modeled and tested.
+
+Verification receipts:
+
+- `archive/verification-receipts/2026-09-15_thread-telemetry-api-recheck.md`
+- `archive/verification-receipts/2026-09-15_turn-notice-recheck.md`
+- final runtime/dashboard/tray acceptance: **161/161 tests passed** on GitHub Actions run `35035438788`, job `104603395283`.
+- the receipt preserves the earlier dashboard acceptance failure where 155/157 passed and two stale assertions were repaired without changing working runtime behavior.
 
 ### 4. Public wording cleanup
 
-**Status:** Small cleanup item.
+**Status:** Next engineering item.
 
 Reconcile top-level presentation language with the final product boundaries:
 
 - replace remaining `zero-egress` shorthand with the accurate local-control-plane/upstream-egress description;
 - replace launch-facing `budget`, `remaining`, `headroom`, and similar financial-clearance wording with `local estimated spend`, `Reminder Threshold`, `threshold state`, and `Turn Notice` where appropriate;
+- preserve backward-compatible internal/API field names only where changing them would unnecessarily break existing clients, while keeping launch-facing copy neutral; and
 - preserve the fact that TokenTotals does not know the user's provider balance, subscription/plan credits, negotiated pricing, or authoritative remaining account funds.
 
 The accurate network boundary is: TokenTotals' control plane and state are local/loopback and it does not require a TokenTotals-operated telemetry SaaS, while permitted requests still egress to the selected upstream model provider.
@@ -142,4 +151,4 @@ This track is intentionally held back until the delivery methodology is strong e
 
 ## Completed hardening milestones
 
-The repository's verification receipts under `archive/verification-receipts/` are the evidence source for completed work, including provider-specific pricing engines, removal of the legacy pricing sync and machine-specific fallback, runtime model-catalog hardening, retirement of automatic model substitution, public pricing-document reconciliation, dashboard truthfulness, concurrent post-response accounting, in-flight preflight reservation, high-precision local spend accumulation, and the append-only local turn telemetry ledger.
+The repository's verification receipts under `archive/verification-receipts/` are the evidence source for completed work, including provider-specific pricing engines, removal of the legacy pricing sync and machine-specific fallback, runtime model-catalog hardening, retirement of automatic model substitution, public pricing-document reconciliation, dashboard truthfulness, concurrent post-response accounting, in-flight preflight reservation, high-precision local spend accumulation, the append-only local turn telemetry ledger, thread telemetry presentation API, and opt-in Turn Notice dashboard/tray presentation.
