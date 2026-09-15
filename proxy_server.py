@@ -77,6 +77,28 @@ def _require_ack(payload: dict, expected: str, field: str = "acknowledgement"):
         raise HTTPException(status_code=400, detail=f"Type exactly '{expected}' to continue.")
 
 
+def _requested_output_bound(payload: dict) -> int | None:
+    """Return the largest caller-supplied output ceiling.
+
+    Clients/providers use both max_tokens and max_completion_tokens. If both are
+    present, reserving against the smaller one can under-reserve if a downstream path
+    honors the larger field, so the budget gate always uses the largest valid bound.
+    """
+    bounds = []
+    for field in ("max_tokens", "max_completion_tokens"):
+        value = payload.get(field)
+        if value is None:
+            continue
+        try:
+            parsed = int(value)
+        except Exception:
+            raise HTTPException(status_code=400, detail=f"{field} must be an integer")
+        if parsed <= 0:
+            raise HTTPException(status_code=400, detail=f"{field} must be positive")
+        bounds.append(parsed)
+    return max(bounds) if bounds else None
+
+
 @app.get("/v1/models")
 async def list_models():
     data = []
@@ -189,7 +211,7 @@ async def proxy_openai(request: Request):
         config_manager.set_locked(True)
         raise HTTPException(status_code=403, detail="Circuit breaker: conservative input reservation alone would exceed the remaining daily budget.")
 
-    requested_output = payload.get("max_completion_tokens", payload.get("max_tokens"))
+    requested_output = _requested_output_bound(payload)
     if requested_output is None:
         affordable = affordable_output_tokens(pricing, remaining_after_input)
         configured_default = max(1, int(conf.get("default_max_output_tokens", 4096)))
@@ -199,12 +221,7 @@ async def proxy_openai(request: Request):
             raise HTTPException(status_code=403, detail="Circuit breaker: no output budget remains.")
         payload["max_tokens"] = reserved_output_tokens
     else:
-        try:
-            reserved_output_tokens = int(requested_output)
-        except Exception:
-            raise HTTPException(status_code=400, detail="max_tokens/max_completion_tokens must be an integer")
-        if reserved_output_tokens <= 0:
-            raise HTTPException(status_code=400, detail="max_tokens/max_completion_tokens must be positive")
+        reserved_output_tokens = requested_output
 
     reserved = calculate_cost(pricing, estimated_input_tokens, reserved_output_tokens, conservative=True)["total_cost_usd"]
     word_count = len(prompt_text.split())
