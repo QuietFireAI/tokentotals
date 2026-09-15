@@ -84,6 +84,8 @@ TokenTotals intentionally does **not** silently replace the model or provider re
 * Before a request is sent, TokenTotals calculates a best-effort input-side preflight estimate and compares it with the configured local daily threshold.
 * If the request would exceed that local threshold, TokenTotals rejects it before the upstream completion call and marks the local state locked.
 * A topmost desktop modal can require **`"I UNDERSTAND"`** or **`[ +$5 Quick Boost ]`** to resume.
+* **Current concurrency boundary:** completed responses are attributed through request-local callback metadata, and local spend/state updates are serialized inside the single TokenTotals daemon so overlapping callbacks do not overwrite one another. Same-day thread totals are maintained independently even when completions arrive out of order.
+* **Not yet an in-flight reservation system:** simultaneous requests can still perform their preflight checks before either request has posted its eventual response cost. The current pacing check therefore does not claim to reserve estimated budget headroom across all requests already in flight.
 
 ### 2. 🚦 Traffic Light Glanceable Tray Icon
 * 🟢 **Green "T":** Under 75% of daily budget.
@@ -197,6 +199,7 @@ We encourage developers, researchers, and community builders to:
 2. **Local Best-Effort Estimation:** Dollar metrics such as Today's Spend and Thread Spend are locally computed estimates based on billing-relevant telemetry available to the proxy, combined with versioned provider-published pricing references and known provider-specific rules. They can differ from final invoices because providers may apply cached/cache-write pricing, processing tiers, long-context rules, hosted-tool charges, batch modes, regional or account-specific pricing, negotiated discounts, credits, taxes, delayed or omitted telemetry, and pricing changes.
 3. **Pacing & Protection, Not Invoicing:** TokenTotals is designed as a local airbag and telemetry monitor for development workflows. It does not replace, modify, or claim to reproduce provider billing statements. The provider's final invoice and account records remain authoritative.
 4. **Model Integrity:** TokenTotals does not infer that a cheaper model is an equivalent substitute for the model a client requested. Automatic model/provider downgrade routing was retired; model choice remains explicit.
+5. **Concurrency Scope:** Post-response accounting is serialized within the normal single local TokenTotals daemon and uses request-local callback attribution. This does not constitute a distributed transaction system or guarantee that preflight headroom has been reserved for every simultaneously in-flight request.
 
 ---
 
