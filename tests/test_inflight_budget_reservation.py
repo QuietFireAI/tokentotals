@@ -205,7 +205,7 @@ class InflightBudgetReservationTests(unittest.TestCase):
         self.assertEqual(config_manager.get_inflight_reserved_usd(), 0.0)
         self.assertEqual(config_manager.get_state()["current_spend_usd"], 0.20)
 
-    def test_status_reports_actual_spend_inflight_commitment_and_available_headroom(self):
+    def test_status_reports_posted_inflight_and_combined_threshold_state(self):
         config_manager.update_spend(0.20, thread_id="seed")
         reservation = config_manager.reserve_preflight_budget("status", 0.25, thread_id="A")
         self.assertTrue(reservation["accepted"])
@@ -224,7 +224,8 @@ class InflightBudgetReservationTests(unittest.TestCase):
         self.assertEqual(payload["pacing_threshold_usd"], 1.0)
         self.assertEqual(payload["posted_threshold_pct"], 20.0)
         self.assertEqual(payload["combined_threshold_pct"], 45.0)
-        self.assertEqual(payload["active_thread_id"], "A")
+        # Reserving a request does not rewrite the last settled/tracked thread.
+        self.assertEqual(payload["active_thread_id"], "seed")
         self.assertIn("Combined local estimate", proxy_server.DASHBOARD_HTML)
         self.assertIn("in-flight preflight estimate", proxy_server.DASHBOARD_HTML)
         self.assertNotIn("Available headroom", proxy_server.DASHBOARD_HTML)
