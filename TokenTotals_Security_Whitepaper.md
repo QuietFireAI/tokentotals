@@ -130,12 +130,12 @@ Loopback binding, local state, source availability, and absence of a QuietFireAI
 
 ## 10. Verification
 
-The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, and clean-install use of the declared LiteLLM runtime dependency.
+The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation including conflicting output ceilings, reservation against the exact model selected for automatic routing, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, clean-install use of the declared LiteLLM runtime dependency, and public-claim guards that preserve the actual provider synchronization scope.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **21 tests with 0 failures** after the IR-006 dependency test was hardened to require the real installed LiteLLM package rather than a test-injected stand-in.
+GitHub Actions on Ubuntu/Python 3.12 passed **25 tests with 0 failures** on the forensic-hardening branch after the routed-model reservation and public-claim integrity checks were added.
 
 This is regression evidence. It is not a substitute for live-provider integration tests, concurrency/load tests, packaging tests, dependency review, or security assessment.
 
 ## 11. Forensic record
 
-See `INTEGRITY_REPORT.md` for the separate baseline integrity findings, including confirmed machine-specific paths, silent pricing fallbacks, disconnected price synchronization, input-only pre-flight accounting, API bypasses, concurrency hazards, static dashboard telemetry, and documentation claims that exceeded implementation.
+See `INTEGRITY_REPORT.md` for the separate baseline integrity findings, including confirmed machine-specific paths, silent pricing fallbacks, disconnected price synchronization, input-only pre-flight accounting, API bypasses, concurrency hazards, static dashboard telemetry, routed-model reservation ordering, and documentation claims that exceeded implementation.
