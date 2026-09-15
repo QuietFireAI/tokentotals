@@ -130,9 +130,9 @@ Loopback binding, local state, source availability, and absence of a QuietFireAI
 
 ## 10. Verification
 
-The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, and committed-matrix drift detection.
+The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, and clean-install use of the declared LiteLLM runtime dependency.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **20 tests with 0 failures** after the IR-005 matrix consistency check was added.
+GitHub Actions on Ubuntu/Python 3.12 passed **21 tests with 0 failures** after the IR-006 dependency test was hardened to require the real installed LiteLLM package rather than a test-injected stand-in.
 
 This is regression evidence. It is not a substitute for live-provider integration tests, concurrency/load tests, packaging tests, dependency review, or security assessment.
 
