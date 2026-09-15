@@ -1,19 +1,8 @@
-import sys
 import types
 
+import litellm
 import pytest
 from fastapi.testclient import TestClient
-
-
-if "litellm" not in sys.modules:
-    fake_litellm = types.ModuleType("litellm")
-    fake_litellm.suppress_debug_info = True
-
-    async def _placeholder(**kwargs):
-        raise AssertionError("upstream should have been monkeypatched")
-
-    fake_litellm.acompletion = _placeholder
-    sys.modules["litellm"] = fake_litellm
 
 import config_manager
 import proxy_server
@@ -39,6 +28,12 @@ def client(monkeypatch, tmp_path):
     conf["default_max_output_tokens"] = 128
     config_manager.save_config(conf)
     return TestClient(proxy_server.app)
+
+
+def test_proxy_uses_installed_litellm_dependency():
+    assert proxy_server.litellm is litellm
+    assert callable(litellm.acompletion)
+    assert getattr(litellm, "__file__", None)
 
 
 def test_unlock_requires_real_acknowledgement(client):
