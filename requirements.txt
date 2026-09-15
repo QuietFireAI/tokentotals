@@ -2,6 +2,7 @@ fastapi
 uvicorn
 httpx
 cryptography
+litellm
 
 pystray
 pillow
