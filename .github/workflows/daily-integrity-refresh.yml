@@ -1,23 +1,12 @@
 name: daily-integrity-refresh
 
 on:
-  push:
-    branches: [sol/forensic-hardening]
-    paths:
-      - 'pricing_engine.py'
-      - 'generate_model_matrix.py'
-      - 'matrix_source_check.py'
-      - 'openai_pricing_sync.py'
-      - 'scripts/daily_integrity_refresh.py'
-      - 'scripts/check_pricing_freshness.py'
-      - 'dashboard.html'
-      - 'tests/test_matrix_freshness.py'
-      - 'tests/test_matrix_source_check.py'
-      - 'tests/test_proxy_guardrails.py'
-      - '.github/workflows/daily-integrity-refresh.yml'
   workflow_dispatch:
   schedule:
-    - cron: '23 10 * * *'
+    # 00:05 America/New_York year-round. GitHub cron is UTC, so both UTC
+    # equivalents are scheduled and the gate below selects the active ET offset.
+    - cron: '5 4 * * *'
+    - cron: '5 5 * * *'
 
 permissions:
   contents: write
@@ -27,8 +16,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  eastern-midnight-gate:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.gate.outputs.should_run }}
+      eastern_now: ${{ steps.gate.outputs.eastern_now }}
+    steps:
+      - name: Select the 00:05 Eastern schedule
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          eastern_now="$(TZ=America/New_York date '+%Y-%m-%d %H:%M:%S %Z')"
+          eastern_offset="$(TZ=America/New_York date '+%z')"
+          schedule_expr='${{ github.event.schedule }}'
+          echo "eastern_now=$eastern_now" >> "$GITHUB_OUTPUT"
+
+          if [ '${{ github.event_name }}' = 'workflow_dispatch' ]; then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo "Manual daily integrity refresh accepted at $eastern_now."
+          elif [ "$schedule_expr" = '5 4 * * *' ] && [ "$eastern_offset" = '-0400' ]; then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo "Scheduled 00:05 EDT refresh accepted at $eastern_now."
+          elif [ "$schedule_expr" = '5 5 * * *' ] && [ "$eastern_offset" = '-0500' ]; then
+            echo 'should_run=true' >> "$GITHUB_OUTPUT"
+            echo "Scheduled 00:05 EST refresh accepted at $eastern_now."
+          else
+            echo 'should_run=false' >> "$GITHUB_OUTPUT"
+            echo "Skipping inactive UTC schedule $schedule_expr at $eastern_now ($eastern_offset)."
+          fi
+
   refresh-validate-and-publish:
-    if: github.event_name != 'push' || github.actor != 'github-actions[bot]'
+    needs: eastern-midnight-gate
+    if: needs.eastern-midnight-gate.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -52,10 +72,10 @@ jobs:
       - name: Verify dependency graph
         run: $RUNNER_TEMP/tokentotals-integrity-venv/bin/python -m pip check
 
-      - name: Refresh all pricing integrity surfaces from live official sources
+      - name: Perform scheduled daily pricing integrity refresh from live official sources
         run: $RUNNER_TEMP/tokentotals-integrity-venv/bin/python scripts/daily_integrity_refresh.py
 
-      - name: Enforce 24-hour pricing freshness invariant
+      - name: Validate that the last successful daily refresh receipt is current
         run: $RUNNER_TEMP/tokentotals-integrity-venv/bin/python scripts/check_pricing_freshness.py
 
       - name: Enforce telemetry-honesty stop-line gates
