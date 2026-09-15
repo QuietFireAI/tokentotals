@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import litellm
 import config_manager
+import turn_ledger
 from openai_pricing import (
     calculate_openai_response_cost,
     estimate_openai_input_cost,
@@ -232,6 +233,9 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
         thread_id = callback_thread_id(kwargs)
         reservation_id = callback_reservation_id(kwargs)
         cost = None
+        ledger_cost = None
+        cost_basis = "unavailable"
+        estimate_complete = False
         provider_result = None
 
         if completion_response and looks_like_openai_model(request_model):
@@ -242,6 +246,9 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
             )
             if provider_result.get("complete") and provider_result.get("total_cost_usd") is not None:
                 cost = provider_result["total_cost_usd"]
+                ledger_cost = cost
+                cost_basis = "provider_registry_complete"
+                estimate_complete = True
             else:
                 print(
                     "[TokenTotals Pricing Warning] OpenAI telemetry could not be fully priced "
@@ -261,6 +268,9 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
             )
             if provider_result.get("complete") and provider_result.get("total_cost_usd") is not None:
                 cost = provider_result["total_cost_usd"]
+                ledger_cost = cost
+                cost_basis = "provider_registry_complete"
+                estimate_complete = True
             else:
                 print(
                     "[TokenTotals Pricing Warning] Anthropic telemetry could not be fully priced "
@@ -279,6 +289,9 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
             )
             if provider_result.get("complete") and provider_result.get("total_cost_usd") is not None:
                 cost = provider_result["total_cost_usd"]
+                ledger_cost = cost
+                cost_basis = "provider_registry_complete"
+                estimate_complete = True
             else:
                 print(
                     "[TokenTotals Pricing Warning] Google/Gemini telemetry could not be fully priced "
@@ -290,10 +303,14 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
             litellm_cost = kwargs.get("response_cost", 0.0) or 0.0
             if litellm_cost:
                 cost = litellm_cost
+                ledger_cost = cost
+                cost_basis = "litellm_response_cost_fallback"
             elif provider_result and provider_result.get("provider") in {"anthropic", "google"}:
                 known_equivalent = provider_result.get("known_list_equivalent_usd")
                 if known_equivalent is not None:
                     cost = known_equivalent
+                    ledger_cost = cost
+                    cost_basis = "known_list_equivalent"
                     provider_name = "Anthropic" if provider_result.get("provider") == "anthropic" else "Google/Gemini"
                     print(
                         "[TokenTotals Pricing Warning] LiteLLM supplied no response_cost; "
@@ -305,11 +322,35 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
             else:
                 cost = 0.0
 
-        config_manager.update_spend(
+        state_after = config_manager.update_spend(
             cost_usd=cost,
             thread_id=thread_id,
             reservation_id=reservation_id,
         )
+
+        # Only TokenTotals-routed requests carry a stable server-owned reservation
+        # ID. Use it as the durable turn ID so duplicate callbacks cannot create
+        # duplicate ledger history. Direct/foreign callbacks without that identity
+        # still settle local spend but are not written as ambiguous ledger turns.
+        if completion_response is not None and reservation_id:
+            try:
+                record = turn_ledger.build_turn_record(
+                    turn_id=reservation_id,
+                    thread_id=thread_id,
+                    requested_model_id=request_model,
+                    completion_response=completion_response,
+                    provider_result=provider_result,
+                    estimated_cost_usd=ledger_cost,
+                    cost_basis=cost_basis,
+                    estimate_complete=estimate_complete,
+                    start_time=start_time,
+                    end_time=end_time,
+                    requested_service_tier=request_service_tier_from_callback(kwargs),
+                    state_after=state_after,
+                )
+                turn_ledger.append_turn(record)
+            except Exception as ledger_error:
+                print(f"[TokenTotals Ledger Warning] Turn ledger append failed: {ledger_error}")
     except Exception as e:
         print(f"[TokenTotals Pricing Warning] Cost callback failed: {e}")
 
