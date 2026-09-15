@@ -231,11 +231,6 @@ def get_status_text(item):
     dot = "🟡" if pct >= 75 else "🟢"
     return f"{dot} In Budget: ${spend:.4f} / ${limit:.2f}"
 
-def get_savings_text(item):
-    state = config_manager.get_state()
-    saved = state.get("potential_savings_usd", 0.0)
-    return f"💡 Potential Savings: ~${saved:.2f}"
-
 def on_setup(icon):
     global GLOBAL_ICON
     GLOBAL_ICON = icon
@@ -257,7 +252,6 @@ def main():
         pystray.MenuItem("TokenTotals by QuietFireAI", open_dashboard, default=True),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem(get_status_text, open_dashboard),
-        pystray.MenuItem(get_savings_text, open_dashboard),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("📊 Open Web Dashboard", open_dashboard),
         pystray.MenuItem("⚡ +$5 Quick Boost", trigger_quick_boost),
