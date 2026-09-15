@@ -22,6 +22,8 @@ import openai_pricing_sync
 import pricing_engine
 
 CATALOG_PATH = ROOT / "pricing_catalog.json"
+DAILY_STATUS_PATH = ROOT / "docs" / "PRICING_DAILY_STATUS.md"
+ARCHIVE_ROOT = ROOT / "docs" / "pricing_archive"
 MAX_SAFE_RATE_FACTOR = 5.0
 RATE_ABS_TOLERANCE = 1e-12
 
@@ -156,6 +158,24 @@ def _dated_provider_receipt(provider: str, audit: dict) -> dict:
     }
 
 
+def _archive_daily_status(checked_at: str) -> Path:
+    """Write one immutable repository receipt for this successful refresh."""
+    if not DAILY_STATUS_PATH.exists():
+        raise RuntimeError(f"generated daily pricing status is missing: {DAILY_STATUS_PATH}")
+
+    parsed = datetime.fromisoformat(checked_at.replace("Z", "+00:00")).astimezone(timezone.utc)
+    archive_dir = ARCHIVE_ROOT / f"{parsed.year:04d}" / f"{parsed.month:02d}"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    filename = parsed.strftime("%Y-%m-%dT%H%M%SZ.md")
+    archive_path = archive_dir / filename
+    if archive_path.exists():
+        raise RuntimeError(f"daily pricing archive receipt already exists: {archive_path}")
+
+    content = DAILY_STATUS_PATH.read_text(encoding="utf-8")
+    archive_path.write_text(content, encoding="utf-8")
+    return archive_path
+
+
 def refresh() -> dict:
     # Validate all providers first. No freshness metadata is written before these pass.
     catalog = _load_catalog()
@@ -183,10 +203,11 @@ def refresh() -> dict:
         },
     }
 
-    # Only after all live checks pass do we write today's catalog receipt.
+    # Only after all live checks pass do we write today's catalog receipt and generated surfaces.
     CATALOG_PATH.write_text(json.dumps(catalog, indent=2) + "\n", encoding="utf-8")
     pricing_engine.clear_catalog_cache()
     generate_model_matrix.write_all()
+    archive_path = _archive_daily_status(checked_at)
 
     summary = {
         "status": "verified",
@@ -199,7 +220,9 @@ def refresh() -> dict:
             "README.md pricing block",
             "TokenTotals_Security_Whitepaper.md pricing receipt",
             "docs/PRICING_DAILY_STATUS.md",
+            str(archive_path.relative_to(ROOT)),
         ],
+        "archive_receipt": str(archive_path.relative_to(ROOT)),
     }
     print(json.dumps(summary, indent=2, sort_keys=True))
     return summary
