@@ -123,6 +123,8 @@ async def api_unlock():
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
+@app.get("/dashboard/", response_class=HTMLResponse)
+@app.get("/dashboard.html", response_class=HTMLResponse)
 async def serve_dashboard():
     return HTMLResponse(content=DASHBOARD_HTML)
 

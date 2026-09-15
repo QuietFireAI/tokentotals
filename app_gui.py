@@ -39,11 +39,26 @@ def load_icon_image(name):
         return Image.open(path)
     return Image.open(get_resource_path("icon.png"))
 
+def is_port_in_use(port):
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('127.0.0.1', port)) == 0
+
 def run_server():
     import uvicorn
     conf = config_manager.get_config()
-    port = conf.get("port", 8080)
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="critical")
+    target_port = conf.get("port", 8080)
+    
+    # Fallback search if target port is occupied by an old background process
+    if is_port_in_use(target_port):
+        for p in range(8080, 8090):
+            if not is_port_in_use(p):
+                target_port = p
+                break
+
+    conf["port"] = target_port
+    config_manager.save_config(conf)
+    uvicorn.run(app, host="127.0.0.1", port=target_port, log_level="critical")
 
 def show_lockout_popup():
     global LOCKOUT_WINDOW_ACTIVE
