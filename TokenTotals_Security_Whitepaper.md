@@ -3,7 +3,7 @@
 **Author:** QuietFireAI (Jeff Phillips)  
 **License:** GNU General Public License v3.0 (GPLv3)  
 **Date:** September 2026  
-**Document Version:** 2.6-DEFENSIVE-SPEC
+**Document Version:** 2.7-DEFENSIVE-SPEC
 
 ---
 
@@ -11,7 +11,7 @@
 
 This document describes the current TokenTotals architecture and also preserves its defensive-publication intent.
 
-TokenTotals is a local Layer-7 loopback proxy that listens on `127.0.0.1`. Client applications explicitly route supported LLM API requests through the local proxy. Before forwarding a request, TokenTotals estimates its input-side cost using model-aware token counting/estimation plus provider-specific pricing rules, compares that estimate with local accumulated estimated spend and the configured local threshold, and can reject the request before the upstream completion call.
+TokenTotals is a local Layer-7 loopback proxy that listens on `127.0.0.1`. Client applications explicitly route supported LLM API requests through the local proxy. Before forwarding a request, TokenTotals estimates its input-side cost using model-aware token counting/estimation plus provider-specific pricing rules, atomically compares posted spend plus active preflight reservations plus the new request estimate against the configured local threshold, and can reject the request before the upstream completion call.
 
 After successful provider responses, TokenTotals uses observed usage telemetry where available to produce a best-effort local cost estimate. OpenAI, Anthropic, and Google/Gemini have repo-contained provider-specific pricing registries/calculators. TokenTotals does not claim that these estimates reproduce the provider's final invoice.
 
@@ -21,6 +21,7 @@ The open-source publication documents mechanisms including:
 2. A localhost proxy gate tied to persistent local estimated-spend state and a user acknowledgment / local threshold-boost flow.
 3. Provider-specific reconstruction of billing-relevant LLM telemetry with explicit incomplete-estimate behavior when required dimensions are unavailable.
 4. Request-local callback attribution and serialized single-daemon spend-state updates for concurrent post-response accounting.
+5. Ephemeral, atomic in-flight reservation of each admitted request's defensible preflight estimate so concurrent requests cannot consume the same known local headroom.
 
 ---
 
@@ -74,24 +75,49 @@ This preflight value is a pacing estimate, not a promise of the final full-turn 
 
 ### 3.2 Local Pacing Rule
 
-Let $S_{\text{today}}$ be TokenTotals' locally accumulated estimated spend and $L_{\text{daily}}$ the configured local daily threshold:
+Let:
 
-$$\text{If } (S_{\text{today}} + C_{\text{pre}}) > L_{\text{daily}} \implies \text{REJECT}(R)$$
+* $S_{\text{today}}$ be TokenTotals' locally posted estimated spend;
+* $H_{\text{inflight}}$ be the sum of active preflight reservations for requests already admitted but not yet settled; and
+* $L_{\text{daily}}$ be the configured local daily threshold.
 
-When this condition is true in the current proxy path:
+A new request is admitted only when:
 
-1. TokenTotals marks its local state locked.
-2. The request receives an HTTP `403` response from the local proxy.
-3. The upstream completion function is not invoked for that rejected request.
-4. The desktop UI can surface the locked state and user acknowledgment/boost controls.
+$$S_{\text{today}} + H_{\text{inflight}} + C_{\text{pre}} \leq L_{\text{daily}}$$
+
+The admission check and reservation insertion occur under the same process-local re-entrant lock. Therefore, two concurrent requests cannot both pass against the same known local headroom inside the normal single TokenTotals daemon.
+
+Two rejection cases are intentionally distinguished:
+
+1. If $S_{\text{today}} + C_{\text{pre}} > L_{\text{daily}}$, the request exceeds the threshold even without other active reservations. TokenTotals preserves the existing hard-lock behavior and rejects the request with HTTP `403` before the upstream completion call.
+2. If the request would fit against posted spend alone but $S_{\text{today}} + H_{\text{inflight}} + C_{\text{pre}} > L_{\text{daily}}$, the conflict is temporary in-flight contention. TokenTotals returns HTTP `429`, does not send that request upstream, and does not permanently lock the daemon. Headroom can become available after active requests settle or fail.
 
 If TokenTotals cannot obtain a defensible preflight price at all, the current runtime rejects the request with a pricing-unavailable response rather than sending it unmetered.
 
-### 3.3 Current In-Flight Reservation Boundary
+### 3.3 In-Flight Preflight Reservation Lifecycle
 
-The current pacing decision compares a new request against **posted local spend** plus that request's own preflight estimate. It does not yet reserve estimated headroom for every other request that has already passed preflight but whose provider response has not completed.
+Each admitted request receives a server-owned random reservation identifier. The reservation record contains the request's preflight-estimated cost and thread identifier and is held only in daemon process memory.
 
-Therefore, two or more simultaneous requests can each observe the same remaining local headroom and independently pass preflight before any one of them posts its eventual response cost. The current implementation does not claim transactional in-flight budget reservation. That is a separate pacing concern from the post-response concurrency protections described below.
+The reservation lifecycle is:
+
+1. compute a defensible preflight estimate;
+2. atomically check posted spend plus all active reservations plus the new estimate;
+3. create an in-memory reservation before invoking LiteLLM;
+4. carry the reservation identifier through server-owned request-local LiteLLM callback metadata;
+5. on a successful cost callback, persist the observed/derived actual turn cost while still holding the pacing lock, then remove the reservation; or
+6. if the upstream call fails before a billable success callback, release the reservation so temporary headroom is not stranded.
+
+Reservations are deliberately **not persisted to `state.json`**. They represent live process work, not settled accounting state. A daemon restart therefore cannot leave phantom reserved dollars on disk.
+
+Settlement is also idempotent for a server reservation identifier inside the running daemon so a duplicated success callback does not double-increment local spend.
+
+### 3.4 Reservation Scope and Remaining Uncertainty
+
+The reservation covers only the cost TokenTotals can defensibly estimate before execution. In the current implementation that is the input-side preflight estimate.
+
+It is therefore possible for a request to reserve $C_{\text{pre}}$, pass admission, and later settle at a larger actual cost because output tokens, reasoning/thinking, hosted tools, service-tier resolution, cache behavior, or other response-dependent dimensions were not knowable at preflight time. If the settled actual spend reaches or exceeds the configured local threshold, TokenTotals marks the local state locked.
+
+Accordingly, in-flight reservation closes the **concurrent reuse of known preflight headroom**. It is not represented as a guarantee that unknown future full-turn charges can never carry settled spend beyond the local threshold.
 
 ---
 
@@ -147,8 +173,9 @@ The dedicated provider engine is the primary calculation path for recognized Ope
 The normal runtime is a single local TokenTotals daemon process. Within that process, post-response accounting is hardened against overlapping completions as follows:
 
 * each forwarded request receives a server-owned TokenTotals thread identifier carried through LiteLLM request-local callback metadata;
-* the completion callback reads the identifier attached to its own request rather than a shared process-global “current thread” variable;
-* client-supplied `litellm_metadata` is removed before TokenTotals injects its accounting identifier, preventing request input from replacing the server-owned attribution value;
+* each admitted request also carries its server-owned preflight reservation identifier through that request-local metadata;
+* the completion callback reads identifiers attached to its own request rather than a shared process-global “current thread” variable;
+* client-supplied `litellm_metadata` is removed before TokenTotals injects its accounting/reservation identifiers, preventing request input from replacing those server-owned values;
 * config/state read-modify-write transactions are serialized through a process-local re-entrant lock; and
 * same-day spend is accumulated in a per-thread map so out-of-order completions such as `A -> B -> A` retain independent thread totals.
 
