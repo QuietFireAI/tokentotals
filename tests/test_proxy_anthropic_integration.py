@@ -76,6 +76,29 @@ class ProxyAnthropicIntegrationTests(unittest.TestCase):
         self.assertEqual(len(self.recorded), 1)
         self.assertAlmostEqual(self.recorded[0]["cost_usd"], 0.031)
 
+    def test_missing_litellm_cost_uses_known_list_equivalent_not_zero(self):
+        response = SimpleNamespace(
+            model="claude-opus-5",
+            usage=SimpleNamespace(
+                input_tokens=1_000,
+                output_tokens=1_000,
+                service_tier="standard",
+                speed="standard",
+            ),
+        )
+        start, end = self._times()
+
+        self.proxy.track_cost_callback(
+            {"model": "claude-opus-5"},
+            response,
+            start,
+            end,
+        )
+
+        self.assertEqual(len(self.recorded), 1)
+        self.assertAlmostEqual(self.recorded[0]["cost_usd"], 0.03)
+        self.assertGreater(self.recorded[0]["cost_usd"], 0.0)
+
     def test_anthropic_preflight_uses_registry_rate(self):
         estimate = self.proxy.anthropic_preflight_input_estimate(
             "claude-sonnet-5",
