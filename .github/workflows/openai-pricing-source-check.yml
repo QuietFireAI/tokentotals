@@ -1,0 +1,23 @@
+name: openai-pricing-source-check
+
+on:
+  push:
+    branches: [sol/forensic-hardening]
+    paths:
+      - 'openai_pricing_sync.py'
+      - 'scripts/validate_openai_pricing_sources.py'
+      - '.github/workflows/openai-pricing-source-check.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '17 9 * * *'
+
+jobs:
+  validate-live-openai-pricing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate live OpenAI pricing sources without promotion
+        run: python scripts/validate_openai_pricing_sources.py
