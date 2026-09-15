@@ -3,7 +3,7 @@
 
 **Author:** QuietFireAI (Jeff Phillips)  
 **License:** GNU General Public License v3.0 (GPLv3)  
-**Review revision:** 2026-09-14 forensic hardening branch
+**Review revision:** 2026-09-15 forensic hardening branch
 
 ---
 
@@ -39,6 +39,8 @@ A failed or incomplete OpenAI check preserves the previous verified snapshot. Su
 
 Anthropic and Google remain on the dated checked-in verified catalog until equivalent official-source adapters are separately implemented and tested. No third-party community registry is permitted to overwrite the runtime pricing authority.
 
+A separate non-destructive `matrix_source_check.py` validates the Anthropic and Google base/standard matrix rates against their official pricing pages on a daily schedule and when relevant pricing/matrix files change. It does not promote or rewrite prices. A missing/mismatched model rate, parsing ambiguity, or expired effective-dated catalog record fails the check for review. The Gemini 3.6/3.7/3.8 Flash promotional entries represented by this revision explicitly expire on 2026-12-31 so an old promotional value cannot remain current merely because it still appears historically on the provider page.
+
 The matrix generator reads the same `pricing_engine` view as the runtime. When regenerated after an OpenAI promotion, its OpenAI rows therefore come from the same promoted pricing snapshot rather than a separate hand-maintained table. CI additionally checks that the committed portable base matrix remains identical to the base verified pricing view generated from the repository.
 
 Unknown models fail closed. TokenTotals does not substitute a generic “close enough” dollar rate.
@@ -49,7 +51,7 @@ Provider charges can include billing dimensions beyond uncached text input/outpu
 
 TokenTotals therefore reports the most accurate independent estimate supported by the telemetry and pricing rules available for the transaction. It does not claim invoice parity. See `docs/ACCURACY_AND_ESTIMATION_STANDARD.md` for the normative disclosure standard.
 
-The OpenAI source synchronization described above is a pricing-source integrity mechanism; it is **not** by itself a complete OpenAI billing-event adapter. Each additional billing dimension must be explicitly implemented and tested before TokenTotals represents that dimension as supported.
+The OpenAI source synchronization described above is a pricing-source integrity mechanism; it is **not** by itself a complete OpenAI billing-event adapter. The Anthropic/Google matrix source checker is likewise a drift detector, not a dynamic runtime pricing adapter. Each additional billing dimension must be explicitly implemented and tested before TokenTotals represents that dimension as supported.
 
 ## 4. Pre-flight budget reservation
 
@@ -130,12 +132,12 @@ Loopback binding, local state, source availability, and absence of a QuietFireAI
 
 ## 10. Verification
 
-The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation including conflicting output ceilings, reservation against the exact model selected for automatic routing, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, clean-install use of the declared LiteLLM runtime dependency, and public-claim guards that preserve the actual provider synchronization scope.
+The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation including conflicting output ceilings, reservation against the exact model selected for automatic routing, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, Anthropic/Google base/standard source parsing and effective-date expiry enforcement, clean-install use of the declared LiteLLM runtime dependency, and public-claim guards that preserve the actual provider synchronization scope.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **25 tests with 0 failures** on the forensic-hardening branch after the routed-model reservation and public-claim integrity checks were added.
+GitHub Actions on Ubuntu/Python 3.12 passed **29 tests with 0 failures** on the forensic-hardening branch after the IR-005 matrix source-drift and effective-date guards were added. The separate non-destructive matrix-source workflow also passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass.
 
-This is regression evidence. It is not a substitute for live-provider integration tests, concurrency/load tests, packaging tests, dependency review, or security assessment.
+This is regression/source-validation evidence. It is not a substitute for live-provider integration tests, concurrency/load tests, packaging tests, dependency review, or security assessment.
 
 ## 11. Forensic record
 
-See `INTEGRITY_REPORT.md` for the separate baseline integrity findings, including confirmed machine-specific paths, silent pricing fallbacks, disconnected price synchronization, input-only pre-flight accounting, API bypasses, concurrency hazards, static dashboard telemetry, routed-model reservation ordering, and documentation claims that exceeded implementation.
+See `INTEGRITY_REPORT.md` for the separate baseline integrity findings, including confirmed machine-specific paths, silent pricing fallbacks, disconnected price synchronization, stale matrix data, input-only pre-flight accounting, API bypasses, concurrency hazards, static dashboard telemetry, routed-model reservation ordering, and documentation claims that exceeded implementation.
