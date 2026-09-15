@@ -28,21 +28,47 @@ def test_boost_rejects_cross_origin_simple_text_plain_post(monkeypatch, tmp_path
         },
     )
 
-    assert response.status_code in {400, 403, 415}
+    assert response.status_code == 415
     assert config_manager.get_config() == before_config
     assert config_manager.get_state() == before_state
     assert "access-control-allow-origin" not in response.headers
 
 
-def test_boost_wrong_or_missing_ack_preserves_budget_and_lock(monkeypatch, tmp_path):
+def test_boost_cors_preflight_is_not_granted(monkeypatch, tmp_path):
+    client = _client(monkeypatch, tmp_path)
+
+    response = client.options(
+        "/api/boost",
+        headers={
+            "Origin": "https://example.invalid",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 405
+    assert "access-control-allow-origin" not in response.headers
+    assert "access-control-allow-methods" not in response.headers
+
+
+def test_boost_wrong_missing_or_nonobject_ack_preserves_budget_and_lock(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     config_manager.set_locked(True)
     before_config = config_manager.get_config()
     before_state = config_manager.get_state()
 
-    for payload in ({}, {"acknowledgement": "YES"}, {"acknowledgement": "BOOST $50"}):
-        response = client.post("/api/boost", json=payload)
-        assert response.status_code == 400
+    attempts = [
+        lambda: client.post("/api/boost"),
+        lambda: client.post("/api/boost", json=None),
+        lambda: client.post("/api/boost", json={}),
+        lambda: client.post("/api/boost", json={"acknowledgement": "YES"}),
+        lambda: client.post("/api/boost", json={"acknowledgement": "BOOST $50"}),
+    ]
+    expected_status = [415, 400, 400, 400, 400]
+
+    for attempt, status in zip(attempts, expected_status):
+        response = attempt()
+        assert response.status_code == status
         assert config_manager.get_config() == before_config
         assert config_manager.get_state() == before_state
 
