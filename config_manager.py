@@ -26,7 +26,10 @@ _SETTLED_RESERVATION_IDS = set()
 DEFAULT_CONFIG = {
     "daily_budget_limit_usd": 10.00,
     "port": 8080,
-    "warning_threshold_pct": 75
+    "warning_threshold_pct": 75,
+    # Optional per-turn reminder. None means Turn Notice is disabled until the
+    # user chooses a positive dollar value. This is not a provider account limit.
+    "turn_notice_threshold_usd": None,
 }
 
 DEFAULT_STATE = {
