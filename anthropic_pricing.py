@@ -56,10 +56,90 @@ def resolve_anthropic_model(model_id):
 
 
 def normalize_usage(usage, cache_ttl_hint=None):
-    base_input = int(_obj_get(usage, "input_tokens", 0) or 0)
-    cache_creation_total = int(_obj_get(usage, "cache_creation_input_tokens", 0) or 0)
-    cache_read = int(_obj_get(usage, "cache_read_input_tokens", 0) or 0)
-    output = int(_obj_get(usage, "output_tokens", 0) or 0)
+    notes = []
+    input_basis_complete = True
+
+    raw_input = _obj_get(usage, "input_tokens", None)
+    normalized_prompt = _obj_get(usage, "prompt_tokens", None)
+    prompt_details = _obj_get(usage, "prompt_tokens_details", {}) or {}
+
+    top_cache_creation = _obj_get(usage, "cache_creation_input_tokens", None)
+    top_cache_read = _obj_get(usage, "cache_read_input_tokens", None)
+
+    detail_cache_read = _obj_get(prompt_details, "cached_tokens", None)
+    detail_cache_creation = _obj_get(prompt_details, "cache_creation_tokens", None)
+    if detail_cache_creation is None:
+        detail_cache_creation = _obj_get(prompt_details, "cache_write_tokens", None)
+
+    cache_creation_total = int(
+        (top_cache_creation if top_cache_creation is not None else detail_cache_creation) or 0
+    )
+    cache_read = int((top_cache_read if top_cache_read is not None else detail_cache_read) or 0)
+
+    if raw_input is not None:
+        # Anthropic-native semantics: input_tokens is the uncached remainder only.
+        base_input = int(raw_input or 0)
+        input_basis = "anthropic_raw"
+    elif normalized_prompt is not None:
+        prompt_total = int(normalized_prompt or 0)
+        text_tokens = _obj_get(prompt_details, "text_tokens", None)
+        if text_tokens is not None:
+            base_input = int(text_tokens or 0)
+            input_basis = "litellm_text_tokens"
+        elif detail_cache_read is not None or detail_cache_creation is not None:
+            # OpenAI-compatible normalized semantics normally include cache categories
+            # inside prompt_tokens. Subtract only categories actually represented in
+            # prompt_tokens_details; top-level Anthropic cache-create fields are not
+            # assumed to be included in prompt_tokens.
+            included_cache_read = int(detail_cache_read or 0)
+            included_cache_creation = int(detail_cache_creation or 0)
+            if included_cache_read > prompt_total or included_cache_creation > prompt_total:
+                input_basis_complete = False
+                notes.append("Normalized cache detail exceeds prompt_tokens; input-token basis is inconsistent.")
+            base_input = max(0, prompt_total - included_cache_read - included_cache_creation)
+            input_basis = "litellm_prompt_includes_cache_details"
+
+            if top_cache_read is not None and int(top_cache_read or 0) != included_cache_read:
+                input_basis_complete = False
+                notes.append("Top-level and nested cache-read token counts disagree.")
+            if (
+                top_cache_creation is not None
+                and detail_cache_creation is not None
+                and int(top_cache_creation or 0) != included_cache_creation
+            ):
+                input_basis_complete = False
+                notes.append("Top-level and nested cache-write token counts disagree.")
+        elif cache_read:
+            # LiteLLM versions have differed on whether normalized prompt_tokens
+            # includes Anthropic cache reads. Without a nested cached-token field or
+            # raw input_tokens, choosing either basis could silently over/under-count.
+            base_input = prompt_total
+            input_basis_complete = False
+            input_basis = "litellm_ambiguous_cache_basis"
+            notes.append(
+                "Normalized prompt_tokens included a top-level cache-read count without enough detail to determine whether cached tokens are already included."
+            )
+        else:
+            # Cache-creation-only Anthropic LiteLLM responses historically expose
+            # prompt_tokens as the uncached remainder and cache_creation separately.
+            base_input = prompt_total
+            input_basis = "litellm_prompt_uncached_or_no_cache"
+    else:
+        base_input = 0
+        input_basis = "missing_input_counter"
+        input_basis_complete = False
+        notes.append("Neither input_tokens nor prompt_tokens was available; input usage cannot be reconstructed safely.")
+
+    raw_output = _obj_get(usage, "output_tokens", None)
+    normalized_completion = _obj_get(usage, "completion_tokens", None)
+    if raw_output is not None:
+        output = int(raw_output or 0)
+    elif normalized_completion is not None:
+        output = int(normalized_completion or 0)
+    else:
+        output = 0
+        notes.append("Neither output_tokens nor completion_tokens was available.")
+        input_basis_complete = False
 
     cache_creation = _obj_get(usage, "cache_creation", {}) or {}
     cache_5m = int(_obj_get(cache_creation, "ephemeral_5m_input_tokens", 0) or 0)
@@ -67,7 +147,6 @@ def normalize_usage(usage, cache_ttl_hint=None):
     cache_breakdown = cache_5m + cache_1h
     cache_breakdown_complete = cache_breakdown == cache_creation_total
 
-    notes = []
     if cache_breakdown > cache_creation_total:
         cache_breakdown_complete = False
         notes.append("Cache TTL breakdown exceeds cache_creation_input_tokens.")
@@ -84,6 +163,8 @@ def normalize_usage(usage, cache_ttl_hint=None):
             notes.append("Cache creation tokens were reported without a complete 5m/1h TTL breakdown.")
 
     output_details = _obj_get(usage, "output_tokens_details", {}) or {}
+    if not output_details:
+        output_details = _obj_get(usage, "completion_tokens_details", {}) or {}
     thinking = int(_obj_get(output_details, "thinking_tokens", 0) or 0)
 
     server_tools = _obj_get(usage, "server_tool_use", {}) or {}
@@ -102,6 +183,8 @@ def normalize_usage(usage, cache_ttl_hint=None):
 
     return {
         "input_tokens": base_input,
+        "input_basis": input_basis,
+        "input_basis_complete": input_basis_complete,
         "cache_creation_input_tokens": cache_creation_total,
         "cache_write_5m_tokens": cache_5m,
         "cache_write_1h_tokens": cache_1h,
@@ -148,7 +231,7 @@ def calculate_anthropic_cost(
         }
 
     notes = list(normalized["normalization_notes"])
-    complete = normalized["cache_breakdown_complete"]
+    complete = normalized["cache_breakdown_complete"] and normalized["input_basis_complete"]
 
     if platform != "claude_api":
         complete = False
