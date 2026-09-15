@@ -1,5 +1,4 @@
 import unittest
-from types import SimpleNamespace
 
 import anthropic_pricing as pricing
 
@@ -198,7 +197,9 @@ class AnthropicPricingTests(unittest.TestCase):
 
     def test_fable_51_special_cache_read_rate(self):
         usage = {
+            "input_tokens": 0,
             "cache_read_input_tokens": 1_000_000,
+            "output_tokens": 0,
             "inference_geo": "global",
             "service_tier": "standard",
             "speed": "standard",
@@ -219,6 +220,55 @@ class AnthropicPricingTests(unittest.TestCase):
         result = pricing.calculate_anthropic_cost("claude-sonnet-5", usage)
         self.assertFalse(result["complete"])
         self.assertIsNone(result["total_cost_usd"])
+
+    def test_litellm_cache_hit_with_nested_cached_tokens(self):
+        usage = {
+            "prompt_tokens": 7_296,
+            "completion_tokens": 1_000,
+            "prompt_tokens_details": {"cached_tokens": 7_277},
+            "cache_read_input_tokens": 7_277,
+            "inference_geo": "global",
+            "service_tier": "standard",
+            "speed": "standard",
+        }
+        result = pricing.calculate_anthropic_cost("claude-sonnet-5", usage)
+        self.assertTrue(result["complete"])
+        self.assertEqual(result["usage"]["input_tokens"], 19)
+        expected = (19 * 2 + 7_277 * 0.2 + 1_000 * 10) / 1_000_000
+        self.assertAlmostEqual(result["total_cost_usd"], expected)
+
+    def test_litellm_cache_write_keeps_top_level_creation_separate(self):
+        usage = {
+            "prompt_tokens": 19,
+            "completion_tokens": 1_000,
+            "prompt_tokens_details": {"cached_tokens": 0},
+            "cache_creation_input_tokens": 7_277,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "global",
+            "service_tier": "standard",
+            "speed": "standard",
+        }
+        result = pricing.calculate_anthropic_cost(
+            "claude-sonnet-5", usage, cache_ttl_hint="5m"
+        )
+        self.assertTrue(result["complete"])
+        self.assertEqual(result["usage"]["input_tokens"], 19)
+        expected = (19 * 2 + 7_277 * 2.5 + 1_000 * 10) / 1_000_000
+        self.assertAlmostEqual(result["total_cost_usd"], expected)
+
+    def test_litellm_top_level_cache_read_without_basis_is_refused(self):
+        usage = {
+            "prompt_tokens": 7_296,
+            "completion_tokens": 1_000,
+            "cache_read_input_tokens": 7_277,
+            "inference_geo": "global",
+            "service_tier": "standard",
+            "speed": "standard",
+        }
+        result = pricing.calculate_anthropic_cost("claude-sonnet-5", usage)
+        self.assertFalse(result["complete"])
+        self.assertIsNone(result["total_cost_usd"])
+        self.assertEqual(result["usage"]["input_basis"], "litellm_ambiguous_cache_basis")
 
 
 if __name__ == "__main__":
