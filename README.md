@@ -158,9 +158,10 @@ The forensic hardening suite now covers:
 - quarantine of suspicious price jumps;
 - same-day retry after failed source checks;
 - review-required handling when source content changes without a recognized pricing/rule change;
-- committed matrix drift detection against the base verified pricing view.
+- committed matrix drift detection against the base verified pricing view;
+- clean-install use of the real declared LiteLLM dependency rather than a test-injected stand-in.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **20 tests / 0 failures** after the IR-005 matrix consistency check was added. This is regression evidence, not a substitute for live-provider integration, load, packaging, or security testing.
+GitHub Actions on Ubuntu/Python 3.12 passed **21 tests / 0 failures** after the IR-006 dependency-proof test was hardened. This is regression evidence, not a substitute for live-provider integration, load, packaging, or security testing.
 
 ## Security and privacy boundary
 
