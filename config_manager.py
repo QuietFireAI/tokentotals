@@ -12,6 +12,12 @@ STATE_FILE = APP_DIR / "state.json"
 # It is deliberately not represented as a cross-process file/database lock.
 _DATA_LOCK = threading.RLock()
 
+# Preflight reservations are deliberately process-local and ephemeral. They exist
+# only while requests are in flight and are never persisted to state.json, so a
+# daemon restart cannot strand phantom reserved dollars on disk.
+_INFLIGHT_RESERVATIONS = {}
+_SETTLED_RESERVATION_IDS = set()
+
 DEFAULT_CONFIG = {
     "daily_budget_limit_usd": 10.00,
     "port": 8080,
@@ -33,6 +39,16 @@ def _fresh_default_state():
     state = dict(DEFAULT_STATE)
     state["thread_spend_by_id"] = {}
     return state
+
+
+def _inflight_reserved_usd_unlocked():
+    total = 0.0
+    for reservation in _INFLIGHT_RESERVATIONS.values():
+        try:
+            total += float(reservation.get("estimated_cost_usd", 0.0) or 0.0)
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return round(total, 10)
 
 
 def init_files():
@@ -99,8 +115,125 @@ def save_state(state_dict):
             json.dump(state_dict, f, indent=4)
 
 
-def update_spend(cost_usd, thread_id=None):
+def get_inflight_reserved_usd():
     with _DATA_LOCK:
+        return _inflight_reserved_usd_unlocked()
+
+
+def get_pacing_snapshot():
+    """Return actual spend plus ephemeral in-flight pacing commitments."""
+    with _DATA_LOCK:
+        state = get_state()
+        conf = get_config()
+        current = float(state.get('current_spend_usd', 0.0) or 0.0)
+        reserved = _inflight_reserved_usd_unlocked()
+        limit = float(conf.get('daily_budget_limit_usd', 10.00) or 0.0)
+        committed = current + reserved
+        return {
+            'current_spend_usd': round(current, 4),
+            'inflight_reserved_usd': round(reserved, 10),
+            'committed_spend_usd': round(committed, 10),
+            'available_budget_usd': round(max(0.0, limit - committed), 10),
+            'daily_budget_limit_usd': limit,
+            'is_locked': bool(state.get('is_locked', False)),
+            'reservation_count': len(_INFLIGHT_RESERVATIONS),
+        }
+
+
+def reserve_preflight_budget(reservation_id, estimated_cost_usd, thread_id=None):
+    """Atomically admit and reserve preflight-estimated headroom for one request.
+
+    The reservation covers only the defensible preflight estimate available before
+    execution (currently input-side pricing). It is not a guarantee of the final
+    full-turn cost, which can still exceed the reservation after output/tools/etc.
+    are known.
+    """
+    reservation_key = str(reservation_id or '').strip()
+    if not reservation_key:
+        raise ValueError('reservation_id must be a non-empty string')
+    try:
+        estimated_cost = float(estimated_cost_usd)
+    except (TypeError, ValueError) as exc:
+        raise ValueError('estimated_cost_usd must be numeric') from exc
+    if estimated_cost < 0:
+        raise ValueError('estimated_cost_usd cannot be negative')
+
+    with _DATA_LOCK:
+        if reservation_key in _INFLIGHT_RESERVATIONS:
+            raise ValueError('reservation_id is already active')
+
+        state = get_state()
+        conf = get_config()
+        current = float(state.get('current_spend_usd', 0.0) or 0.0)
+        reserved_before = _inflight_reserved_usd_unlocked()
+        limit = float(conf.get('daily_budget_limit_usd', 10.00) or 0.0)
+
+        if state.get('is_locked', False):
+            return {
+                'accepted': False,
+                'reason': 'locked',
+                'current_spend_usd': round(current, 4),
+                'inflight_reserved_usd': round(reserved_before, 10),
+                'daily_budget_limit_usd': limit,
+            }
+
+        # A request that exceeds the threshold even without other in-flight work
+        # is a true local budget breach and preserves the existing lock behavior.
+        if current + estimated_cost > limit:
+            state['is_locked'] = True
+            save_state(state)
+            return {
+                'accepted': False,
+                'reason': 'budget_limit',
+                'current_spend_usd': round(current, 4),
+                'inflight_reserved_usd': round(reserved_before, 10),
+                'daily_budget_limit_usd': limit,
+            }
+
+        # If only concurrent reservations consume the remaining headroom, reject
+        # this request without permanently locking the daemon. Headroom may become
+        # available again as those requests settle or fail.
+        if current + reserved_before + estimated_cost > limit:
+            return {
+                'accepted': False,
+                'reason': 'inflight_headroom',
+                'current_spend_usd': round(current, 4),
+                'inflight_reserved_usd': round(reserved_before, 10),
+                'daily_budget_limit_usd': limit,
+            }
+
+        _INFLIGHT_RESERVATIONS[reservation_key] = {
+            'estimated_cost_usd': estimated_cost,
+            'thread_id': str(thread_id or 'default'),
+        }
+        reserved_after = _inflight_reserved_usd_unlocked()
+        return {
+            'accepted': True,
+            'reason': 'reserved',
+            'reservation_id': reservation_key,
+            'estimated_cost_usd': estimated_cost,
+            'current_spend_usd': round(current, 4),
+            'inflight_reserved_usd': round(reserved_after, 10),
+            'daily_budget_limit_usd': limit,
+        }
+
+
+def release_preflight_reservation(reservation_id):
+    """Release a reservation when a request never produces a billable callback."""
+    reservation_key = str(reservation_id or '').strip()
+    if not reservation_key:
+        return None
+    with _DATA_LOCK:
+        return _INFLIGHT_RESERVATIONS.pop(reservation_key, None)
+
+
+def update_spend(cost_usd, thread_id=None, reservation_id=None):
+    with _DATA_LOCK:
+        reservation_key = str(reservation_id or '').strip()
+        if reservation_key and reservation_key in _SETTLED_RESERVATION_IDS:
+            # A duplicated success callback must not double-charge local state.
+            return get_state()
+
         state = get_state()
         state['current_spend_usd'] = round(state.get('current_spend_usd', 0.0) + cost_usd, 4)
         state['total_requests'] = state.get('total_requests', 0) + 1
@@ -131,7 +264,13 @@ def update_spend(cost_usd, thread_id=None):
         if state['current_spend_usd'] >= conf.get("daily_budget_limit_usd", 10.00):
             state['is_locked'] = True
 
+        # Persist the actual cost before releasing its reservation. Because both
+        # operations occur under the same process-local lock, no other request can
+        # observe a gap where neither actual spend nor reserved headroom is counted.
         save_state(state)
+        if reservation_key:
+            _INFLIGHT_RESERVATIONS.pop(reservation_key, None)
+            _SETTLED_RESERVATION_IDS.add(reservation_key)
         return state
 
 
