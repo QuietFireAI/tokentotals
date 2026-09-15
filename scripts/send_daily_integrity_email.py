@@ -14,6 +14,7 @@ Optional environment variables:
 - TOKENTOTALS_SMTP_SECURITY (ssl or starttls; default: ssl)
 - TOKENTOTALS_REPORT_FROM (default: SMTP username)
 - TOKENTOTALS_REPORT_TO (default: dailyreport@firelandsai.com)
+- TOKENTOTALS_PUBLISHED_SHA (preferred published commit SHA)
 - GITHUB_SHA / GITHUB_RUN_ID / GITHUB_REPOSITORY / GITHUB_SERVER_URL
 """
 from __future__ import annotations
@@ -37,17 +38,22 @@ def _required(name: str) -> str:
     return value
 
 
+def _optional(name: str, default: str) -> str:
+    value = os.environ.get(name, "").strip()
+    return value or default
+
+
 def build_message() -> EmailMessage:
     host = _required("TOKENTOTALS_SMTP_HOST")
     username = _required("TOKENTOTALS_SMTP_USERNAME")
     _required("TOKENTOTALS_SMTP_PASSWORD")
 
-    report_to = os.environ.get("TOKENTOTALS_REPORT_TO", DEFAULT_TO).strip() or DEFAULT_TO
-    report_from = os.environ.get("TOKENTOTALS_REPORT_FROM", username).strip() or username
-    sha = os.environ.get("GITHUB_SHA", "unknown")
-    repo = os.environ.get("GITHUB_REPOSITORY", "QuietFireAI/tokentotals")
-    run_id = os.environ.get("GITHUB_RUN_ID", "unknown")
-    server = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
+    report_to = _optional("TOKENTOTALS_REPORT_TO", DEFAULT_TO)
+    report_from = _optional("TOKENTOTALS_REPORT_FROM", username)
+    sha = _optional("TOKENTOTALS_PUBLISHED_SHA", _optional("GITHUB_SHA", "unknown"))
+    repo = _optional("GITHUB_REPOSITORY", "QuietFireAI/tokentotals")
+    run_id = _optional("GITHUB_RUN_ID", "unknown")
+    server = _optional("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
     if not STATUS_PATH.exists():
@@ -65,9 +71,8 @@ def build_message() -> EmailMessage:
                 "",
                 f"Report generated: {now}",
                 f"Repository: {repo}",
-                f"Published/workflow SHA: {sha}",
+                f"Published commit: {sha}",
                 f"Workflow run: {server}/{repo}/actions/runs/{run_id}",
-                f"SMTP host used: {host}",
                 "",
                 "The report below is the same generated pricing/status surface used by the repository.",
                 "If provider verification, freshness validation, telemetry-integrity tests, the full regression suite, file-integrity checks, or publication had failed, this success email step would not have been reached.",
@@ -83,8 +88,8 @@ def send() -> None:
     host = _required("TOKENTOTALS_SMTP_HOST")
     username = _required("TOKENTOTALS_SMTP_USERNAME")
     password = _required("TOKENTOTALS_SMTP_PASSWORD")
-    port = int(os.environ.get("TOKENTOTALS_SMTP_PORT", "465"))
-    security = os.environ.get("TOKENTOTALS_SMTP_SECURITY", "ssl").strip().lower()
+    port = int(_optional("TOKENTOTALS_SMTP_PORT", "465"))
+    security = _optional("TOKENTOTALS_SMTP_SECURITY", "ssl").lower()
     msg = build_message()
     context = ssl.create_default_context()
 
