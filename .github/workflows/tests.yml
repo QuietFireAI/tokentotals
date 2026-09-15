@@ -6,6 +6,31 @@ on:
   pull_request:
 
 jobs:
+  runtime-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install runtime dependencies only
+        run: python -m pip install -r requirements.txt
+      - name: Verify runtime dependency graph
+        run: python -m pip check
+      - name: Import production proxy with declared runtime dependencies
+        run: |
+          python - <<'PY'
+          import importlib.metadata
+          import litellm
+          import proxy_server
+
+          assert proxy_server.litellm is litellm
+          assert callable(litellm.acompletion)
+          assert getattr(litellm, "__file__", None)
+          print("LiteLLM runtime dependency:", importlib.metadata.version("litellm"))
+          print("proxy_server import: OK")
+          PY
+
   pytest:
     runs-on: ubuntu-latest
     steps:
