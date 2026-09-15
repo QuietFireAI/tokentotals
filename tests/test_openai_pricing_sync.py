@@ -138,3 +138,29 @@ def test_suspicious_jump_is_quarantined_and_previous_runtime_survives(tmp_path, 
 
     pricing_engine.clear_catalog_cache()
     assert pricing_engine.resolve_model("gpt-5.6-sol")["input_price_per_1m"] == 4.0
+
+
+def test_failed_check_retries_same_day(tmp_path, monkeypatch):
+    monkeypatch.setenv("TOKENTOTALS_PRICING_DIR", str(tmp_path))
+    import openai_pricing_sync
+    importlib.reload(openai_pricing_sync)
+    openai_pricing_sync._atomic_json(
+        openai_pricing_sync.STATUS_PATH,
+        {"checked_at": openai_pricing_sync._utcnow(), "result": "failed"},
+    )
+    assert openai_pricing_sync.check_due_today() is True
+
+
+def test_source_only_change_requires_review(tmp_path, monkeypatch):
+    monkeypatch.setenv("TOKENTOTALS_PRICING_DIR", str(tmp_path))
+    import openai_pricing_sync
+    importlib.reload(openai_pricing_sync)
+
+    assert openai_pricing_sync.sync_openai_pricing(_fixture_fetch)["result"] == "promoted"
+
+    def editorial_change(url):
+        return _fixture_fetch(url) + "\nEditorial note with no pricing change.\n"
+
+    result = openai_pricing_sync.sync_openai_pricing(editorial_change)
+    assert result["result"] == "candidate_only"
+    assert "source content changed" in result["message"].lower()
