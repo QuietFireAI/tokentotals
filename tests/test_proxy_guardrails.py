@@ -1,3 +1,4 @@
+import json
 import types
 
 import litellm
@@ -14,6 +15,20 @@ class FakeResponse:
 
     def model_dump(self):
         return {"id":"fake","usage":{"prompt_tokens":self.usage.prompt_tokens,"completion_tokens":self.usage.completion_tokens}}
+
+
+class FakeStreamWithoutUsage:
+    def __init__(self):
+        self._sent = False
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self._sent:
+            raise StopAsyncIteration
+        self._sent = True
+        return {"id": "fake-chunk", "choices": [{"delta": {"content": "ok"}}]}
 
 
 @pytest.fixture
@@ -103,6 +118,65 @@ def test_conflicting_output_bounds_reserve_largest_before_upstream(client, monke
     )
     assert response.status_code == 403
     assert called is False
+
+
+def test_preflight_commits_input_and_output_reservation_before_upstream(client, monkeypatch):
+    model = "gpt-5.6-luna"
+    messages = [{"role": "user", "content": "hello"}]
+    max_output = 100
+    prompt_text = json.dumps(messages, ensure_ascii=False, separators=(",", ":"))
+    pricing = proxy_server.resolve_model(model)
+    estimated_input = proxy_server.estimate_text_tokens(prompt_text, model)
+    input_only = proxy_server.calculate_cost(
+        pricing, estimated_input, 0, conservative=True
+    )["total_cost_usd"]
+    expected_reservation = proxy_server.calculate_cost(
+        pricing, estimated_input, max_output, conservative=True
+    )["total_cost_usd"]
+    observed = {}
+
+    async def inspect_reservation_before_upstream(**kwargs):
+        observed["spend_before_upstream"] = config_manager.get_state()["current_spend_usd"]
+        observed["max_tokens"] = kwargs.get("max_tokens")
+        return FakeResponse(prompt_tokens=10, completion_tokens=5)
+
+    monkeypatch.setattr(proxy_server.litellm, "acompletion", inspect_reservation_before_upstream)
+    response = client.post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer test"},
+        json={"model": model, "messages": messages, "max_tokens": max_output},
+    )
+
+    assert response.status_code == 200
+    assert observed["max_tokens"] == max_output
+    assert observed["spend_before_upstream"] == pytest.approx(round(expected_reservation, 6), abs=1e-9)
+    assert observed["spend_before_upstream"] > input_only
+
+
+def test_stream_without_final_usage_keeps_full_reservation(client, monkeypatch):
+    observed = {}
+
+    async def fake_stream_completion(**kwargs):
+        observed["spend_before_upstream"] = config_manager.get_state()["current_spend_usd"]
+        return FakeStreamWithoutUsage()
+
+    monkeypatch.setattr(proxy_server.litellm, "acompletion", fake_stream_completion)
+    response = client.post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer test"},
+        json={
+            "model": "gpt-5.6-luna",
+            "messages": [{"role": "user", "content": "hello"}],
+            "max_tokens": 100,
+            "stream": True,
+        },
+    )
+
+    assert response.status_code == 200
+    state = config_manager.get_state()
+    assert observed["spend_before_upstream"] > 0
+    assert state["current_spend_usd"] == pytest.approx(observed["spend_before_upstream"], abs=1e-9)
+    assert state["unreconciled_streams"] == 1
 
 
 def test_auto_economy_reserves_for_model_actually_routed(client, monkeypatch):
