@@ -4,7 +4,7 @@
   "currency": "USD",
   "unit": "per_1m_tokens",
   "verified_at": "2026-09-15",
-  "accuracy_statement": "Versioned reference data derived from official OpenAI model documentation. TokenTotals calculates from observed telemetry when available and does not claim billing-exact results.",
+  "accuracy_statement": "Versioned reference data derived from official OpenAI documentation. TokenTotals calculates from observed telemetry when available and does not claim billing-exact results.",
   "sources": [
     "https://developers.openai.com/api/docs/models/compare",
     "https://developers.openai.com/api/docs/models/gpt-6-astra",
@@ -14,52 +14,67 @@
     "https://developers.openai.com/api/docs/models/gpt-4o",
     "https://developers.openai.com/api/docs/models/gpt-4o-mini",
     "https://developers.openai.com/api/docs/models/o1",
-    "https://developers.openai.com/api/docs/models/o3-mini"
+    "https://developers.openai.com/api/docs/models/o3-mini",
+    "https://openai.com/api-fast-mode/"
   ],
+  "processing_notes": {
+    "auto": "auto is not assigned a fixed multiplier. It follows project settings and must be resolved from response telemetry before an all-in token total is asserted.",
+    "batch": "Batch pricing is a separate API processing mode rather than a service_tier response value. It is intentionally not treated as a service_tier by this registry.",
+    "hosted_tools": "Built-in or tool-specific OpenAI features may add non-token or per-call charges. The token calculator marks such responses incomplete unless those charges are separately represented."
+  },
   "models": {
     "gpt-6-astra": {
       "aliases": [],
       "rates": {"input": 10.0, "cached_input": 1.0, "cache_write": 12.5, "output": 50.0},
       "long_context": {"threshold_input_tokens": 272000, "input_multiplier": 2.0, "cached_input_multiplier": 2.0, "cache_write_multiplier": 2.0, "output_multiplier": 1.5},
-      "service_tiers": {"default": 1.0, "standard": 1.0, "auto": 1.0, "flex": 0.5, "batch": 0.5, "fast": 2.0, "priority": 2.0}
+      "service_tiers": {"default": 1.0, "standard": 1.0, "flex": 0.5, "fast": 2.0, "priority": 2.0},
+      "batch_multiplier": 0.5
     },
     "gpt-5.6-sol": {
       "aliases": ["gpt-5.6"],
       "rates": {"input": 4.0, "cached_input": 0.4, "cache_write": 5.0, "output": 20.0},
       "long_context": {"threshold_input_tokens": 272000, "input_multiplier": 2.0, "cached_input_multiplier": 2.0, "cache_write_multiplier": 2.0, "output_multiplier": 1.5},
-      "service_tiers": {"default": 1.0, "standard": 1.0, "auto": 1.0, "flex": 0.5, "batch": 0.5, "fast": 2.0, "priority": 2.0}
+      "service_tiers": {"default": 1.0, "standard": 1.0, "flex": 0.5, "fast": 2.0, "priority": 2.0},
+      "batch_multiplier": 0.5,
+      "pricing_window": {
+        "promotional": true,
+        "valid_through_at_least": "2026-11-21",
+        "note": "OpenAI states the current GPT-5.6 Sol promotional pricing is available at least through November 21, 2026. Re-verify before relying on these rates after that date."
+      }
     },
     "gpt-5.6-terra": {
       "aliases": [],
       "rates": {"input": 2.0, "cached_input": 0.2, "cache_write": 2.5, "output": 12.0},
       "long_context": {"threshold_input_tokens": 272000, "input_multiplier": 2.0, "cached_input_multiplier": 2.0, "cache_write_multiplier": 2.0, "output_multiplier": 1.5},
-      "service_tiers": {"default": 1.0, "standard": 1.0, "auto": 1.0, "flex": 0.5, "batch": 0.5, "fast": 2.0, "priority": 2.0}
+      "service_tiers": {"default": 1.0, "standard": 1.0, "flex": 0.5, "fast": 2.0, "priority": 2.0},
+      "batch_multiplier": 0.5
     },
     "gpt-5.6-luna": {
       "aliases": [],
       "rates": {"input": 0.2, "cached_input": 0.02, "cache_write": 0.25, "output": 1.2},
       "long_context": {"threshold_input_tokens": 272000, "input_multiplier": 2.0, "cached_input_multiplier": 2.0, "cache_write_multiplier": 2.0, "output_multiplier": 1.5},
-      "service_tiers": {"default": 1.0, "standard": 1.0, "auto": 1.0, "flex": 0.5, "batch": 0.5, "fast": 2.0, "priority": 2.0}
+      "service_tiers": {"default": 1.0, "standard": 1.0, "flex": 0.5, "fast": 2.0, "priority": 2.0},
+      "batch_multiplier": 0.5
     },
     "o1": {
       "aliases": ["o1-2024-12-17"],
       "rates": {"input": 15.0, "cached_input": 7.5, "cache_write": null, "output": 60.0},
-      "service_tiers": {"default": 1.0, "standard": 1.0, "auto": 1.0}
+      "service_tiers": {"default": 1.0, "standard": 1.0}
     },
     "o3-mini": {
       "aliases": ["o3-mini-2025-01-31"],
       "rates": {"input": 1.1, "cached_input": 0.55, "cache_write": null, "output": 4.4},
-      "service_tiers": {"default": 1.0, "standard": 1.0, "auto": 1.0}
+      "service_tiers": {"default": 1.0, "standard": 1.0}
     },
     "gpt-4o": {
       "aliases": ["gpt-4o-2024-08-06", "gpt-4o-2024-11-20"],
       "rates": {"input": 2.5, "cached_input": 1.25, "cache_write": null, "output": 10.0},
-      "service_tiers": {"default": 1.0, "standard": 1.0, "auto": 1.0}
+      "service_tiers": {"default": 1.0, "standard": 1.0}
     },
     "gpt-4o-mini": {
       "aliases": ["gpt-4o-mini-2024-07-18"],
       "rates": {"input": 0.15, "cached_input": 0.075, "cache_write": null, "output": 0.6},
-      "service_tiers": {"default": 1.0, "standard": 1.0, "auto": 1.0}
+      "service_tiers": {"default": 1.0, "standard": 1.0}
     }
   }
 }
