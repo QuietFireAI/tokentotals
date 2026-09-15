@@ -20,6 +20,7 @@ See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_ST
 - Unknown model pricing **fails closed** instead of using a generic dollar fallback.
 - Conservative pre-flight reservation for estimated input **and bounded output** tokens.
 - Atomic in-process budget check/reservation and post-response reconciliation.
+- Request-scoped thread/routine/savings accounting stays local to each request rather than using shared callback globals.
 - Daily local spend state and active-thread spend state under `~/.tokentotals`.
 - Lock state with desktop tray/modal monitoring on the Windows GUI.
 - Literal `I UNDERSTAND` requirement for the HTTP unlock endpoint.
@@ -89,7 +90,7 @@ For a supported model TokenTotals:
 
 If a caller supplies both `max_tokens` and `max_completion_tokens`, TokenTotals reserves against the larger valid ceiling. If a stream ends without usable final usage telemetry, the conservative reservation remains on the books and the stream is marked unreconciled rather than silently releasing budget headroom.
 
-This closes the baseline implementation's input-only pre-flight gap and its check-then-send concurrency race within a single TokenTotals process.
+This closes the baseline implementation's input-only pre-flight gap and its check-then-send concurrency race within a single TokenTotals process. Simultaneous-request regression tests also verify that the process-local reservation gate admits only one of two reservations that cannot both fit, and that overlapping requests keep their own thread/routine/savings context through reconciliation.
 
 ### Important process boundary
 
@@ -176,6 +177,9 @@ The forensic hardening suite now covers:
 - fail-closed unknown model pricing;
 - high-side pre-flight guard rates;
 - atomic reservation/reconciliation;
+- true simultaneous in-process reservation contention;
+- overlapping request-context isolation for thread identity, routine classification, and potential-savings metadata;
+- regression guards preventing the old shared request-scoped globals/callback from returning;
 - unlock and boost acknowledgements;
 - prevention of upstream calls after price/budget rejection;
 - bounded output reservation, including conflicting output-bound fields;
@@ -200,9 +204,9 @@ The forensic hardening suite now covers:
 - Python 3.12 agreement across the compatibility contract, CI, and Windows build path;
 - constrained Windows PyInstaller packaging dependencies.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **35 tests / 0 failures** on the IR-007 output-reservation revalidation revision. The new IR-007 tests directly inspect the committed reservation from inside the mocked upstream call and prove that a stream without final usage retains that reservation. Separate clean-environment jobs continue to exercise the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The non-destructive matrix-source workflow previously passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass. This is regression/source-validation evidence, not a substitute for live-provider integration, load, final executable packaging, or security testing.
+GitHub Actions on Ubuntu/Python 3.12 passed **38 tests / 0 failures** on the IR-009 overlap revalidation revision. The IR-008 contention test proves the in-process budget gate serializes two simultaneous reservations that cannot both fit. The IR-009 tests prove the old request-scoped globals/callback cannot silently return and that overlapping requests retain their own accounting identity through reservation and reconciliation. Separate clean-environment jobs continue to exercise the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The non-destructive matrix-source workflow previously passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass. This is regression/source-validation evidence, not a substitute for live-provider integration, broader load, final executable packaging, or security testing.
 
-See [`docs/IR-007_OUTPUT_RESERVATION_PROOF.md`](docs/IR-007_OUTPUT_RESERVATION_PROOF.md) for the circuit-breaker output-reservation evidence and [`docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md`](docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md) for the dependency-reproducibility and daily Python compatibility evidence.
+See [`docs/IR-007_OUTPUT_RESERVATION_PROOF.md`](docs/IR-007_OUTPUT_RESERVATION_PROOF.md) for output-reservation evidence, [`docs/IR-008_CONCURRENT_RESERVATION_PROOF.md`](docs/IR-008_CONCURRENT_RESERVATION_PROOF.md) for in-process contention evidence, [`docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md`](docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md) for request-context isolation evidence, and [`docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md`](docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md) for dependency-reproducibility and daily Python compatibility evidence.
 
 ## Security and privacy boundary
 
