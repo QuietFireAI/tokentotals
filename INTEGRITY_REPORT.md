@@ -76,7 +76,9 @@ A dedicated regression test now regenerates the portable base matrix from the ch
 
 Baseline `proxy_server.py` imported `litellm`; baseline `requirements.txt` did not install it.
 
-**Repair:** `litellm` added to runtime requirements.
+**Repair:** `litellm` is now a runtime requirement. The proxy guardrail tests were also corrected so they no longer inject a fake `litellm` module that could mask a missing dependency. The clean GitHub Actions environment installs `requirements-dev.txt`, which includes `requirements.txt`, imports the real installed LiteLLM package, and verifies that `proxy_server.litellm` is that installed module.
+
+**Validation:** clean Ubuntu/Python 3.12 CI installed LiteLLM from the declared requirements and passed the hardened dependency/proxy suite. A future removal of LiteLLM from the declared runtime dependencies should now fail CI rather than being hidden by the test harness.
 
 ### IR-007 — Circuit breaker reserved input cost only — CONFIRMED SAFETY DEFECT
 
@@ -184,7 +186,7 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression suite on the hardened branch: **20 passed / 0 failed** on Ubuntu/Python 3.12 after the IR-005 matrix-drift regression was added.
+Current GitHub Actions regression suite on the hardened branch: **21 passed / 0 failed** on Ubuntu/Python 3.12 after the IR-006 clean-dependency proof was hardened.
 
 Regression coverage includes:
 
@@ -207,11 +209,12 @@ Regression coverage includes:
 17. promoted OpenAI snapshot is the runtime pricing view;
 18. suspicious pricing changes are quarantined and failed checks remain retryable;
 19. source-content-only changes require review instead of being silently ignored;
-20. committed base pricing matrix must match the generator/base verified pricing view.
+20. committed base pricing matrix must match the generator/base verified pricing view;
+21. proxy imports the real installed LiteLLM runtime dependency in the clean CI environment.
 
 ## Remaining limitations before calling this production-proven
 
-- The 20-test suite is focused regression coverage, not a full integration or load test.
+- The 21-test suite is focused regression coverage, not a full integration or load test.
 - The IR-003 CI tests use controlled source fixtures to test parser and promotion behavior; deployment still depends on the availability and continued documented structure of the official provider pages.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
 - Multi-process workers are not supported for the file-lock budget invariant; the current lock is process-local. Run one TokenTotals proxy process unless cross-process locking is added.
