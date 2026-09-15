@@ -66,13 +66,21 @@ The baseline dashboard said official vendor pricing was “audited live directly
 
 **Validation:** a dedicated public-claim integrity test scans the README, technical/security whitepaper, and dashboard source. It fails if the old blanket live-audit wording (or close variants) returns, and it separately requires the documentation to preserve the actual scope: OpenAI has the current official-source synchronization path; Anthropic and Google remain dated catalog entries. That guard passed in the 25-test GitHub Actions run on the repaired branch.
 
-### IR-005 — Published model matrix was stale — STALE DATA
+### IR-005 — Published model matrix was stale — STALE DATA / REPAIRED AND REVALIDATED
 
 Baseline `MODEL_COMPARISON_MATRIX.md` centered Claude 3.x, GPT-4o/o1/o3-mini, and Gemini 2.x-era entries.
 
-**Repair:** the matrix was regenerated from the effective verified pricing view supplied by `pricing_engine`. On the 2026-09-14/15 revalidation pass, every committed base input/output row was checked against the current official provider pricing documentation and matched the published base/standard rates represented by the matrix. The matrix is intentionally a standard comparison, not a representation of every context band, cache rate, service tier, regional modifier, tool charge, promotion, or account-specific condition.
+**Repair:** the matrix was regenerated from the effective verified pricing view supplied by `pricing_engine`. On the 2026-09-15 revalidation pass, every committed base input/output row was checked against the current official provider pricing documentation and matched the published base/standard rates represented by the matrix. The matrix is intentionally a standard comparison, not a representation of every context band, cache rate, service tier, regional modifier, tool charge, promotion, or account-specific condition.
 
-A dedicated regression test now regenerates the portable base matrix from the checked-in verified pricing view and fails CI if `MODEL_COMPARISON_MATRIX.md` drifts from the catalog/generator. Runtime generation still consumes a promoted OpenAI overlay when one exists.
+A dedicated regression test regenerates the portable base matrix from the checked-in verified pricing view and fails CI if `MODEL_COMPARISON_MATRIX.md` drifts from the catalog/generator. Runtime generation still consumes a promoted OpenAI overlay when one exists.
+
+For the providers that remain dated catalog entries, `matrix_source_check.py` now performs a separate **non-destructive live source check** against the official Anthropic and Google pricing pages. It anchors parsing inside Anthropic's model-pricing section and Google's Standard pricing section so navigation, promotional copy, Priority, Flex, or Batch repeats cannot accidentally satisfy the base-rate check. It records provider-source hashes and fails when a represented model/rate cannot be found in the applicable base/standard section. It does not rewrite or promote pricing automatically.
+
+The first live IR-005 source-check attempt failed on Claude Fable 5.1 because the initial parser selected an earlier navigation occurrence of the model name instead of the actual pricing table. Inspection confirmed the published Fable rate was still correct; the validator was repaired to anchor to the pricing section and then rerun. The corrected live workflow passed against both Anthropic and Google.
+
+Google's Gemini 3.6/3.7/3.8 Flash promotional matrix records now carry `effective_until: 2026-12-31`. The validator enforces that effective date, including a regression test proving that an expired promotional rate fails after 2026-12-31 even when the historical old dollar value remains visible on the provider page. This prevents a historical rate from being mistaken for a current one merely because the source page still contains both old and future pricing.
+
+**Validation:** on the final IR-005 matrix revision, the clean GitHub Actions regression suite passed **29/29**, and the separate `matrix-source-check` workflow successfully fetched and validated the live Anthropic and Google official pricing pages. No pricing file was modified by that live validator.
 
 ### IR-006 — Clean install omitted required dependency — CONFIRMED DEFECT
 
@@ -181,7 +189,7 @@ A regression test added during the hardening pass forced the auto-economy select
 
 **Repair:** route selection now occurs before the budget calculation. The proxy resolves pricing for the exact model that will be sent upstream, estimates/reserves against that routed model, and uses the same routed pricing for response reconciliation. If auto-economy selects a model with no verified pricing, the request fails closed before upstream egress.
 
-**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes, and the full clean GitHub Actions suite passes 25/25.
+**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **29/29** clean regression suite.
 
 ## Confirmed implemented baseline behavior
 
@@ -198,7 +206,7 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression suite on the hardened branch: **25 passed / 0 failed** on Ubuntu/Python 3.12.
+Current GitHub Actions regression suite on the hardened branch: **29 passed / 0 failed** on Ubuntu/Python 3.12.
 
 Regression coverage includes:
 
@@ -226,23 +234,29 @@ Regression coverage includes:
 22. conflicting output-bound fields reserve against the largest supplied ceiling;
 23. auto-economy reservations follow the exact model actually routed upstream;
 24. blanket “all providers audited live” pricing claims cannot return to public claim surfaces;
-25. public documentation must preserve the actual provider synchronization scope.
+25. public documentation must preserve the actual provider synchronization scope;
+26. Anthropic live-rate validation anchors to the actual model-pricing section instead of navigation occurrences;
+27. Google live-rate validation anchors to the Standard section instead of promotional/Priority repeats;
+28. live matrix-source rate drift fails rather than silently accepting a changed number;
+29. effective-dated promotional pricing fails after expiration even if the old historical rate remains on the provider page.
 
 IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
 
+IR-005 additionally has a separate `matrix-source-check` workflow. On the 2026-09-15 revalidation pass it fetched the live Anthropic and Google official pricing pages, validated the dated catalog's represented base/standard rates, and completed successfully without changing or promoting pricing data.
+
 ## Remaining limitations before calling this production-proven
 
-- The 25-test suite is focused regression coverage, not a full integration or load test.
-- The live OpenAI source check proves the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must preserve the last verified snapshot rather than promote uncertain data.
+- The 29-test suite is focused regression coverage, not a full integration or load test.
+- The live OpenAI, Anthropic, and Google source checks prove the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must be surfaced for review rather than treated as proof that the provider price changed.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
 - Multi-process workers are not supported for the file-lock budget invariant; the current lock is process-local. Run one TokenTotals proxy process unless cross-process locking is added.
 - OpenAI source synchronization does not by itself implement every OpenAI billing dimension in transaction accounting. Tool-call fees, image/audio billing, prompt caching details, service tiers, regional variations, provider promotions, and other applicable meters require explicit accounting support before they can be represented as a high-confidence provider-rule estimate.
-- Anthropic and Google do not yet have the dynamic official-source synchronization path implemented for OpenAI.
+- Anthropic and Google have live source-drift validation for their dated matrix/catalog entries, but they do not yet have the dynamic promoted runtime-pricing adapter implemented for OpenAI.
 - Streaming responses without final usage retain the worst-case reservation and are marked unreconciled rather than guessed.
 - Vendor prices and page structures change. Source verification evidence records what was checked; it is not a promise that a provider cannot later change either pricing or documentation format.
 
 ## Integrity conclusion
 
-The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect through an adversarial regression test before release.
+The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, stale matrix data, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect through an adversarial regression test before release.
 
 The hardening branch removes the known silent fabrication/fallback paths and changes the governing rule to: **unknown or unreconciled data stays unknown/conservative; it is never converted into a plausible-looking number merely to keep the UI green.**
