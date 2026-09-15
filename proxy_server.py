@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import litellm
 import config_manager
 import turn_ledger
+import telemetry_view
 from openai_pricing import (
     calculate_openai_response_cost,
     estimate_openai_input_cost,
@@ -397,6 +398,26 @@ async def get_status():
         "is_locked": state.get("is_locked", False),
         "port": conf.get("port", 8080),
     }
+
+
+@app.get("/api/telemetry/thread")
+async def get_thread_telemetry(thread_id: str):
+    key = str(thread_id).strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="thread_id must be non-empty")
+    try:
+        view = telemetry_view.thread_view(key)
+    except turn_ledger.LedgerCorruptionError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"TokenTotals turn ledger is corrupt: {exc}",
+        )
+    if view is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No TokenTotals turn telemetry exists for thread '{key}'.",
+        )
+    return view
 
 
 @app.post("/api/boost")
