@@ -118,13 +118,19 @@ Baseline performed read/check/send logic without an atomic reservation. Multiple
 
 See `docs/IR-008_CONCURRENT_RESERVATION_PROOF.md` for the dedicated proof sheet.
 
-### IR-009 — Global per-request callback state — CONFIRMED CONCURRENCY DEFECT
+### IR-009 — Global per-request callback state — CONFIRMED CONCURRENCY DEFECT / REPAIRED AND REVALIDATED
 
-Baseline used process globals (`CURRENT_THREAD_ID`, `CURRENT_ROUTINE_FLAG`, `CURRENT_POTENTIAL_SAVING`) for request-specific data consumed by the LiteLLM callback.
+Baseline used shared request-scoped module globals (`CURRENT_THREAD_ID`, `CURRENT_ROUTINE_FLAG`, `CURRENT_POTENTIAL_SAVING`) for data consumed later by a LiteLLM callback. Those variables were ordinary Python state, but they were unsafe under concurrent requests because one in-flight request could overwrite values before another request's callback used them.
 
-**Impact:** overlapping requests could attribute spend/savings to the wrong request/thread.
+**Impact:** overlapping requests could attribute spend, routine classification, or potential-savings accounting using another request's identity or metadata.
 
-**Repair:** request-specific values stay local to the request path; the global callback accounting path was removed.
+**Repair:** the shared request-scoped globals and callback accounting path were removed. `thread_id`, `is_routine`, `potential_saving`, routed pricing, reservation amount, and reconciliation context remain local to each request and are passed explicitly into the state-management functions that need them. The surviving `LAST_LATENCY_MS` module value is aggregate dashboard telemetry and is not used for request spend/thread/savings attribution.
+
+**Validation:** the 2026-09-15 IR-009 pass added two regression guards without changing production proxy logic. One fails if the baseline request-scoped global names or old `track_cost_callback` symbol reappear. The second launches two overlapping HTTP requests with distinct thread IDs and deliberately different classification outcomes. A barrier inside the mocked upstream function prevents either response from finishing until both requests are simultaneously in flight. The short request must carry `is_routine=True` and a positive potential-savings estimate; the long request must carry `is_routine=False` and zero potential-savings metadata. Reservation and reconciliation instrumentation must preserve each request's own thread ID. The test passed as part of the clean **38/38** regression suite, with exactly two requests recorded and exactly one routine call.
+
+**Boundary:** `active_thread_id` / `thread_spend_usd` remain a single display slot and may legitimately move to the most recently active thread. They are not represented as a historical per-thread ledger. IR-009 concerns cross-request attribution of request-local accounting context, which the overlap test revalidates.
+
+See `docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md` for the dedicated proof sheet.
 
 ### IR-010 — `/api/unlock` claimed acknowledgment it never verified — CONFIRMED INTEGRITY DEFECT
 
@@ -203,7 +209,7 @@ A regression test added during the hardening pass forced the auto-economy select
 
 **Repair:** route selection now occurs before the budget calculation. The proxy resolves pricing for the exact model that will be sent upstream, estimates/reserves against that routed model, and uses the same routed pricing for response reconciliation. If auto-economy selects a model with no verified pricing, the request fails closed before upstream egress.
 
-**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **36/36** clean regression suite.
+**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **38/38** clean regression suite.
 
 ### IR-020 — Dependency graph was not version-reproducible — CONFIRMED HARDENING DEFECT / REPAIRED AND REVALIDATED
 
@@ -236,7 +242,7 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression suite on the hardened branch: **36 passed / 0 failed** on Ubuntu/Python 3.12.
+Current GitHub Actions regression suite on the hardened branch: **38 passed / 0 failed** on Ubuntu/Python 3.12.
 
 Regression coverage includes:
 
@@ -275,7 +281,9 @@ Regression coverage includes:
 33. the Windows packaging path remains bound to the constrained PyInstaller dependency graph;
 34. the full conservative input-plus-output reservation is committed before upstream execution begins;
 35. a stream without final usage retains its conservative reservation and is marked unreconciled;
-36. two simultaneous in-process reservations that cannot both fit the remaining budget produce exactly one acceptance and one rejection.
+36. two simultaneous in-process reservations that cannot both fit the remaining budget produce exactly one acceptance and one rejection;
+37. baseline request-scoped accounting globals and the old callback symbol cannot silently return;
+38. overlapping requests preserve distinct thread identity and routine/savings context through reservation and reconciliation.
 
 IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
 
@@ -285,7 +293,7 @@ IR-020 additionally has clean-environment Linux runtime, Windows runtime, and Wi
 
 ## Remaining limitations before calling this production-proven
 
-- The 36-test suite is focused regression coverage, not a full integration or load test.
+- The 38-test suite is focused regression coverage, not a full integration or load test.
 - The live OpenAI, Anthropic, and Google source checks prove the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must be surfaced for review rather than treated as proof that the provider price changed.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
 - Multi-process workers are not supported for the file-lock budget invariant; the current lock is process-local. Run one TokenTotals proxy process unless cross-process locking is added.
