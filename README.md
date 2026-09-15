@@ -7,7 +7,7 @@ TokenTotals listens on `127.0.0.1`, forwards supported chat-completion requests 
 > [!IMPORTANT]
 > TokenTotals is a developer pacing/observability tool, **not a provider billing portal or network firewall**. Dollar values are independent estimates based on the request/response telemetry available to the user and the provider pricing rules represented in TokenTotals. Provider billing can differ because of model snapshots, token and cache telemetry, context bands, requested versus actual service tier, regional processing, modality, hosted tools, storage/runtime meters, fine-tuning, promotions/effective dates, account-specific pricing, retries/partial streams, missing telemetry, and provider-side pricing changes. Always monitor the provider's own account and billing controls as the authority for actual charges.
 
-See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_STANDARD.md) for the governing accuracy and disclosure standard.
+See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_STANDARD.md) for the governing accuracy and disclosure standard and [`docs/TOKEN_ESTIMATION_CONTRACT.md`](docs/TOKEN_ESTIMATION_CONTRACT.md) for the pre-flight token-estimation boundary.
 
 ## What is implemented
 
@@ -16,7 +16,9 @@ See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_ST
 - Checked-in, dated base pricing catalog with official provider receipt URLs.
 - Official-source OpenAI pricing checker for the supported OpenAI models in this revision.
 - Validated OpenAI candidate snapshots that are promoted separately from the last verified runtime snapshot.
-- Non-destructive daily source-drift validation for the dated Anthropic and Google matrix base rates and represented conservative guard rates.
+- Non-destructive official-source validation for the dated Anthropic and Google matrix base rates and represented conservative guard rates.
+- A schedule-first daily pricing-integrity workflow that verifies sources, regenerates pricing/documentation surfaces, archives an immutable timestamped daily receipt, runs integrity/regression gates, publishes one atomic commit, and then sends the generated daily report when SMTP secrets are configured.
+- A 24-hour freshness validator/watchdog that proves the most recent successful daily refresh is still current; it does not trigger the refresh.
 - Unknown model pricing **fails closed** instead of using a generic dollar fallback.
 - Conservative pre-flight reservation for estimated input **and bounded output** tokens.
 - Atomic in-process budget check/reservation and post-response reconciliation.
@@ -31,14 +33,14 @@ See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_ST
 - SSE-style streaming pass-through. If final usage is unavailable, TokenTotals keeps the conservative reservation and marks the stream unreconciled rather than inventing a final cost.
 - A validated CPython 3.12 dependency contract with a version-constrained runtime/test/build dependency graph.
 - Clean Linux and Windows runtime smoke checks plus a constrained Windows PyInstaller toolchain check.
-- A daily GitHub Actions compatibility watch for Python-version and dependency-resolution drift once this workflow is on the repository default branch.
+- Real Uvicorn/loopback HTTP integration tests and a bounded repeated-concurrency integrity soak.
 
 ## What is **not** claimed
 
 - Pre-flight token counts are **not represented as provider/model BPE counts**. The current local estimator is a conservative UTF-8 length heuristic.
 - TokenTotals does not claim invoice parity or guaranteed identity with provider billing.
 - The current OpenAI source synchronization is not the same thing as a complete OpenAI billing adapter. Service-tier, cache, context-band, regional, tool, modality, storage, and other billing-event accounting are implemented only when specifically documented and tested.
-- Anthropic and Google do not yet have the dynamic official-source synchronization path implemented for OpenAI; they remain dated verified catalog entries in this revision. Their live source-drift check validates represented base/standard and conservative guard rates but does not automatically promote new rates into runtime pricing.
+- Anthropic and Google do not yet have the dynamic official-source synchronization path implemented for OpenAI; they remain dated verified catalog entries in this revision. Their live source validation checks represented base/standard and conservative guard rates but does not automatically promote new rates into runtime pricing.
 - It does not intercept applications that bypass the configured local proxy.
 - It does not provide a TokenTotals WebSocket proxy endpoint.
 - It does not inject a telemetry badge into every IDE/chat turn.
@@ -46,6 +48,7 @@ See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_ST
 - The packaged GUI/build path in this repository is currently Windows-oriented. The Python proxy may be portable, but macOS/Linux GUI packaging is not release-tested here.
 - The HTTP acknowledgment phrases are **not authentication secrets**. A malicious local process running with the user's privileges can deliberately call the loopback control endpoint with valid JSON and the published phrase.
 - The dependency constraints provide version reproducibility for the validated CPython 3.12 environments; they are not a cryptographic package-artifact/hash guarantee.
+- The bounded 32-concurrent / 256-request loopback soak is an integrity proof, not a production throughput rating or multi-process guarantee.
 
 See [`INTEGRITY_REPORT.md`](INTEGRITY_REPORT.md) for the forensic findings that led to these corrections.
 
@@ -57,7 +60,7 @@ The base is [`pricing_catalog.json`](pricing_catalog.json). For OpenAI, a succes
 
 `openai_pricing_sync.py` checks the official OpenAI developer documentation for the OpenAI models currently supported by this pricing adapter. A complete candidate must parse and validate before promotion. Incomplete fetches preserve the previous verified snapshot. Large suspicious rate jumps are quarantined, and source-content changes that do not correspond to a recognized pricing/rule change are held for review instead of being treated as harmless.
 
-The checker is scheduled daily. A failed check remains due and is retried; a successful check with no supported change records the fresh check without inventing a new rate version.
+Pricing freshness is **schedule-first**. The daily integrity workflow runs once per day at `05:05 UTC` plus explicit manual dispatch. It verifies provider evidence regardless of whether yesterday's rates changed. Price/model drift is an audit result discovered during that run, not the trigger for the run. After a successful refresh, the generated pricing status is archived under `docs/pricing_archive/YYYY/MM/` and the 24-hour checker acts only as a completion/freshness watchdog. See [`docs/DAILY_INTEGRITY_REFRESH.md`](docs/DAILY_INTEGRITY_REFRESH.md).
 
 Official pricing receipts used by this revision:
 
@@ -65,7 +68,7 @@ Official pricing receipts used by this revision:
 - Anthropic: https://platform.claude.com/docs/en/about-claude/pricing
 - Google Cloud: https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
 
-Anthropic and Google continue to use the checked-in dated catalog until equivalent official-source adapters are separately implemented and tested. `matrix_source_check.py` independently checks their represented base/standard rates and conservative guard rates against those official pages every day and on relevant pricing changes. It is deliberately non-destructive: drift, a parsing ambiguity, a missing model row, an unsupported guard value, or an expired effective-dated rate fails the check rather than rewriting runtime pricing.
+Anthropic and Google continue to use the checked-in dated catalog until equivalent official-source adapters are separately implemented and tested. `matrix_source_check.py` independently checks their represented base/standard rates and conservative guard rates against those official pages during the scheduled daily integrity run and explicit manual verification runs. It is deliberately non-destructive: drift, a parsing ambiguity, a missing model row, an unsupported guard value, or an expired effective-dated rate fails the check rather than rewriting runtime pricing.
 
 The Google Gemini 3.6/3.7/3.8 Flash promotional rates represented in this revision are effective only through **2026-12-31**. Their catalog records carry that expiration so the validator cannot continue treating the historical promotional number as current after its effective window ends.
 
@@ -161,7 +164,7 @@ The currently validated source/runtime dependency contract is **CPython 3.12.x**
 
 `constraints-py312.txt` pins the validated runtime/test/build dependency versions. Platform-specific packages use environment markers where the validated Linux and Windows graphs differ. Deliberate dependency upgrades should update the constraints and pass the Linux runtime, Windows runtime, Windows build-tool, and regression jobs together.
 
-`runtime_compat.py` is the machine-readable compatibility check used by CI. The GitHub Actions workflow exercises the Python-version contract and constrained dependency graph on pushes and pull requests, and is scheduled daily on the default branch to catch future interpreter/dependency drift.
+`runtime_compat.py` is the machine-readable compatibility check used by CI. The GitHub Actions workflow exercises the Python-version contract and constrained dependency graph on pushes and pull requests and includes daily drift checking when the relevant scheduled workflows are present on the default branch.
 
 ## Quickstart from source
 
@@ -252,6 +255,8 @@ The forensic hardening suite now covers:
 - removal of hard-coded dashboard telemetry and source-backed dashboard dynamic fields;
 - public-claim guard preventing the unsupported turn-by-turn telemetry badge claim from returning;
 - non-stream response pass-through proof that provider assistant content is not silently decorated by TokenTotals;
+- exact current pre-flight UTF-8 heuristic behavior, model-independence, and a claim guard prohibiting BPE/exact/provider-accurate wording;
+- provider-reported token usage superseding an intentionally divergent pre-flight heuristic during supported reconciliation;
 - OpenAI official-source pricing parsing;
 - preservation of the last verified OpenAI snapshot after incomplete/failed checks;
 - runtime consumption of the same promoted OpenAI snapshot;
@@ -262,6 +267,10 @@ The forensic hardening suite now covers:
 - Anthropic/Google live matrix-source parsing anchored to their base/standard pricing sections;
 - live base-rate and guard-rate drift rejection rather than silent catalog acceptance;
 - effective-date expiry enforcement for promotional matrix rates;
+- schedule-first daily refresh with the 24-hour completion watchdog;
+- immutable timestamped daily status archiving and overwrite rejection;
+- construction of the successful daily email receipt from the generated status and exact published SHA;
+- real Uvicorn loopback integration and repeated-concurrency accounting integrity through 32 simultaneous requests × 8 rounds / 256 total requests;
 - clean-install use of the real declared LiteLLM dependency rather than a test-injected stand-in;
 - public-claim guards that prevent a blanket all-provider “audited live” claim and preserve the actual provider synchronization scope;
 - runtime requirement coverage by the Python 3.12 constraints;
@@ -269,9 +278,9 @@ The forensic hardening suite now covers:
 - Python 3.12 agreement across the compatibility contract, CI, and Windows build path;
 - constrained Windows PyInstaller packaging dependencies.
 
-The current focused regression suite passed **51 tests / 0 failures** on Ubuntu/Python 3.12 after the generated-pricing synchronization and Google Flash-Lite guard-rate correction. Separate clean-environment jobs passed for the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The non-destructive matrix-source workflow fetched the live Anthropic and Google official pricing pages on the 2026-09-15 stop-line revalidation and passed for the represented base/standard and conservative guard rates without modifying pricing files. This is regression/source-validation evidence, not a substitute for live-provider integration, broader load, final executable packaging, or security testing.
+The current regression/integration suite passed **64 tests / 0 failures** on Ubuntu/Python 3.12.14 on the IR-014 proof revision. The same exact head passed constrained Linux runtime import, constrained Windows runtime import, Windows PyInstaller/build-tool smoke, and `pip check`. Separate live provider-source workflows also validate the represented pricing sources. This is regression/source-validation evidence, not a claim of provider invoice parity, unlimited throughput, multi-process safety, or paid-provider network reliability.
 
-See [`docs/IR-007_OUTPUT_RESERVATION_PROOF.md`](docs/IR-007_OUTPUT_RESERVATION_PROOF.md) for output-reservation evidence, [`docs/IR-008_CONCURRENT_RESERVATION_PROOF.md`](docs/IR-008_CONCURRENT_RESERVATION_PROOF.md) for in-process contention evidence, [`docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md`](docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md) for request-context isolation evidence, [`docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md`](docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md) for unlock acknowledgment evidence, [`docs/IR-011_BOOST_AND_BROWSER_ORIGIN_PROOF.md`](docs/IR-011_BOOST_AND_BROWSER_ORIGIN_PROOF.md) for budget-control/browser-origin evidence, [`docs/IR-012_DASHBOARD_TELEMETRY_INTEGRITY_PROOF.md`](docs/IR-012_DASHBOARD_TELEMETRY_INTEGRITY_PROOF.md) for dashboard telemetry-integrity evidence, [`docs/IR-013_TELEMETRY_BADGE_CLAIM_PROOF.md`](docs/IR-013_TELEMETRY_BADGE_CLAIM_PROOF.md) for the in-context badge claim boundary, [`docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md`](docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md) for dependency-reproducibility and daily Python compatibility evidence, and [`docs/IR-021_GOOGLE_FLASH_LITE_GUARD_RATE_PROOF.md`](docs/IR-021_GOOGLE_FLASH_LITE_GUARD_RATE_PROOF.md) for the Google guard-rate correction and daily guard-source validation evidence.
+See [`docs/DAILY_INTEGRITY_REFRESH.md`](docs/DAILY_INTEGRITY_REFRESH.md) for the scheduled refresh/archive/email contract; [`docs/TOKEN_ESTIMATION_CONTRACT.md`](docs/TOKEN_ESTIMATION_CONTRACT.md) and [`docs/IR-014_TOKEN_ESTIMATION_PRECISION_PROOF.md`](docs/IR-014_TOKEN_ESTIMATION_PRECISION_PROOF.md) for token-estimation integrity; [`docs/IR-022_HTTP_INTEGRATION_LOAD_PROOF.md`](docs/IR-022_HTTP_INTEGRATION_LOAD_PROOF.md) and [`docs/IR-023_SUSTAINED_CONCURRENCY_SOAK_PROOF.md`](docs/IR-023_SUSTAINED_CONCURRENCY_SOAK_PROOF.md) for loopback/load evidence; and [`INTEGRITY_REPORT.md`](INTEGRITY_REPORT.md) for the full forensic ledger.
 
 ## Security and privacy boundary
 
