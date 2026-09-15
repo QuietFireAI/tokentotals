@@ -128,24 +128,25 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
         LAST_LATENCY_MS = int((end_time - start_time).total_seconds() * 1000)
         request_model = kwargs.get("model", "")
         cost = None
+        provider_result = None
 
         if completion_response and looks_like_openai_model(request_model):
-            result = calculate_openai_response_cost(
+            provider_result = calculate_openai_response_cost(
                 request_model,
                 completion_response,
                 request_service_tier=request_service_tier_from_callback(kwargs),
             )
-            if result.get("complete") and result.get("total_cost_usd") is not None:
-                cost = result["total_cost_usd"]
+            if provider_result.get("complete") and provider_result.get("total_cost_usd") is not None:
+                cost = provider_result["total_cost_usd"]
             else:
                 print(
                     "[TokenTotals Pricing Warning] OpenAI telemetry could not be fully priced "
-                    f"from the verified registry: {result.get('notes', [])}. "
+                    f"from the verified registry: {provider_result.get('notes', [])}. "
                     "Falling back to LiteLLM response_cost when available."
                 )
 
         elif completion_response and looks_like_anthropic_model(request_model):
-            result = calculate_anthropic_response_cost(
+            provider_result = calculate_anthropic_response_cost(
                 request_model,
                 completion_response,
                 processing_mode="standard",
@@ -154,17 +155,32 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
                 speed_hint=callback_param(kwargs, "speed"),
                 platform="claude_api",
             )
-            if result.get("complete") and result.get("total_cost_usd") is not None:
-                cost = result["total_cost_usd"]
+            if provider_result.get("complete") and provider_result.get("total_cost_usd") is not None:
+                cost = provider_result["total_cost_usd"]
             else:
                 print(
                     "[TokenTotals Pricing Warning] Anthropic telemetry could not be fully priced "
-                    f"from the verified registry: {result.get('notes', [])}. "
+                    f"from the verified registry: {provider_result.get('notes', [])}. "
                     "Falling back to LiteLLM response_cost when available."
                 )
 
         if cost is None:
-            cost = kwargs.get("response_cost", 0.0) or 0.0
+            litellm_cost = kwargs.get("response_cost", 0.0) or 0.0
+            if litellm_cost:
+                cost = litellm_cost
+            elif provider_result and provider_result.get("provider") == "anthropic":
+                known_equivalent = provider_result.get("known_list_equivalent_usd")
+                if known_equivalent is not None:
+                    cost = known_equivalent
+                    print(
+                        "[TokenTotals Pricing Warning] LiteLLM supplied no response_cost; "
+                        "recording Anthropic known list-equivalent estimate instead of $0. "
+                        "This value is incomplete and is not an invoice mirror."
+                    )
+                else:
+                    cost = 0.0
+            else:
+                cost = 0.0
 
         config_manager.update_spend(
             cost_usd=cost,
@@ -381,7 +397,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 body { background: var(--bg); color: var(--text); padding: 24px; display: flex; justify-content: center; }
 .container { max-width: 900px; width: 100%; display: flex; flex-direction: column; gap: 20px; }
-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+header { display: flex; justify-content:space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
 .badge { font-size: 11px; padding: 4px 8px; border-radius: 999px; font-weight: 600; text-transform: uppercase; }
