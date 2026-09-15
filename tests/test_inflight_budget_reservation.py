@@ -146,6 +146,11 @@ class InflightBudgetReservationTests(unittest.TestCase):
         self.assertEqual(config_manager.get_state()["current_spend_usd"], 0.0)
 
     def test_second_endpoint_request_is_stopped_before_upstream_while_first_is_inflight(self):
+        # Two $0.30 requests cannot both fit under a $0.50 local threshold.
+        conf = config_manager.get_config()
+        conf["daily_budget_limit_usd"] = 0.50
+        config_manager.save_config(conf)
+
         started = threading.Event()
         release = threading.Event()
         upstream_calls = []
