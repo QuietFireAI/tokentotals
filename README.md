@@ -190,20 +190,20 @@ We encourage developers, researchers, and community builders to:
 
 ## 📊 Standardized Cross-Platform Pricing Comparison (Developer API Stack)
 
-TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet**), **OpenAI** (**o1** / **GPT-4o** / **GPT-4o-mini**), and **Google** (**Gemini 3.7 Flash** / **Gemini 2.5 Pro**):
+TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet**), **OpenAI** (**GPT-6 Astra** / **GPT-5.6 Terra** / **GPT-5.6 Luna**), and **Google** (**Gemini 3.7 Flash** / **Gemini 2.5 Pro**):
 
 ### Standard Turn Cost (10,000 Input / 2,000 Output Tokens)
 
 | Provider | Model | Tier | Standard Turn Cost | Multiplier vs. Baseline |
 | :--- | :--- | :--- | :--- | :--- |
-| **OpenAI** | OpenAI o1 | Frontier | **$0.2700** | **200.0x** |
+| **OpenAI** | GPT-6 Astra | Frontier | **$0.2000** | **148.1x** |
 | **Anthropic** | Claude 3.7 Sonnet | Frontier | **$0.0600** | **44.4x** |
-| **OpenAI** | OpenAI GPT-4o | Workhorse | **$0.0450** | **33.3x** |
+| **OpenAI** | GPT-5.6 Sol | Frontier | **$0.0800** | **59.3x** |
+| **OpenAI** | GPT-5.6 Terra | Workhorse | **$0.0440** | **32.6x** |
 | **Google** | Gemini 2.5 Pro | Frontier | **$0.0325** | **24.1x** |
-| **OpenAI** | OpenAI o3-mini | Workhorse | **$0.0198** | **14.7x** |
 | **Anthropic** | Claude 3.5 Haiku | Economy | **$0.0160** | **11.9x** |
+| **OpenAI** | GPT-5.6 Luna | Economy | **$0.0044** | **3.3x** |
 | **Google** | Gemini 3.7 Flash | Workhorse | **$0.0027** | **2.0x** |
-| **OpenAI** | OpenAI GPT-4o-mini | Economy | **$0.0027** | **2.0x** |
 | **Google** | Gemini 2.0 Flash-Lite | Economy | **$0.00135** | **1.0x (Baseline)** |
 
 *For complete details, see [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md).*
