@@ -3,6 +3,9 @@ from pathlib import Path
 import pytest
 
 
+ROOT = Path(__file__).resolve().parents[1]
+
+
 def test_daily_status_is_archived_byte_for_byte_with_timestamped_path(monkeypatch, tmp_path):
     from scripts import daily_integrity_refresh as refresh
 
@@ -105,3 +108,19 @@ def test_green_daily_workflow_receipt_contains_daily_list_copy(monkeypatch, tmp_
     assert "**Result:** PASS" in text
     assert "# Daily list" in text
     assert "all providers verified" in text
+
+
+def test_daily_workflow_preserves_bad_receipt_without_promoting_bad_surfaces():
+    workflow = (ROOT / ".github" / "workflows" / "daily-integrity-refresh.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Write immutable PASS/FAIL workflow receipt" in workflow
+    assert "if: always()" in workflow
+    assert "git add docs/pricing_archive/" in workflow
+    assert (
+        "git restore --worktree --staged -- pricing_catalog.json MODEL_COMPARISON_MATRIX.md README.md "
+        "TokenTotals_Security_Whitepaper.md docs/PRICING_DAILY_STATUS.md"
+    ) in workflow
+    assert "Archive failed daily pricing integrity receipt" in workflow
+    assert "Fail the workflow after preserving a bad receipt" in workflow
