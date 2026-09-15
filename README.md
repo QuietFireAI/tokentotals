@@ -105,7 +105,7 @@ Left-click the tray icon or visit `http://127.0.0.1:8080/dashboard` in your brow
 ## 🚀 Quickstart
 
 ### 1. Run the Executable (Windows)
-Download the latest `TokenTotals_Windows_v2.4.zip` from Releases, unzip, and run:
+Download the latest `TokenTotals_Windows_v2.8.zip` from Releases, unzip, and run:
 `TokenTotals_QuietFireAI.exe`
 
 A green "T" will appear in your system tray, and the proxy will start listening on port 8080.
@@ -156,19 +156,6 @@ response = client.chat.completions.create(
 ---
 
 
----
-
-## 📊 The Live Telemetry View (Included in Every Turn & Dashboard)
-
-TokenTotals provides deep, un-obfuscated visibility into your AI session health across both the Web Dashboard and your development chat:
-
-```text
-🟢 Status: In Budget | Today: $0.42 / $10.00 | Thread: $0.08  
-📊 Turn: ~$0.0910 (🧠 1.2k think / 💬 380 out) | 💾 Cache Savings: ~95%  
-⚡ Velocity: ~208k tok/turn (16.2M total) | 📈 Session Total: $13.23 USD (78 turns)  
-🪟 Context Window: 33.46% (350.8k / 1M max limit) | 🤖 Model: Gemini 3.7 Flash  
-ℹ️ Pricing: $0.15 In / $0.60 Out per 1M | [Pricing Chart & Docs](https://github.com/QuietFireAI/TokenTotals#pricing)
-```
 
 ---
 
@@ -195,10 +182,6 @@ We encourage developers, researchers, and community builders to:
 
 
 ---
-
-
----
-
 
 ---
 
@@ -258,7 +241,7 @@ TokenTotals exists because an independent developer got tired of waiting.
 
 ## 🏛️ Government, Defense & Enterprise
 
-TokenTotals' zero-egress localhost architecture is uniquely suited for environments where cloud-based FinOps tools are prohibited or infeasible:
+TokenTotals' localhost-only architecture is uniquely suited for environments where cloud-based FinOps tools are prohibited or infeasible:
 
 ### Why Government & Defense Need This:
 * **OMB Budget Accountability:** Federal agencies running AI pilots on GPT-4o or Claude for document processing, intelligence analysis, or citizen services face Congressional audit scrutiny on every line item. TokenTotals provides per-task cost attribution without transmitting classified or sensitive data off-machine.
