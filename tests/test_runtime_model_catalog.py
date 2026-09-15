@@ -12,6 +12,22 @@ class RuntimeModelCatalogTests(unittest.TestCase):
     def setUpClass(cls):
         cls.proxy = importlib.import_module("proxy_server")
 
+    def _post_with_forbidden_upstream(self, payload):
+        litellm_obj = self.proxy.litellm
+        had_acompletion = hasattr(litellm_obj, "acompletion")
+        original_acompletion = getattr(litellm_obj, "acompletion", None)
+        litellm_obj.acompletion = AsyncMock(
+            side_effect=AssertionError("upstream must not be called")
+        )
+        try:
+            client = TestClient(self.proxy.app)
+            return client.post("/v1/chat/completions", json=payload)
+        finally:
+            if had_acompletion:
+                litellm_obj.acompletion = original_acompletion
+            else:
+                delattr(litellm_obj, "acompletion")
+
     def test_catalog_matches_canonical_registry_keys(self):
         expected = []
         for provider, loader in runtime_model_catalog._PROVIDER_LOADERS:
@@ -73,39 +89,19 @@ class RuntimeModelCatalogTests(unittest.TestCase):
             self.assertIsInstance(entry["tokentotals_limited_availability"], bool)
 
     def test_missing_model_is_rejected_before_upstream_call(self):
-        original_acompletion = self.proxy.litellm.acompletion
-        self.proxy.litellm.acompletion = AsyncMock(
-            side_effect=AssertionError("upstream must not be called")
+        response = self._post_with_forbidden_upstream(
+            {"messages": [{"role": "user", "content": "hello"}]}
         )
-        try:
-            client = TestClient(self.proxy.app)
-            response = client.post(
-                "/v1/chat/completions",
-                json={"messages": [{"role": "user", "content": "hello"}]},
-            )
-        finally:
-            self.proxy.litellm.acompletion = original_acompletion
-
         self.assertEqual(response.status_code, 400)
         self.assertIn("explicit non-empty model ID", response.json()["detail"])
 
     def test_blank_model_is_rejected_before_upstream_call(self):
-        original_acompletion = self.proxy.litellm.acompletion
-        self.proxy.litellm.acompletion = AsyncMock(
-            side_effect=AssertionError("upstream must not be called")
+        response = self._post_with_forbidden_upstream(
+            {
+                "model": "   ",
+                "messages": [{"role": "user", "content": "hello"}],
+            }
         )
-        try:
-            client = TestClient(self.proxy.app)
-            response = client.post(
-                "/v1/chat/completions",
-                json={
-                    "model": "   ",
-                    "messages": [{"role": "user", "content": "hello"}],
-                },
-            )
-        finally:
-            self.proxy.litellm.acompletion = original_acompletion
-
         self.assertEqual(response.status_code, 400)
         self.assertIn("explicit non-empty model ID", response.json()["detail"])
 
