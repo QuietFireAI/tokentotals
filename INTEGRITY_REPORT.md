@@ -70,17 +70,31 @@ The baseline dashboard said official vendor pricing was “audited live directly
 
 Baseline `MODEL_COMPARISON_MATRIX.md` centered Claude 3.x, GPT-4o/o1/o3-mini, and Gemini 2.x-era entries.
 
-**Repair:** the matrix was regenerated from the effective verified pricing view supplied by `pricing_engine`. On the 2026-09-15 revalidation pass, every committed base input/output row was checked against the current official provider pricing documentation and matched the published base/standard rates represented by the matrix. The matrix is intentionally a standard comparison, not a representation of every context band, cache rate, service tier, regional modifier, tool charge, promotion, or account-specific condition.
+**Repair:** the matrix was regenerated from the effective verified pricing view supplied by `pricing_engine`. On the 2026-09-15 revalidation pass, every committed base input/output row was checked against the current official provider pricing documentation and matched the published base/standard rates represented by the matrix. The matrix is intentionally a verified comparison of the models represented by TokenTotals, not a representation of every provider model or every context band, cache rate, service tier, regional modifier, tool charge, promotion, modality, or account-specific condition.
 
-A dedicated regression test regenerates the portable base matrix from the checked-in verified pricing view and fails CI if `MODEL_COMPARISON_MATRIX.md` drifts from the catalog/generator. Runtime generation still consumes a promoted OpenAI overlay when one exists.
+`generate_model_matrix.py` now owns both public comparison surfaces: `MODEL_COMPARISON_MATRIX.md` and a marked current-pricing block in `README.md`. Both are rendered from the same `pricing_engine` view. CI requires the committed matrix and the README block to exactly match generator output from the checked-in verified pricing view, and it explicitly rejects reintroduction of the old GPT-4o/o1/o3-mini/Claude-3.x/Gemini-2.x comparison rows. Runtime generation still consumes a promoted OpenAI overlay when one exists.
 
-For the providers that remain dated catalog entries, `matrix_source_check.py` now performs a separate **non-destructive live source check** against the official Anthropic and Google pricing pages. It anchors parsing inside Anthropic's model-pricing section and Google's Standard pricing section so navigation, promotional copy, Priority, Flex, or Batch repeats cannot accidentally satisfy the base-rate check. It records provider-source hashes and fails when a represented model/rate cannot be found in the applicable base/standard section. It does not rewrite or promote pricing automatically.
+The generated matrix now exposes the calculation instead of presenting only a price table. For the example workload of 10,000 input tokens plus 2,000 output tokens it shows both:
+
+```text
+base_estimate = (input_tokens / 1,000,000 × base_input_rate)
+              + (output_tokens / 1,000,000 × base_output_rate)
+
+reservation = (estimated_input_tokens / 1,000,000 × guard_input_rate)
+            + (bounded_output_tokens / 1,000,000 × guard_output_rate)
+```
+
+The first is an independent base/standard approximation. The second is TokenTotals' high-side pre-flight pacing reservation. Neither is represented as a provider invoice.
+
+For providers that remain dated catalog entries, `matrix_source_check.py` performs a separate **non-destructive live source check** against the official Anthropic and Google pricing pages. Base rates are anchored to Anthropic's model-pricing table and Google's Standard section. Following the later IR-021 stop-line finding, the same live checker also validates the represented conservative guard rates against the applicable official high-side pricing section; for Google this revision uses the Priority pricing table. It records provider-source hashes and fails when a represented base or guard rate cannot be found. It never rewrites or promotes pricing automatically.
 
 The first live IR-005 source-check attempt failed on Claude Fable 5.1 because the initial parser selected an earlier navigation occurrence of the model name instead of the actual pricing table. Inspection confirmed the published Fable rate was still correct; the validator was repaired to anchor to the pricing section and then rerun. The corrected live workflow passed against both Anthropic and Google.
 
-Google's Gemini 3.6/3.7/3.8 Flash promotional matrix records now carry `effective_until: 2026-12-31`. The validator enforces that effective date, including a regression test proving that an expired promotional rate fails after 2026-12-31 even when the historical old dollar value remains visible on the provider page. This prevents a historical rate from being mistaken for a current one merely because the source page still contains both old and future pricing.
+Google's Gemini 3.6/3.7/3.8 Flash promotional matrix records carry `effective_until: 2026-12-31`. The validator enforces that effective date, including a regression test proving that an expired promotional rate fails after 2026-12-31 even when the historical old dollar value remains visible on the provider page. This prevents a historical rate from being mistaken for a current one merely because the source page still contains both old and future pricing.
 
-**Validation:** on the final IR-005 matrix revision, the clean GitHub Actions regression suite passed **29/29**, and the separate `matrix-source-check` workflow successfully fetched and validated the live Anthropic and Google official pricing pages. No pricing file was modified by that live validator.
+**Historical validation:** on the original completed IR-005 matrix revision, the clean GitHub Actions regression suite passed **29/29**, and the separate `matrix-source-check` workflow successfully fetched and validated the live Anthropic and Google official pricing pages. No pricing file was modified by that live validator.
+
+**2026-09-15 stop-line revalidation:** a later release-facing review found that the unmerged `main` branch still visibly contained the old GPT-4o-era README/matrix while the hardening branch carried the current model set. The hardening branch was strengthened so the README and matrix are generated from one pricing truth and cannot drift independently. During that review, exposing and re-verifying the conservative guard math found the separate IR-021 Google Flash-Lite guard-rate defect. After correcting the catalog and extending the live checker to base **and guard** rates, the clean suite passed **51/51** and the separate live source check fetched the current Anthropic/Google pages and passed without modifying pricing data.
 
 ### IR-006 — Clean install omitted required dependency — CONFIRMED DEFECT / REPAIRED AND REVALIDATED
 
@@ -195,11 +209,19 @@ No production proxy change was required during the IR-012 revalidation because t
 
 See `docs/IR-012_DASHBOARD_TELEMETRY_INTEGRITY_PROOF.md` for the dedicated proof sheet.
 
-### IR-013 — “Turn-by-turn chat telemetry badge” — UNSUPPORTED CLAIM
+### IR-013 — “Turn-by-turn chat telemetry badge” — UNSUPPORTED CLAIM / REPAIRED AND REVALIDATED
 
-Baseline README said every developer turn renders a badge directly in the working context. No corresponding injection/rendering implementation exists in the proxy, GUI, or dashboard code reviewed.
+Baseline README said every developer turn or agent interaction rendered a live telemetry badge directly in the working context. No corresponding IDE/chat injection adapter or render lifecycle exists in the reviewed proxy, GUI, or dashboard implementation.
 
-**Repair requirement:** documentation must call this planned/not implemented unless an adapter is later added and tested.
+**Impact:** users could reasonably expect TokenTotals telemetry to appear inside each IDE/chat turn when the repository actually supplied a separate localhost dashboard/tray plus transaction accounting around the proxy.
+
+**Repair:** the implemented-feature claim was removed. The current README explicitly states that TokenTotals does not inject a telemetry badge into every IDE/chat turn. No production feature was invented merely to preserve the old marketing language.
+
+**Validation:** IR-013 added two guards. The public-claim integrity suite rejects the old turn-by-turn badge language and requires the explicit non-implementation statement. A separate proxy regression sends known provider assistant content through the real non-stream FastAPI path and requires the content to return unchanged, with no TokenTotals badge decoration injected into the response. These guards passed as part of the subsequent **51/51** clean regression suite.
+
+**Boundary:** an in-context badge may be a future feature, but it must have a real host/IDE/chat adapter and tests before TokenTotals may describe it as implemented.
+
+See `docs/IR-013_TELEMETRY_BADGE_CLAIM_PROOF.md` for the dedicated proof sheet.
 
 ### IR-014 — “BPE token count” / unsupported precision language — UNSUPPORTED CLAIM
 
@@ -239,7 +261,7 @@ A regression test added during the hardening pass forced the auto-economy select
 
 **Repair:** route selection now occurs before the budget calculation. The proxy resolves pricing for the exact model that will be sent upstream, estimates/reserves against that routed model, and uses the same routed pricing for response reconciliation. If auto-economy selects a model with no verified pricing, the request fails closed before upstream egress.
 
-**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **46/46** clean regression suite.
+**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **51/51** clean regression suite.
 
 ### IR-020 — Dependency graph was not version-reproducible — CONFIRMED HARDENING DEFECT / REPAIRED AND REVALIDATED
 
@@ -257,6 +279,24 @@ IR-006 repaired the missing runtime dependency, but `requirements.txt` and the W
 
 See `docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md` for the detailed proof sheet.
 
+### IR-021 — Google Flash-Lite guard rates understated/misaligned high-side text pricing — CONFIRMED SAFETY / PRICING-INTEGRITY DEFECT / REPAIRED AND REVALIDATED
+
+During the stop-the-line public-matrix review, the ordinary Google Standard/base rates were still correct, but exposing and rechecking the conservative guard layer found two defects.
+
+The catalog previously used Gemini 3.5 Flash-Lite guard rates of `$0.594` input / `$2.75` output per 1M and Gemini 3.1 Flash-Lite guard rates of `$0.55` input / `$1.65` output per 1M. The current official Google pricing page publishes higher Priority non-global **text** values represented by the corrected guard: `$0.594 / $4.95` for Gemini 3.5 Flash-Lite and `$0.495 / $2.97` for Gemini 3.1 Flash-Lite. The old Gemini 3.1 input value also did not align cleanly with the current high-side text path; audio is a separate modality and is not silently folded into the current text-token estimator.
+
+**Impact:** TokenTotals uses guard rates to reserve budget before egress. A guard below a represented high-side text service-mode/geography rate could under-reserve a request even though the displayed Standard/base estimate was correct.
+
+**Repair:** the two catalog records were corrected. For the 10,000-input / 2,000-output comparison, Gemini 3.5 Flash-Lite remains `$0.008000` at its Standard/base rate but now reserves `$0.015840`; Gemini 3.1 Flash-Lite remains `$0.005500` at its Standard/base rate but now reserves `$0.010890`.
+
+The prior daily Anthropic/Google source checker validated only base/Standard rows. It now separately validates represented guard fields against the applicable official high-side section; for Google this revision anchors guard validation to the Priority table. A negative regression deliberately restores the old `$2.75` Gemini 3.5 Flash-Lite guard and requires the validator to fail rather than accepting that lower Standard value as a valid conservative guard.
+
+**Validation:** the corrected branch passed **51/51** regression tests, Linux runtime smoke, Windows runtime smoke, Windows constrained build-tool smoke, and `pip check`. The separate live `matrix-source-check` workflow fetched the current Anthropic and Google official pages and passed with audit output containing the corrected Flash-Lite base and guard values. The live validator did not modify pricing files.
+
+**Boundary:** these are high-side text-token guards for the published dimensions represented by this catalog revision, not a claim that TokenTotals has modeled every modality, hosted tool, grounding/search event, storage/runtime meter, account-specific term, or future provider billing rule.
+
+See `docs/IR-021_GOOGLE_FLASH_LITE_GUARD_RATE_PROOF.md` for the dedicated proof sheet.
+
 ## Confirmed implemented baseline behavior
 
 The forensic review also found real code, not just claims:
@@ -272,7 +312,7 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression suite on the hardened branch: **46 passed / 0 failed** on Ubuntu/Python 3.12.
+Current GitHub Actions regression suite on the hardened branch: **51 passed / 0 failed** on Ubuntu/Python 3.12.
 
 Regression coverage includes:
 
@@ -302,8 +342,8 @@ Regression coverage includes:
 24. blanket “all providers audited live” pricing claims cannot return to public claim surfaces;
 25. public documentation must preserve the actual provider synchronization scope;
 26. Anthropic live-rate validation anchors to the actual model-pricing section instead of navigation occurrences;
-27. Google live-rate validation anchors to the Standard section instead of promotional/Priority repeats;
-28. live matrix-source rate drift fails rather than silently accepting a changed number;
+27. Google live base-rate validation anchors to the Standard section instead of promotional/Priority repeats;
+28. live base-rate drift fails rather than silently accepting a changed number;
 29. effective-dated promotional pricing fails after expiration even if the old historical rate remains on the provider page;
 30. top-level runtime requirements are covered by the Python 3.12 constraints;
 31. clean constrained Linux and Windows runtime environments remain part of CI;
@@ -321,29 +361,34 @@ Regression coverage includes:
 43. the boost endpoint does not grant the tested foreign-origin CORS preflight;
 44. missing, explicit JSON `null`, empty, or wrong boost confirmation cannot change budget or lock state;
 45. valid HTTP boost changes only the daily budget by `$5.00` and releases the lock while preserving accounting;
-46. displayed dynamic dashboard metrics are tied to implemented `/api/status` fields rather than unsupported static values.
+46. displayed dynamic dashboard metrics are tied to implemented `/api/status` fields rather than unsupported static values;
+47. unsupported turn-by-turn telemetry-badge claims cannot return to the public claim surfaces;
+48. non-stream provider assistant content remains pass-through and is not silently decorated with TokenTotals badge content;
+49. the README verified-pricing block must exactly match the generator/current verified pricing view and stale GPT-4o/o1/o3-mini/Claude-3.x/Gemini-2.x comparison rows cannot return;
+50. Google conservative guard rates are positively validated against the official Priority pricing section used for this revision's high-side text guard;
+51. a lower Standard value cannot satisfy the Google guard check when the official Priority section publishes a higher represented rate.
 
 IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
 
-IR-005 additionally has a separate `matrix-source-check` workflow. On the 2026-09-15 revalidation pass it fetched the live Anthropic and Google official pricing pages, validated the dated catalog's represented base/standard rates, and completed successfully without changing or promoting pricing data.
+IR-005/IR-021 additionally use the separate `matrix-source-check` workflow. On the 2026-09-15 stop-line revalidation it fetched the live Anthropic and Google official pricing pages, validated the dated catalog's represented base/standard **and conservative guard** rates, recorded provider source hashes, and completed successfully without changing or promoting pricing data.
 
 IR-020 additionally has clean-environment Linux runtime, Windows runtime, and Windows build-tool jobs using the same CPython 3.12 constraints. The same workflow carries a daily schedule on the default branch to detect future Python-version or dependency-resolution drift.
 
 ## Remaining limitations before calling this production-proven
 
-- The 46-test suite is focused regression coverage, not a full integration or load test.
+- The 51-test suite is focused regression coverage, not a full integration or load test.
 - The HTTP acknowledgment phrases are intent gates, not authentication secrets. A malicious local process running with the user's privileges can deliberately call loopback control endpoints with valid JSON and the published phrase.
 - The live OpenAI, Anthropic, and Google source checks prove the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must be surfaced for review rather than treated as proof that the provider price changed.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
 - Multi-process workers are not supported for the file-lock budget invariant; the current lock is process-local. Run one TokenTotals proxy process unless cross-process locking is added.
 - OpenAI source synchronization does not by itself implement every OpenAI billing dimension in transaction accounting. Tool-call fees, image/audio billing, prompt caching details, service tiers, regional variations, provider promotions, and other applicable meters require explicit accounting support before they can be represented as a high-confidence provider-rule estimate.
-- Anthropic and Google have live source-drift validation for their dated matrix/catalog entries, but they do not yet have the dynamic promoted runtime-pricing adapter implemented for OpenAI.
+- Anthropic and Google have live source-drift validation for their dated catalog base and represented guard rates, but they do not yet have the dynamic promoted runtime-pricing adapter implemented for OpenAI.
 - Streaming responses without final usage retain the worst-case reservation and are marked unreconciled rather than guessed.
 - Dependency versions are constrained for the validated CPython 3.12 graph, but package hashes are not pinned; external package repositories remain part of the installation trust chain.
 - Vendor prices and page structures change. Source verification evidence records what was checked; it is not a promise that a provider cannot later change either pricing or documentation format.
 
 ## Integrity conclusion
 
-The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, stale matrix data, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect, a dependency-reproducibility gap, and an incomplete first browser-origin defense on the budget-control endpoint before release.
+The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, stale matrix data, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect, a dependency-reproducibility gap, an incomplete first browser-origin defense on the budget-control endpoint, and understated/misaligned Google Flash-Lite conservative guard rates before release.
 
 The hardening branch removes the known silent fabrication/fallback paths and changes the governing rule to: **unknown or unreconciled data stays unknown/conservative; it is never converted into a plausible-looking number merely to keep the UI green.**
