@@ -80,6 +80,28 @@ def _require_ack(payload: dict, expected: str, field: str = "acknowledgement"):
         )
 
 
+async def _read_state_action_json(request: Request) -> dict:
+    """Read JSON for state-changing control endpoints.
+
+    Requiring application/json prevents these localhost control actions from being
+    triggered by browser "simple" text/plain/form POSTs that can be sent without a
+    CORS preflight. The acknowledgement phrase is an intent gate, not a secret.
+    """
+    content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if content_type != "application/json":
+        raise HTTPException(
+            status_code=415,
+            detail="State-changing control requests require Content-Type: application/json.",
+        )
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="JSON payload must be an object")
+    return payload
+
+
 def _requested_output_bound(payload: dict) -> int | None:
     """Return the largest caller-supplied output ceiling.
 
@@ -150,10 +172,7 @@ async def get_status():
 
 @app.post("/api/boost")
 async def api_quick_boost(request: Request):
-    try:
-        payload = await request.json()
-    except Exception:
-        payload = {}
+    payload = await _read_state_action_json(request)
     _require_ack(payload, "BOOST $5")
     new_limit = config_manager.quick_boost(5.00)
     return {"message": "Budget boosted by $5.00", "new_limit_usd": new_limit, "is_locked": False}
@@ -161,10 +180,7 @@ async def api_quick_boost(request: Request):
 
 @app.post("/api/unlock")
 async def api_unlock(request: Request):
-    try:
-        payload = await request.json()
-    except Exception:
-        payload = {}
+    payload = await _read_state_action_json(request)
     _require_ack(payload, "I UNDERSTAND")
     config_manager.unlock_circuit_breaker()
     return {"message": "Circuit breaker unlocked by verified user acknowledgment.", "is_locked": False}
