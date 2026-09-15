@@ -22,6 +22,15 @@ FORBIDDEN_IMPLEMENTED_BADGE_CLAIMS = (
     "renders a clean, live telemetry badge directly in your working context",
 )
 
+FORBIDDEN_PREFLIGHT_TOKEN_PRECISION_CLAIMS = (
+    "cryptographic/bpe token counts",
+    "derived from bpe token frequency",
+    "tokens}_{\\text{in}} = \\text{bpe}",
+    "deterministic bpe token count",
+    "exact bpe token count",
+    "provider-accurate pre-flight token count",
+)
+
 
 def _public_claim_text() -> str:
     return "\n".join(path.read_text(encoding="utf-8").lower() for path in PUBLIC_CLAIM_FILES)
@@ -55,3 +64,16 @@ def test_turn_by_turn_badge_cannot_be_claimed_as_implemented():
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "It does not inject a telemetry badge into every IDE/chat turn." in readme
+
+
+def test_preflight_token_estimator_cannot_be_claimed_as_bpe_or_exact():
+    text = _public_claim_text()
+    for phrase in FORBIDDEN_PREFLIGHT_TOKEN_PRECISION_CLAIMS:
+        assert phrase not in text, f"unsupported pre-flight token precision claim returned: {phrase!r}"
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    whitepaper = (ROOT / "TokenTotals_Security_Whitepaper.md").read_text(encoding="utf-8")
+
+    assert "Pre-flight token counts are **not represented as provider/model BPE counts**." in readme
+    assert "The current pre-flight estimator is a conservative local UTF-8-length heuristic." in whitepaper
+    assert "It is **not represented as a provider/model BPE tokenizer**." in whitepaper
