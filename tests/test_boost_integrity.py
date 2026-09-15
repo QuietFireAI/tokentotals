@@ -59,7 +59,11 @@ def test_boost_wrong_missing_or_nonobject_ack_preserves_budget_and_lock(monkeypa
 
     attempts = [
         lambda: client.post("/api/boost"),
-        lambda: client.post("/api/boost", json=None),
+        lambda: client.post(
+            "/api/boost",
+            content="null",
+            headers={"Content-Type": "application/json"},
+        ),
         lambda: client.post("/api/boost", json={}),
         lambda: client.post("/api/boost", json={"acknowledgement": "YES"}),
         lambda: client.post("/api/boost", json={"acknowledgement": "BOOST $50"}),
