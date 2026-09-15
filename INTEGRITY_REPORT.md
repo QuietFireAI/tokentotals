@@ -90,13 +90,19 @@ Baseline `proxy_server.py` imported `litellm`; baseline `requirements.txt` did n
 
 **Validation:** clean Ubuntu/Python 3.12 and Windows/Python 3.12 runtime jobs installed the declared requirements, passed `pip check`, imported the production proxy, and verified the real LiteLLM module. The dependency-version reproducibility follow-up is tracked separately as IR-020 and is now repaired/revalidated.
 
-### IR-007 — Circuit breaker reserved input cost only — CONFIRMED SAFETY DEFECT
+### IR-007 — Circuit breaker reserved input cost only — CONFIRMED SAFETY DEFECT / REPAIRED AND REVALIDATED
 
 Baseline pre-flight called `calculate_cost(pricing, estimated_tokens, 0)` and checked only the input estimate before upstream egress.
 
-**Impact:** a request could pass the pre-flight check and then exceed the stated budget through generated output.
+**Impact:** a request could pass the pre-flight check and then exceed the amount considered by the budget gate through generated output.
 
-**Repair:** pre-flight now reserves input **and bounded output** using high-side published guard rates. Requests without an output bound receive a bounded default constrained by remaining budget. Reservations are reconciled to reported usage after successful non-stream responses.
+**Repair:** pre-flight now reserves estimated input **and bounded output** using high-side published guard rates for the model actually routed upstream. Caller-supplied `max_tokens` and `max_completion_tokens` are both inspected; if both are present, the larger valid ceiling controls the reservation. Requests without an output bound receive a bounded default constrained by the configured default and remaining budget. The complete reservation is committed through `try_reserve_spend()` before `litellm.acompletion()` begins. Successful responses with usable token counts reconcile the reservation to the supported post-response estimate.
+
+For streams without usable final usage telemetry, the conservative reservation remains on the books and `unreconciled_streams` increments rather than treating the unknown final amount as zero.
+
+**Validation:** the 2026-09-15 IR-007 pass added two direct lifecycle tests without changing production proxy logic. One reads `current_spend_usd` from inside the mocked upstream function and requires it to already equal the full conservative input-plus-output reservation and to exceed the input-only amount. The second returns a stream with no final usage telemetry and requires the same reservation to remain after stream completion while `unreconciled_streams` increments. Existing tests also prove oversized output ceilings block before upstream, conflicting output-bound fields reserve against the larger value, and missing bounds are constrained before egress. The resulting clean regression suite passed **35/35**.
+
+See `docs/IR-007_OUTPUT_RESERVATION_PROOF.md` for the dedicated proof sheet.
 
 ### IR-008 — Concurrent requests could race the budget — CONFIRMED SAFETY DEFECT
 
@@ -189,7 +195,7 @@ A regression test added during the hardening pass forced the auto-economy select
 
 **Repair:** route selection now occurs before the budget calculation. The proxy resolves pricing for the exact model that will be sent upstream, estimates/reserves against that routed model, and uses the same routed pricing for response reconciliation. If auto-economy selects a model with no verified pricing, the request fails closed before upstream egress.
 
-**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **33/33** clean regression suite.
+**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **35/35** clean regression suite.
 
 ### IR-020 — Dependency graph was not version-reproducible — CONFIRMED HARDENING DEFECT / REPAIRED AND REVALIDATED
 
@@ -222,7 +228,7 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression suite on the hardened branch: **33 passed / 0 failed** on Ubuntu/Python 3.12.
+Current GitHub Actions regression suite on the hardened branch: **35 passed / 0 failed** on Ubuntu/Python 3.12.
 
 Regression coverage includes:
 
@@ -248,7 +254,7 @@ Regression coverage includes:
 20. committed base pricing matrix must match the generator/base verified pricing view;
 21. proxy imports the real installed LiteLLM runtime dependency in the clean CI environment;
 22. conflicting output-bound fields reserve against the largest supplied ceiling;
-23. auto-economy reservations follow the exact model actually routed upstream;
+23. auto-economy reservations follow the model actually routed upstream;
 24. blanket “all providers audited live” pricing claims cannot return to public claim surfaces;
 25. public documentation must preserve the actual provider synchronization scope;
 26. Anthropic live-rate validation anchors to the actual model-pricing section instead of navigation occurrences;
@@ -258,7 +264,9 @@ Regression coverage includes:
 30. top-level runtime requirements are covered by the Python 3.12 constraints;
 31. clean constrained Linux and Windows runtime environments remain part of CI;
 32. the Python 3.12 compatibility contract, CI interpreters, and Windows build requirement cannot silently diverge;
-33. the Windows packaging path remains bound to the constrained PyInstaller dependency graph.
+33. the Windows packaging path remains bound to the constrained PyInstaller dependency graph;
+34. the full conservative input-plus-output reservation is committed before upstream execution begins;
+35. a stream without final usage retains its conservative reservation and is marked unreconciled.
 
 IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
 
@@ -268,7 +276,7 @@ IR-020 additionally has clean-environment Linux runtime, Windows runtime, and Wi
 
 ## Remaining limitations before calling this production-proven
 
-- The 33-test suite is focused regression coverage, not a full integration or load test.
+- The 35-test suite is focused regression coverage, not a full integration or load test.
 - The live OpenAI, Anthropic, and Google source checks prove the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must be surfaced for review rather than treated as proof that the provider price changed.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
 - Multi-process workers are not supported for the file-lock budget invariant; the current lock is process-local. Run one TokenTotals proxy process unless cross-process locking is added.
