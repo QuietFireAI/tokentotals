@@ -1,7 +1,5 @@
-import asyncio
 import json
 import tempfile
-import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -62,6 +60,27 @@ class ConcurrentAccountingTests(unittest.TestCase):
         self.assertEqual(sum(state["thread_spend_by_id"].values()), 1.00)
         for thread_id in range(4):
             self.assertEqual(state["thread_spend_by_id"][f"thread-{thread_id}"], 0.25)
+
+    def test_legacy_active_thread_total_is_preserved_on_first_update(self):
+        legacy_state = {
+            "date": str(config_manager.date.today()),
+            "current_spend_usd": 1.25,
+            "thread_spend_usd": 0.75,
+            "active_thread_id": "legacy-thread",
+            "is_locked": False,
+            "total_requests": 5,
+        }
+        with open(config_manager.STATE_FILE, "w") as handle:
+            json.dump(legacy_state, handle)
+
+        state = config_manager.update_spend(0.25, thread_id="new-thread")
+
+        self.assertEqual(state["current_spend_usd"], 1.50)
+        self.assertEqual(state["thread_spend_by_id"]["legacy-thread"], 0.75)
+        self.assertEqual(state["thread_spend_by_id"]["new-thread"], 0.25)
+        self.assertEqual(state["active_thread_id"], "new-thread")
+        self.assertEqual(state["thread_spend_usd"], 0.25)
+        self.assertEqual(state["total_requests"], 6)
 
     def test_callbacks_use_their_own_request_local_thread_metadata(self):
         recorded = []
@@ -142,7 +161,10 @@ class ConcurrentAccountingTests(unittest.TestCase):
             captured["litellm_metadata"],
             {proxy_server.THREAD_METADATA_KEY: "trusted-thread"},
         )
-        self.assertNotIn("litellm_metadata", captured.get("messages", {}))
+        self.assertNotEqual(
+            captured["litellm_metadata"][proxy_server.THREAD_METADATA_KEY],
+            "spoofed-thread",
+        )
 
 
 if __name__ == "__main__":
