@@ -60,17 +60,20 @@ This does not prohibit a future explicit integration adapter. It records the beh
 
 ## Validation evidence
 
-On the IR-013 test revision:
+The IR-013-specific revision passed **48/48** tests. The later pricing stop-line revision retained both IR-013 guards and passed the broader **51/51** suite.
 
-- clean regression suite: **48 passed / 0 failed**;
+Final revalidation evidence includes:
+
+- clean regression suite: **51 passed / 0 failed**;
 - CPython 3.12 compatibility check: **PASS**;
 - constrained dependency install and `pip check`: **PASS**;
 - unsupported badge public-claim guard: **PASS**;
 - non-stream response pass-through test: **PASS**;
 - Linux runtime smoke: **PASS**;
-- Windows runtime smoke: **PASS**.
+- Windows runtime smoke: **PASS**;
+- Windows constrained build-tool smoke: **PASS**.
 
-The Windows constrained build-tool smoke remained part of the same workflow and is required on the final documented revision before IR-013 is stamped closed.
+No production proxy change was required for IR-013.
 
 ## Boundary
 
@@ -78,4 +81,4 @@ This finding does not say an in-context telemetry adapter is a bad feature. It s
 
 ## Verdict
 
-**IR-013 — implementation behavior revalidated; documentation closeout pending exact-head final workflow.**
+**IR-013 — PASS: REPAIRED AND REVALIDATED.**
