@@ -223,7 +223,64 @@ def test_missing_max_tokens_gets_bounded_and_reconciled(client, monkeypatch):
 
 def test_dashboard_has_no_fabricated_static_telemetry(client):
     html = client.get("/dashboard").text
-    assert "199k" not in html
-    assert "14.5M" not in html
-    assert "85%" not in html
+
+    # Ban both the exact baseline placeholder values and the unsupported metric
+    # surfaces they occupied. If these metrics are implemented later, this test
+    # must be deliberately changed alongside real runtime telemetry support.
+    forbidden = (
+        "199k",
+        "14.5M",
+        "85%",
+        "tok/turn",
+        "tokens processed",
+        "Prompt Cache Savings",
+        "Prompt caching discount active",
+        "velocityVal",
+        "cumulTokVal",
+        "cacheVal",
+    )
+    for marker in forbidden:
+        assert marker not in html
+
     assert "Unreconciled Streams" in html
+
+
+def test_dashboard_dynamic_metrics_are_backed_by_status_fields(client):
+    state = config_manager.get_state()
+    state.update(
+        {
+            "current_spend_usd": 1.234567,
+            "thread_spend_usd": 0.345678,
+            "potential_savings_usd": 0.456789,
+            "total_requests": 7,
+            "unreconciled_streams": 2,
+        }
+    )
+    config_manager.save_state(state)
+
+    status = client.get("/api/status")
+    assert status.status_code == 200
+    payload = status.json()
+    assert payload["current_spend_usd"] == pytest.approx(1.234567)
+    assert payload["thread_spend_usd"] == pytest.approx(0.345678)
+    assert payload["potential_savings_usd"] == pytest.approx(0.456789)
+    assert payload["total_requests"] == 7
+    assert payload["unreconciled_streams"] == 2
+
+    html = client.get("/dashboard").text
+    assert "fetch('/api/status')" in html
+    for field in (
+        "current_spend_usd",
+        "daily_budget_limit_usd",
+        "remaining_budget_usd",
+        "thread_spend_usd",
+        "total_requests",
+        "potential_savings_usd",
+        "pricing_verified_at",
+        "unreconciled_streams",
+        "port",
+        "last_latency_ms",
+        "is_locked",
+        "traffic_light",
+    ):
+        assert f"d.{field}" in html
