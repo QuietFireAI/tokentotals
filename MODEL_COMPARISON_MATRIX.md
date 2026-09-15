@@ -1,47 +1,70 @@
-# 📊 TokenTotals Developer API Pricing Comparison Snapshot
+# 📊 TokenTotals Provider Pricing Mechanics Matrix
 
-TokenTotals uses provider-published pricing information, available API telemetry, and provider-specific billing rules to produce **best-effort cost estimates**. It is not a billing mirror and does not claim invoice-exact alignment.
+TokenTotals produces **best-effort cost estimates** from available API telemetry plus versioned provider-specific pricing rules. It is not a billing mirror and does not claim invoice-exact alignment.
 
-Provider pricing increasingly behaves like cloud infrastructure pricing: model families, cached and uncached tokens, cache writes, processing tiers, long-context rules, hosted tools, negotiated rates, credits, taxes, and other conditions can change what is ultimately billed. TokenTotals therefore treats pricing as **versioned reference data**, not a permanent constant.
+This document intentionally does **not** duplicate a second hand-maintained table of model prices. The machine-readable registries under [`pricing/`](pricing/) are the repository source of truth for first-party pricing rules that TokenTotals has explicitly modeled:
 
-> **Snapshot date:** 2026-09-15  
-> This file is a human-readable comparison snapshot. Runtime provider registries and observed telemetry are the calculation inputs where supported. Re-verify rates and rules before relying on this table after its snapshot date.
+- [`pricing/openai_registry.json`](pricing/openai_registry.json)
+- [`pricing/anthropic_registry.json`](pricing/anthropic_registry.json)
+- [`pricing/google_registry.json`](pricing/google_registry.json)
 
----
-
-## 🎯 Reference Developer API Pricing Snapshot
-
-| Tier | Anthropic | OpenAI | Google | Primary Use Cases |
-| :--- | :--- | :--- | :--- | :--- |
-| **Frontier / Advanced** | **Claude 3.7 Sonnet**<br>`$3.00` In / `$15.00` Out | **OpenAI o1**<br>`$15.00` In / `$60.00` Out | **Gemini 2.5 Pro**<br>`$1.25` In / `$10.00` Out | Complex architecture design, deep multi-step reasoning, synthesis |
-| **Workhorse / Standard** | **Claude 3.5 Sonnet**<br>`$3.00` In / `$15.00` Out | **GPT-4o**<br>`$2.50` In / `$10.00` Out | **Gemini 2.0 Flash**<br>`$0.10` In / `$0.40` Out | General code writing, refactoring, daily agent execution |
-| **Reasoning Workhorse** | — | **o3-mini**<br>`$1.10` In / `$4.40` Out | — | Specialized code generation, math, structured logic |
-| **Economy / High-Speed** | **Claude 3.5 Haiku**<br>`$0.80` In / `$4.00` Out | **GPT-4o-mini**<br>`$0.15` In / `$0.60` Out | **Gemini 2.0 Flash-Lite**<br>`$0.075` In / `$0.30` Out | Formatting, quick search, classification, simple linting |
-
-These headline rates are intentionally simplified for cross-platform comparison. They do **not** represent every billing dimension or account-specific condition.
+> **Documentation reconciliation date:** 2026-09-15  
+> Registry entries carry their own `verified_at`, source URLs, scope notes, aliases, rates, modifiers, and model-specific exceptions. Re-verify provider documentation before extending or refreshing a registry.
 
 ---
 
-## 💡 Standardized Example Turn (10,000 Input / 2,000 Output Tokens)
+## Why this is a mechanics matrix, not a leaderboard
 
-For a deliberately simplified comparison case with 10,000 uncached input tokens, 2,000 output tokens, no cache-write charge, no hosted-tool charge, no long-context uplift, no special processing tier, and no account-specific pricing:
+Modern AI API pricing increasingly resembles cloud infrastructure pricing rather than a single input/output price pair. A model name alone is not sufficient to reconstruct every invoice component. Relevant dimensions can include cache reads and writes, processing/service tiers, long-context thresholds, reasoning/thinking tokens, modalities, hosted tools, geographic processing, batch modes, account allowances, negotiated rates, credits, taxes, and provider-side adjustments.
 
-$$\text{Estimated Turn Cost} = \left(\frac{10,000}{1,000,000} \times \text{Input Rate}\right) + \left(\frac{2,000}{1,000,000} \times \text{Output Rate}\right)$$
+A static "frontier / workhorse / economy" ranking also implies capability equivalence that TokenTotals does not establish. TokenTotals therefore keeps model selection with the user or calling application and focuses on pricing reconstruction from observable billing dimensions.
 
-| Provider | Model | Tier | Example Turn Estimate | Multiplier vs. Baseline |
-| :--- | :--- | :--- | :--- | :--- |
-| **OpenAI** | OpenAI o1 | Frontier | **$0.2700** | **200.0x** |
-| **Anthropic** | Claude 3.7 Sonnet | Frontier | **$0.0600** | **44.4x** |
-| **OpenAI** | GPT-4o | Workhorse | **$0.0450** | **33.3x** |
-| **Google** | Gemini 2.5 Pro | Frontier | **$0.0325** | **24.1x** |
-| **OpenAI** | o3-mini | Reasoning | **$0.0198** | **14.7x** |
-| **Anthropic** | Claude 3.5 Haiku | Economy | **$0.0160** | **11.9x** |
-| **OpenAI** | GPT-4o-mini | Economy | **$0.0027** | **2.0x** |
-| **Google** | Gemini 2.0 Flash | Workhorse | **$0.0018** | **1.33x** |
-| **Google** | Gemini 2.0 Flash-Lite | Economy | **$0.00135** | **1.0x (Baseline)** |
+---
+
+## Provider mechanics currently modeled
+
+| Billing dimension | OpenAI | Anthropic / Claude API | Google / Gemini Developer API |
+| :--- | :--- | :--- | :--- |
+| **Canonical model registry** | Yes | Yes | Yes |
+| **Uncached input tokens** | Yes | Yes | Yes |
+| **Cached input / cache reads** | Yes, model-specific | Yes, model-specific | Yes, model/mode/modality-specific |
+| **Cache creation / writes** | Modeled where provider/model rules expose a verified rate | 5-minute and 1-hour write categories where telemetry/rules resolve them | Explicit cache-storage pricing exists; storage-duration cost is not invented when duration is unavailable |
+| **Output / reasoning / thinking** | Output/reasoning handling follows observable provider telemetry and model rules | Thinking is not double-charged when already represented in output usage | Thinking tokens are handled separately when raw Gemini telemetry exposes them |
+| **Service / processing tier** | Model-specific tier handling; unresolved tier can make the estimate incomplete | Standard, batch, fast, priority/inference constraints as modeled | Standard, batch, flex, priority where modeled and observable |
+| **Long-context pricing** | Model-specific thresholds where verified | Provider/model rules as represented in registry | Model-specific thresholds where verified |
+| **Hosted/server tools** | Token-only total is refused when known billable tool activity is unresolved | Web-search request pricing and web-fetch behavior modeled; unknown tool SKUs remain incomplete | Search/Maps/tool activity is included only when the necessary usage/counter is observable; allowance state is not guessed |
+| **Geographic modifiers** | Only where verified for the modeled rule | Inference geography modeled for applicable Claude generations | Vertex AI is outside the Gemini Developer API registry scope and is not silently treated as equivalent |
+| **Modality-specific rates** | Marked incomplete when unsupported telemetry/rules prevent a defensible total | Applied only where the modeled API rules support it | Audio vs. default input/cache rates modeled where provider rules distinguish them |
+| **Unknown model behavior** | Never invent a provider-specific rate | Never invent a provider-specific rate | Never invent a provider-specific rate |
+| **Incomplete telemetry behavior** | Decline false precision; use disclosed fallback only where available | Prefer local engine; nonzero middleware response cost or known list-equivalent fallback may be recorded with warning | Detect normalization residuals; prefer local engine; nonzero middleware response cost or known list-equivalent fallback may be recorded with warning |
+
+---
+
+## Runtime source-of-truth order
+
+For OpenAI, Anthropic, and Google/Gemini models recognized by the repo-contained provider engines:
+
+1. **Provider-specific TokenTotals registry + calculator** is the primary path.
+2. **Observed response telemetry** is preferred over request assumptions whenever it can resolve the actual billing dimension.
+3. If a provider-specific calculation is incomplete, TokenTotals may use an available nonzero LiteLLM `response_cost` as a secondary estimate, or a deliberately labeled known list-equivalent fallback for supported cases.
+4. Missing billing dimensions are disclosed rather than filled with fabricated precision.
+
+For a provider outside those three dedicated engines, preflight may use the **exact model key** from the pinned LiteLLM catalog as a secondary estimate. If no defensible preflight price exists, TokenTotals blocks the request rather than substitute a universal rate.
+
+---
+
+## Generic arithmetic
+
+Where a billing component and its applicable rate are both known, the arithmetic is straightforward:
+
+$$\text{Estimated Component Cost} = \frac{\text{Billable Units}}{1,000,000} \times \text{Applicable Rate}$$
+
+The hard part is determining the correct **billable units, rate category, and modifiers** for that specific provider/model/request. The provider calculators and registries exist to perform that interpretation rather than assuming every response is simply `input_tokens × one rate + output_tokens × one rate`.
+
+---
 
 ## Estimation boundary
 
-A TokenTotals calculation is only as complete as the billing-relevant information available at that moment. Depending on provider and model, relevant dimensions can include uncached input, cached input, cache-write tokens, output/reasoning tokens, service or processing tier, context-length rules, hosted tools, batch processing, regional or account pricing, negotiated contracts, credits, taxes, and provider-side adjustments.
+A TokenTotals calculation is only as complete as the billing-relevant information available at that moment. Public list pricing also cannot reveal private offers, negotiated contracts, account/project allowance state, credits, taxes, or every provider-side adjustment.
 
-The arithmetic itself is deterministic once those inputs are known. **The estimate should never be presented as a mirror of the provider's final invoice.**
+The arithmetic can be deterministic once all applicable inputs are known. **The resulting TokenTotals value should never be represented as a mirror of the provider's final invoice.** The provider's account records and final invoice remain authoritative.
