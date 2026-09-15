@@ -2,10 +2,12 @@
 
 > A local LLM cost-estimation proxy with conservative pre-flight budget reservations, local spend state, and a Windows tray/dashboard UI.
 
-TokenTotals listens on `127.0.0.1`, forwards supported chat-completion requests through LiteLLM, estimates token cost from a dated pricing catalog, and reserves worst-case token spend **before** an upstream request is sent. After a response reports usage, the reservation is reconciled to the standard catalog estimate.
+TokenTotals listens on `127.0.0.1`, forwards supported chat-completion requests through LiteLLM, estimates transaction cost from a dated pricing catalog, and reserves conservative spend **before** an upstream request is sent. After a response reports usage, the reservation is reconciled to the best supported catalog estimate.
 
 > [!IMPORTANT]
-> TokenTotals is a developer pacing/observability tool, **not a provider billing portal or network firewall**. Dollar values are estimates based on the token-rate cases represented in `pricing_catalog.json`. Tool-call fees, images/audio, provider promotions, service tiers, caching details, regional SKUs, and other billable items may require additional accounting logic. Always monitor the provider's own account and billing controls as the authority for actual charges.
+> TokenTotals is a developer pacing/observability tool, **not a provider billing portal or network firewall**. Dollar values are independent estimates based on the request/response telemetry available to the user and the provider pricing rules represented in TokenTotals. Provider billing can differ because of model snapshots, token and cache telemetry, context bands, requested versus actual service tier, regional processing, modality, hosted tools, storage/runtime meters, fine-tuning, promotions/effective dates, account-specific pricing, retries/partial streams, missing telemetry, and provider-side pricing changes. Always monitor the provider's own account and billing controls as the authority for actual charges.
+
+See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_STANDARD.md) for the governing accuracy and disclosure standard.
 
 ## What is implemented
 
@@ -17,15 +19,15 @@ TokenTotals listens on `127.0.0.1`, forwards supported chat-completion requests 
 - Atomic in-process budget check/reservation and post-response reconciliation.
 - Daily local spend state and active-thread spend state under `~/.tokentotals`.
 - Lock state with desktop tray/modal monitoring on the Windows GUI.
-- Exact `I UNDERSTAND` requirement for the HTTP unlock endpoint.
+- Literal `I UNDERSTAND` requirement for the HTTP unlock endpoint.
 - Explicit `BOOST $5` acknowledgement for dashboard budget boosts.
 - Dashboard that displays runtime state only; it does not ship fake token/cache telemetry.
 - SSE-style streaming pass-through. If final usage is unavailable, TokenTotals keeps the conservative reservation and marks the stream unreconciled rather than inventing a final cost.
 
 ## What is **not** claimed
 
-- Pre-flight token counts are **not exact BPE counts**. The current local estimator is a conservative UTF-8 length heuristic.
-- TokenTotals does not guarantee exact provider invoices.
+- Pre-flight token counts are **not represented as provider/model BPE counts**. The current local estimator is a conservative UTF-8 length heuristic.
+- TokenTotals does not claim invoice parity or guaranteed identity with provider billing.
 - It does not intercept applications that bypass the configured local proxy.
 - It does not provide a TokenTotals WebSocket proxy endpoint.
 - It does not inject a telemetry badge into every IDE/chat turn.
