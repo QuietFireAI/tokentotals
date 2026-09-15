@@ -9,7 +9,7 @@
 
 ## 1. Scope
 
-TokenTotals is a local Layer-7 HTTP proxy and cost-estimation/pacing tool for supported LLM chat-completion traffic. It listens on IPv4 loopback (`127.0.0.1`), estimates request cost from a dated local pricing catalog, reserves estimated token spend before sending an upstream request, and reconciles that reservation to provider-reported token usage when available.
+TokenTotals is a local Layer-7 HTTP proxy and cost-estimation/pacing tool for supported LLM chat-completion traffic. It listens on IPv4 loopback (`127.0.0.1`), estimates request cost from a verified pricing view, reserves estimated token spend before sending an upstream request, and reconciles that reservation to provider-reported token usage when available.
 
 This document describes the implementation boundary. It is **not** a statement of FedRAMP/FISMA authorization, a provider invoice guarantee, a network-firewall guarantee, or a legal opinion about patentability/prior-art effect.
 
@@ -31,24 +31,25 @@ TokenTotals obtains the request authorization value and passes it to LiteLLM for
 
 ## 3. Pricing authority
 
-TokenTotals uses `pricing_catalog.json` as the runtime token-rate authority. Each supported entry has:
+`pricing_engine.py` supplies the runtime pricing view. Its base is the checked-in, dated `pricing_catalog.json`.
 
-- canonical model ID and explicit aliases;
-- standard input/output token rates;
-- high-side pre-flight guard rates;
-- provider identity;
-- provider receipt reference;
-- catalog verification date.
+OpenAI is the first provider with a dynamic official-source overlay in this revision. `openai_pricing_sync.py` checks the supported OpenAI model documentation on `developers.openai.com`, builds a candidate snapshot, validates it, and keeps candidate/status/history separate from the promoted runtime snapshot. Only a snapshot marked `verified` at `~/.tokentotals/pricing/openai_verified.json` can overlay the checked-in OpenAI entries consumed by `pricing_engine.py`.
 
-The receipt sources for the 2026-09-14 catalog are the official OpenAI, Anthropic, and Google Cloud pricing documentation linked in the catalog.
+A failed or incomplete OpenAI check preserves the previous verified snapshot. Suspicious rate jumps are quarantined. If the official source content changes while the supported parser detects no corresponding pricing/rule change, the candidate is held for review rather than silently treated as harmless. A failed check remains due for retry.
+
+Anthropic and Google remain on the dated checked-in verified catalog until equivalent official-source adapters are separately implemented and tested. No third-party community registry is permitted to overwrite the runtime pricing authority.
+
+The matrix generator reads the same `pricing_engine` view as the runtime. When regenerated after an OpenAI promotion, its OpenAI rows therefore come from the same promoted pricing snapshot rather than a separate hand-maintained table.
 
 Unknown models fail closed. TokenTotals does not substitute a generic “close enough” dollar rate.
 
 ### 3.1 Accuracy boundary
 
-Actual provider invoices can include billing dimensions beyond uncached text input/output tokens, including model snapshots, token and cache telemetry, context bands, requested versus actual service tier, regional processing, modality, hosted tools, storage/runtime meters, fine-tuning, promotions/effective dates, account-specific pricing, retries/partial streams, missing telemetry, and provider-side pricing changes.
+Provider charges can include billing dimensions beyond uncached text input/output tokens, including model snapshots, token and cache telemetry, context bands, requested versus actual service tier, regional processing, modality, hosted tools, storage/runtime meters, fine-tuning, promotions/effective dates, account-specific pricing, retries/partial streams, missing telemetry, and provider-side pricing changes.
 
 TokenTotals therefore reports the most accurate independent estimate supported by the telemetry and pricing rules available for the transaction. It does not claim invoice parity. See `docs/ACCURACY_AND_ESTIMATION_STANDARD.md` for the normative disclosure standard.
+
+The OpenAI source synchronization described above is a pricing-source integrity mechanism; it is **not** by itself a complete OpenAI billing-event adapter. Each additional billing dimension must be explicitly implemented and tested before TokenTotals represents that dimension as supported.
 
 ## 4. Pre-flight budget reservation
 
@@ -77,7 +78,7 @@ The current pre-flight estimator is a conservative local UTF-8-length heuristic.
 
 ### 4.2 Reconciliation
 
-For non-stream responses containing usable input/output token counts, TokenTotals calculates the standard catalog estimate and replaces the pre-flight reservation with that estimate.
+For non-stream responses containing usable input/output token counts, TokenTotals calculates the supported pricing estimate and replaces the pre-flight reservation with that estimate.
 
 For streams where final usage is unavailable, TokenTotals keeps the conservative reservation and increments an `unreconciled_streams` counter. It does not replace unknown cost with an invented constant.
 
@@ -129,9 +130,9 @@ Loopback binding, local state, source availability, and absence of a QuietFireAI
 
 ## 10. Verification
 
-The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation, and removal of fabricated dashboard constants.
+The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation, removal of fabricated dashboard constants, and OpenAI pricing-source synchronization failure/quarantine paths.
 
-Focused review-environment result on 2026-09-14: **12 tests passed, 0 failed**.
+GitHub Actions on Ubuntu/Python 3.12 passed **19 tests with 0 failures** after the IR-003 implementation and test-isolation correction. Subsequent documentation/matrix consistency commits are required to keep the same suite green before an item is treated as closed.
 
 This is regression evidence. It is not a substitute for live-provider integration tests, concurrency/load tests, packaging tests, dependency review, or security assessment.
 
