@@ -19,11 +19,13 @@ if hasattr(sys, '_MEIPASS'):
     sys.path.insert(0, sys._MEIPASS)
 
 import config_manager
+import turn_notice
 from proxy_server import app
 
 GLOBAL_ICON = None
 CURRENT_ICON_COLOR = "green"
 LOCKOUT_WINDOW_ACTIVE = False
+LAST_NOTIFIED_TURN_NOTICE_ID = None
 
 def get_resource_path(relative_path):
     try:
@@ -71,7 +73,7 @@ def show_lockout_popup():
         pass
 
     root = tk.Tk()
-    root.title("🚨 TOKENTOTALS EMERGENCY SHUTDOWN")
+    root.title("🚨 TOKENTOTALS LOCAL PACING THRESHOLD")
     root.geometry("600x440")
     root.resizable(False, False)
     root.attributes('-topmost', True)
@@ -89,16 +91,19 @@ def show_lockout_popup():
     limit = conf.get("daily_budget_limit_usd", 10.0)
 
     # UI Elements
-    header = tk.Label(root, text="🛑 DAILY BUDGET CAP REACHED", font=("Segoe UI", 16, "bold"), fg="#ef4444", bg="#0c0e14")
+    header = tk.Label(root, text="🛑 LOCAL PACING THRESHOLD REACHED", font=("Segoe UI", 16, "bold"), fg="#ef4444", bg="#0c0e14")
     header.pack(pady=(24, 8))
 
-    stat_text = f"Spent Today: ${spend:.4f}  /  ${limit:.2f} Daily Limit"
+    stat_text = f"Posted Local Estimate: ${spend:.4f}  /  ${limit:.2f} Local Pacing Threshold"
     sub = tk.Label(root, text=stat_text, font=("Segoe UI", 12, "bold"), fg="#f3f4f6", bg="#0c0e14")
     sub.pack(pady=4)
 
     desc = tk.Label(
         root,
-        text="All outgoing AI API calls have been HARD-FROZEN on localhost.\nYour credit card will NOT be billed further while locked.",
+        text=(
+            "New requests routed through this TokenTotals proxy are paused while the local pacing lock is active.\n"
+            "Requests outside TokenTotals, already in-flight provider work, and provider-account billing remain outside this local lock."
+        ),
         font=("Segoe UI", 10),
         fg="#9ca3af",
         bg="#0c0e14",
@@ -108,7 +113,7 @@ def show_lockout_popup():
 
     ack_label = tk.Label(
         root,
-        text="To acknowledge this emergency cutoff, type 'I UNDERSTAND' below:",
+        text="To acknowledge and clear this local pacing lock, type 'I UNDERSTAND' below:",
         font=("Segoe UI", 10, "bold"),
         fg="#fbbf24",
         bg="#0c0e14"
@@ -151,7 +156,7 @@ def show_lockout_popup():
 
     boost_btn = tk.Button(
         btn_frame,
-        text="⚡ +$5 Quick Boost Today",
+        text="⚡ +$5 Local Threshold",
         command=do_boost,
         font=("Segoe UI", 10, "bold"),
         bg="#10b981",
@@ -163,7 +168,7 @@ def show_lockout_popup():
     boost_btn.pack(side="left", padx=8)
 
     def on_close():
-        # Keep locked if user closes window without acknowledging
+        # Keep the local pacing lock if the user closes without acknowledging.
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_close)
@@ -171,7 +176,7 @@ def show_lockout_popup():
     LOCKOUT_WINDOW_ACTIVE = False
 
 def monitor_state_loop():
-    global GLOBAL_ICON, CURRENT_ICON_COLOR
+    global GLOBAL_ICON, CURRENT_ICON_COLOR, LAST_NOTIFIED_TURN_NOTICE_ID
     while True:
         try:
             time.sleep(2)
@@ -193,6 +198,26 @@ def monitor_state_loop():
             if target_color != CURRENT_ICON_COLOR and GLOBAL_ICON:
                 CURRENT_ICON_COLOR = target_color
                 GLOBAL_ICON.icon = load_icon_image(f"icon_{target_color}.png")
+
+            # Turn Notices are process-local derived events. Consume events while
+            # disabled so re-enabling does not resurrect a stale notification.
+            notice = turn_notice.latest_notice()
+            notice_id = str((notice or {}).get("event_id") or "")
+            notice_enabled = turn_notice.normalize_threshold(conf.get("turn_notice_threshold_usd")) is not None
+            if notice_id and not notice_enabled:
+                LAST_NOTIFIED_TURN_NOTICE_ID = notice_id
+            elif (
+                notice_id
+                and notice_enabled
+                and notice_id != LAST_NOTIFIED_TURN_NOTICE_ID
+                and GLOBAL_ICON
+            ):
+                try:
+                    GLOBAL_ICON.notify(notice["message"], "TokenTotals Turn Notice")
+                finally:
+                    # Do not hammer the OS notification backend every two seconds
+                    # if a platform-level notification attempt itself fails.
+                    LAST_NOTIFIED_TURN_NOTICE_ID = notice_id
         except Exception:
             pass
 
@@ -214,7 +239,7 @@ def open_docs(icon, item):
 def trigger_quick_boost(icon, item):
     config_manager.quick_boost(5.00)
     if icon:
-        icon.notify("Daily budget increased by $5.00", "TokenTotals Quick Boost")
+        icon.notify("Local pacing threshold increased by $5.00", "TokenTotals Local Threshold")
 
 def exit_action(icon, item):
     icon.stop()
@@ -226,10 +251,11 @@ def get_status_text(item):
     spend = state.get("current_spend_usd", 0.0)
     limit = conf.get("daily_budget_limit_usd", 10.0)
     if state.get("is_locked"):
-        return f"🔴 Limit Reached: ${spend:.4f} / ${limit:.2f}"
+        return f"🔴 Local Threshold Reached: ${spend:.4f} / ${limit:.2f}"
     pct = (spend / limit * 100) if limit > 0 else 0
-    dot = "🟡" if pct >= 75 else "🟢"
-    return f"{dot} In Budget: ${spend:.4f} / ${limit:.2f}"
+    if pct >= conf.get("warning_threshold_pct", 75):
+        return f"🟡 Near Local Threshold: ${spend:.4f} / ${limit:.2f}"
+    return f"🟢 Below Local Threshold: ${spend:.4f} / ${limit:.2f}"
 
 def on_setup(icon):
     global GLOBAL_ICON
@@ -238,8 +264,8 @@ def on_setup(icon):
     conf = config_manager.get_config()
     port = conf.get("port", 8080)
     icon.notify(
-        f"TokenTotals Proxy Active on http://127.0.0.1:{port}\nClick icon to open Dashboard.",
-        "TokenTotals Airbag Online"
+        f"TokenTotals local proxy active on http://127.0.0.1:{port}\nClick icon to open Dashboard.",
+        "TokenTotals Local Cost Telemetry Online"
     )
 
 def main():
@@ -254,7 +280,7 @@ def main():
         pystray.MenuItem(get_status_text, open_dashboard),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("📊 Open Web Dashboard", open_dashboard),
-        pystray.MenuItem("⚡ +$5 Quick Boost", trigger_quick_boost),
+        pystray.MenuItem("⚡ +$5 Local Threshold", trigger_quick_boost),
         pystray.MenuItem("⚙️ Open Settings (config.json)", open_settings),
         pystray.MenuItem("📖 How it Works & Security", open_docs),
         pystray.MenuItem("☕ Buy Me a Coffee (buymeacoffee.com/jeffphillips)", open_bmc),
