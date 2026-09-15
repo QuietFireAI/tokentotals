@@ -51,7 +51,8 @@ jobs:
         run: .\.venv\Scripts\python.exe -m pip check
       - name: Import production proxy with constrained dependencies
         shell: pwsh
-        run: .\.venv\Scripts\python.exe -c "import importlib.metadata, litellm, proxy_server; assert proxy_server.litellm is litellm; assert callable(litellm.acompletion); print('LiteLLM runtime dependency:', importlib.metadata.version('litellm')); print('proxy_server import: OK')"
+        run: |
+          .\.venv\Scripts\python.exe -c "import importlib.metadata, litellm, proxy_server; assert proxy_server.litellm is litellm; assert callable(litellm.acompletion); print('LiteLLM runtime dependency:', importlib.metadata.version('litellm')); print('proxy_server import: OK')"
 
   build-tool-smoke-windows:
     runs-on: windows-latest
