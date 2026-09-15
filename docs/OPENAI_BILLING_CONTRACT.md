@@ -17,7 +17,7 @@ Every displayed total must be reproducible from:
 3. explicit arithmetic;
 4. a confidence/status label.
 
-If a field required for an exact provider-rule estimate is unavailable, TokenTotals must preserve the uncertainty. It may reserve a conservative amount for safety, but it must label that amount as an approximation.
+If a field required for a supported provider-rule estimate is unavailable, TokenTotals must preserve the uncertainty. It may reserve a conservative amount for safety, but it must label that amount as an approximation.
 
 ## 2. Transaction identity fields
 
@@ -81,7 +81,7 @@ For the current GPT-6 Astra / GPT-5.6 family, the pricing page shows Batch and F
 
 Current long-context-capable flagship models use a threshold rule at more than 272,000 input tokens. The applicable model record defines the threshold and the resulting rate band. TokenTotals must not assume every OpenAI model has the same threshold or multiplier.
 
-Regional processing for eligible models released on or after 2026-03-05 currently carries a 10% uplift. That modifier applies only when the transaction is known to use an eligible regional-processing endpoint/rule. Unknown region state is not silently treated as regional or non-regional in an exact estimate.
+Regional processing for eligible models released on or after 2026-03-05 currently carries a 10% uplift. That modifier applies only when the transaction is known to use an eligible regional-processing endpoint/rule. Unknown region state is not silently treated as regional or non-regional in a provider-rule estimate.
 
 ## 5. Service tier handling
 
@@ -214,9 +214,9 @@ Modifiers are resolved into the effective rate before multiplication. The receip
 
 ### Pre-flight
 
-Use request-known facts plus a conservative token/output bound. If the exact billing rule cannot be identified:
+Use request-known facts plus a conservative token/output bound. If the applicable billing rule cannot be identified:
 
-1. exact model + uncertain mode -> highest applicable verified rate for that model;
+1. model known + uncertain mode -> highest applicable verified rate for that model;
 2. provider known + model unknown -> highest relevant verified OpenAI rate for that modality/unit;
 3. no defensible comparable rate -> block in strict mode, or reserve a clearly labeled worst-case approximation in conservative mode.
 
