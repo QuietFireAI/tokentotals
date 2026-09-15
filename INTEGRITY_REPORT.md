@@ -172,20 +172,28 @@ A valid boost changes exactly two intended values: `daily_budget_limit_usd` incr
 
 See `docs/IR-011_BOOST_AND_BROWSER_ORIGIN_PROOF.md` for the dedicated proof sheet.
 
-### IR-012 — Dashboard telemetry numbers were hard-coded — FABRICATED / PLACEHOLDER TELEMETRY
+### IR-012 — Dashboard telemetry numbers were hard-coded — FABRICATED / PLACEHOLDER TELEMETRY — REPAIRED AND REVALIDATED
 
-Baseline HTML displayed:
+Baseline HTML embedded fixed values directly in metric cards styled as live operational state:
 
 - `~199k tok/turn`
 - `14.5M tokens processed`
 - `~85% Hit`
 - “Prompt caching discount active”
 
-The refresh loop did not update those values from runtime state.
+The dashboard refresh path did not populate those fields from `/api/status` or another measured runtime source.
 
-**Impact:** the dashboard presented fixed values in locations styled as live telemetry.
+**Impact:** a user could reasonably interpret fixed demonstration/placeholder values as measured session telemetry. The integrity problem was not merely that those three numbers could become stale; TokenTotals did not have an implemented runtime source for the token-velocity, cumulative-token, cache-hit, or prompt-caching-status surfaces being shown.
 
-**Repair:** removed. The dashboard now shows only values actually supplied by state/status. Missing telemetry is not invented.
+**Repair:** the unsupported metric cards were removed rather than replaced with different plausible values. The surviving operational dashboard fields are populated from runtime `/api/status` data. Unknown or unavailable telemetry remains absent/unknown rather than being filled with demonstration numbers.
+
+**Validation:** the earlier guard only rejected the original constants (`199k`, `14.5M`, `85%`). IR-012 strengthened this into two complementary gates. First, the regression test rejects the old values plus the unsupported semantic/UI surfaces themselves (`tok/turn`, `tokens processed`, `Prompt Cache Savings`, `Prompt caching discount active`, `velocityVal`, `cumulTokVal`, and `cacheVal`), so merely changing the numbers cannot recreate the same presentation-integrity defect. Second, a positive-source test seeds non-default runtime state, verifies those values through `/api/status`, and checks that the dashboard refresh code consumes the corresponding status fields for the dynamic metrics it does display. The clean regression suite passed **46/46**, and the same revision passed Linux runtime, Windows runtime, and Windows constrained build-tool smoke checks.
+
+No production proxy change was required during the IR-012 revalidation because the earlier hardening had already removed the unsupported cards. This pass strengthened the proof and regression boundary.
+
+**Integrity rule:** a value may be presented as live/runtime telemetry only when TokenTotals has an implemented runtime source for it. If real token-velocity or cache telemetry is implemented later, the current ban must be deliberately replaced by source-backed implementation and tests.
+
+See `docs/IR-012_DASHBOARD_TELEMETRY_INTEGRITY_PROOF.md` for the dedicated proof sheet.
 
 ### IR-013 — “Turn-by-turn chat telemetry badge” — UNSUPPORTED CLAIM
 
@@ -231,7 +239,7 @@ A regression test added during the hardening pass forced the auto-economy select
 
 **Repair:** route selection now occurs before the budget calculation. The proxy resolves pricing for the exact model that will be sent upstream, estimates/reserves against that routed model, and uses the same routed pricing for response reconciliation. If auto-economy selects a model with no verified pricing, the request fails closed before upstream egress.
 
-**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **45/45** clean regression suite.
+**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **46/46** clean regression suite.
 
 ### IR-020 — Dependency graph was not version-reproducible — CONFIRMED HARDENING DEFECT / REPAIRED AND REVALIDATED
 
@@ -264,7 +272,7 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression suite on the hardened branch: **45 passed / 0 failed** on Ubuntu/Python 3.12.
+Current GitHub Actions regression suite on the hardened branch: **46 passed / 0 failed** on Ubuntu/Python 3.12.
 
 Regression coverage includes:
 
@@ -279,7 +287,7 @@ Regression coverage includes:
 9. unknown price does not call upstream;
 10. output reservation can block before upstream;
 11. absent max output is bounded before egress and reconciled after usage;
-12. fabricated dashboard constants cannot regress unnoticed;
+12. baseline fabricated dashboard values and unsupported token/cache telemetry surfaces cannot regress unnoticed;
 13. OpenAI pricing-page parsing for supported fields;
 14. cache-write derivation and long-context rule capture;
 15. service-mode relationship capture where published by the supported source;
@@ -312,7 +320,8 @@ Regression coverage includes:
 42. browser-style cross-origin `text/plain` state-control POSTs are rejected before boost/unlock mutation;
 43. the boost endpoint does not grant the tested foreign-origin CORS preflight;
 44. missing, explicit JSON `null`, empty, or wrong boost confirmation cannot change budget or lock state;
-45. valid HTTP boost changes only the daily budget by `$5.00` and releases the lock while preserving accounting.
+45. valid HTTP boost changes only the daily budget by `$5.00` and releases the lock while preserving accounting;
+46. displayed dynamic dashboard metrics are tied to implemented `/api/status` fields rather than unsupported static values.
 
 IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
 
@@ -322,7 +331,7 @@ IR-020 additionally has clean-environment Linux runtime, Windows runtime, and Wi
 
 ## Remaining limitations before calling this production-proven
 
-- The 45-test suite is focused regression coverage, not a full integration or load test.
+- The 46-test suite is focused regression coverage, not a full integration or load test.
 - The HTTP acknowledgment phrases are intent gates, not authentication secrets. A malicious local process running with the user's privileges can deliberately call loopback control endpoints with valid JSON and the published phrase.
 - The live OpenAI, Anthropic, and Google source checks prove the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must be surfaced for review rather than treated as proof that the provider price changed.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
