@@ -1,5 +1,3 @@
-import json
-
 from fastapi.testclient import TestClient
 
 import config_manager
@@ -15,7 +13,7 @@ def _client(monkeypatch, tmp_path):
     return TestClient(proxy_server.app)
 
 
-def test_unlock_rejects_missing_malformed_and_wrong_ack_without_unlocking(monkeypatch, tmp_path):
+def test_unlock_rejects_missing_malformed_nonobject_and_wrong_ack_without_unlocking(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
 
     attempts = [
@@ -25,15 +23,22 @@ def test_unlock_rejects_missing_malformed_and_wrong_ack_without_unlocking(monkey
             content="{not-json",
             headers={"Content-Type": "application/json"},
         ),
+        lambda: client.post("/api/unlock", json=None),
         lambda: client.post("/api/unlock", json={}),
         lambda: client.post("/api/unlock", json={"acknowledgement": "YES"}),
         lambda: client.post("/api/unlock", json={"acknowledgement": "I UNDERSTAND THIS"}),
+        lambda: client.post(
+            "/api/unlock",
+            content='{"acknowledgement":"I UNDERSTAND"}',
+            headers={"Content-Type": "text/plain", "Origin": "https://example.invalid"},
+        ),
     ]
+    expected_status = [415, 400, 400, 400, 400, 400, 415]
 
-    for attempt in attempts:
+    for attempt, status in zip(attempts, expected_status):
         config_manager.set_locked(True)
         response = attempt()
-        assert response.status_code == 400
+        assert response.status_code == status
         assert config_manager.get_state()["is_locked"] is True
 
 
