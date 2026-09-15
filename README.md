@@ -190,7 +190,7 @@ We encourage developers, researchers, and community builders to:
 
 ## 📊 Standardized Cross-Platform Pricing Comparison (Production API Stack)
 
-TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet**), **OpenAI** (**o3** / **o3-mini**), and **Google** (**Gemini 3.7 Flash** / **Gemini 2.5 Pro**):
+TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet**), **OpenAI** (**o3** / **o3-mini**), and **Google** (**Gemini 3.6 / 3.7 Flash** / **Gemini 2.5 Pro**):
 
 ### Standard Turn Cost (10,000 Input / 2,000 Output Tokens)
 
