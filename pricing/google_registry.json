@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "provider": "google",
+  "scope": "gemini_developer_api_public_paid_tier",
+  "currency": "USD",
+  "unit": "per_1m_tokens",
+  "verified_at": "2026-09-15",
+  "accuracy_statement": "Best-effort public-list estimate from observed Gemini telemetry and versioned Google pricing mechanics. Not an invoice mirror or guarantee of final billed amount.",
+  "sources": [
+    "https://ai.google.dev/gemini-api/docs/pricing",
+    "https://ai.google.dev/api/generate-content",
+    "https://ai.google.dev/gemini-api/docs/priority-inference",
+    "https://ai.google.dev/gemini-api/docs/flex-inference",
+    "https://ai.google.dev/gemini-api/docs/google-search"
+  ],
+  "tool_pricing": {
+    "gemini_3_search_request_usd": 0.014,
+    "gemini_2_5_search_grounded_prompt_usd": 0.035,
+    "maps_grounded_prompt_usd": 0.025,
+    "file_search_embedding_per_1m_tokens_usd": 0.15,
+    "free_allowance_note": "Search and Maps include account/project free allowances. TokenTotals cannot infer remaining allowance from a single response, so detected tool activity is list-equivalent and incomplete unless allowance state is supplied externally."
+  },
+  "models": {
+    "gemini-3.8-flash": {
+      "aliases": [],
+      "generation": 3,
+      "pricing_periods": [
+        {
+          "valid_through": "2026-12-31",
+          "modes": {
+            "standard": {"input": {"default": 0.75}, "output": {"default": 3.75}, "cached_input": {"default": 0.075}, "cache_storage_per_million_token_hour": 0.50},
+            "batch": {"input": {"default": 0.375}, "output": {"default": 1.875}, "cached_input": {"default": 0.0375}, "cache_storage_per_million_token_hour": 0.50},
+            "flex": {"input": {"default": 0.375}, "output": {"default": 1.875}, "cached_input": {"default": 0.0375}, "cache_storage_per_million_token_hour": 0.50},
+            "priority": {"input": {"default": 1.35}, "output": {"default": 6.75}, "cached_input": {"default": 0.135}, "cache_storage_per_million_token_hour": 0.50}
+          }
+        },
+        {
+          "valid_from": "2027-01-01",
+          "modes": {
+            "standard": {"input": {"default": 1.50}, "output": {"default": 7.50}, "cached_input": {"default": 0.15}, "cache_storage_per_million_token_hour": 1.00},
+            "batch": {"input": {"default": 0.75}, "output": {"default": 3.75}, "cached_input": {"default": 0.075}, "cache_storage_per_million_token_hour": 1.00},
+            "flex": {"input": {"default": 0.75}, "output": {"default": 3.75}, "cached_input": {"default": 0.075}, "cache_storage_per_million_token_hour": 1.00},
+            "priority": {"input": {"default": 2.70}, "output": {"default": 13.50}, "cached_input": {"default": 0.27}, "cache_storage_per_million_token_hour": 1.00}
+          }
+        }
+      ]
+    },
+    "gemini-3.7-flash": {"aliases": [], "generation": 3, "inherits": "gemini-3.8-flash"},
+    "gemini-3.6-flash": {"aliases": [], "generation": 3, "inherits": "gemini-3.8-flash"},
+    "gemini-3.5-flash": {
+      "aliases": [], "generation": 3,
+      "modes": {
+        "standard": {"input": {"default": 1.50}, "output": {"default": 9.00}, "cached_input": {"default": 0.15}, "cache_storage_per_million_token_hour": 1.00},
+        "batch": {"input": {"default": 0.75}, "output": {"default": 4.50}, "cached_input": {"default": 0.075}, "cache_storage_per_million_token_hour": 1.00},
+        "flex": {"input": {"default": 0.75}, "output": {"default": 4.50}, "cached_input": {"default": 0.08}, "cache_storage_per_million_token_hour": 1.00},
+        "priority": {"input": {"default": 2.70}, "output": {"default": 16.20}, "cached_input": {"default": 0.27}, "cache_storage_per_million_token_hour": 1.00}
+      }
+    },
+    "gemini-3.5-flash-lite": {
+      "aliases": [], "generation": 3,
+      "modes": {
+        "standard": {"input": {"default": 0.30}, "output": {"default": 2.50}, "cached_input": {"default": 0.03}, "cache_storage_per_million_token_hour": 1.00},
+        "batch": {"input": {"default": 0.15}, "output": {"default": 1.25}, "cached_input": {"default": 0.02}, "cache_storage_per_million_token_hour": 1.00},
+        "flex": {"input": {"default": 0.15}, "output": {"default": 1.25}, "cached_input": {"default": 0.02}, "cache_storage_per_million_token_hour": 1.00},
+        "priority": {"input": {"default": 0.54}, "output": {"default": 4.50}, "cached_input": {"default": 0.05}, "cache_storage_per_million_token_hour": 1.00}
+      }
+    },
+    "gemini-3.1-flash-lite": {
+      "aliases": [], "generation": 3,
+      "modes": {
+        "standard": {"input": {"default": 0.25, "audio": 0.50}, "output": {"default": 1.50}, "cached_input": {"default": 0.025, "audio": 0.05}, "cache_storage_per_million_token_hour": 1.00},
+        "batch": {"input": {"default": 0.125, "audio": 0.25}, "output": {"default": 0.75}, "cached_input": {"default": 0.0125, "audio": 0.025}, "cache_storage_per_million_token_hour": 0.50},
+        "flex": {"input": {"default": 0.125, "audio": 0.25}, "output": {"default": 0.75}, "cached_input": {"default": 0.0125, "audio": 0.025}, "cache_storage_per_million_token_hour": 0.50},
+        "priority": {"input": {"default": 0.45, "audio": 0.90}, "output": {"default": 2.70}, "cached_input": {"default": 0.045, "audio": 0.09}, "cache_storage_per_million_token_hour": 1.80}
+      }
+    },
+    "gemini-3.1-pro-preview": {
+      "aliases": ["gemini-3.1-pro-preview-customtools"], "generation": 3, "long_context_threshold_tokens": 200000,
+      "modes": {
+        "standard": {"input": {"default": 2.00}, "output": {"default": 12.00}, "cached_input": {"default": 0.20}, "cache_storage_per_million_token_hour": 4.50, "long_context": {"input": {"default": 4.00}, "output": {"default": 18.00}, "cached_input": {"default": 0.40}}},
+        "batch": {"input": {"default": 1.00}, "output": {"default": 6.00}, "cached_input": {"default": 0.20}, "cache_storage_per_million_token_hour": 4.50, "long_context": {"input": {"default": 2.00}, "output": {"default": 9.00}, "cached_input": {"default": 0.40}}},
+        "flex": {"input": {"default": 1.00}, "output": {"default": 6.00}, "cached_input": {"default": 0.20}, "cache_storage_per_million_token_hour": 4.50, "long_context": {"input": {"default": 2.00}, "output": {"default": 9.00}, "cached_input": {"default": 0.40}}},
+        "priority": {"input": {"default": 3.60}, "output": {"default": 21.60}, "cached_input": {"default": 0.36}, "cache_storage_per_million_token_hour": 8.10, "long_context": {"input": {"default": 7.20}, "output": {"default": 32.40}, "cached_input": {"default": 0.72}}}
+      }
+    },
+    "gemini-2.5-pro": {
+      "aliases": [], "generation": 2.5, "long_context_threshold_tokens": 200000,
+      "modes": {
+        "standard": {"input": {"default": 1.25}, "output": {"default": 10.00}, "cached_input": {"default": 0.125}, "cache_storage_per_million_token_hour": 4.50, "long_context": {"input": {"default": 2.50}, "output": {"default": 15.00}, "cached_input": {"default": 0.25}}},
+        "batch": {"input": {"default": 0.625}, "output": {"default": 5.00}, "cached_input": {"default": 0.125}, "cache_storage_per_million_token_hour": 4.50, "long_context": {"input": {"default": 1.25}, "output": {"default": 7.50}, "cached_input": {"default": 0.25}}},
+        "flex": {"input": {"default": 0.625}, "output": {"default": 5.00}, "cached_input": {"default": 0.125}, "cache_storage_per_million_token_hour": 4.50, "long_context": {"input": {"default": 1.25}, "output": {"default": 7.50}, "cached_input": {"default": 0.25}}},
+        "priority": {"input": {"default": 2.25}, "output": {"default": 18.00}, "cached_input": {"default": 0.225}, "cache_storage_per_million_token_hour": 8.10, "long_context": {"input": {"default": 4.50}, "output": {"default": 27.00}, "cached_input": {"default": 0.45}}}
+      }
+    },
+    "gemini-2.5-flash": {
+      "aliases": [], "generation": 2.5,
+      "modes": {
+        "standard": {"input": {"default": 0.30, "audio": 1.00}, "output": {"default": 2.50}, "cached_input": {"default": 0.03, "audio": 0.10}, "cache_storage_per_million_token_hour": 1.00},
+        "batch": {"input": {"default": 0.15, "audio": 0.50}, "output": {"default": 1.25}, "cached_input": {"default": 0.03, "audio": 0.10}, "cache_storage_per_million_token_hour": 1.00},
+        "flex": {"input": {"default": 0.15, "audio": 0.50}, "output": {"default": 1.25}, "cached_input": {"default": 0.03, "audio": 0.10}, "cache_storage_per_million_token_hour": 1.00},
+        "priority": {"input": {"default": 0.54, "audio": 1.80}, "output": {"default": 4.50}, "cached_input": {"default": 0.054, "audio": 0.18}, "cache_storage_per_million_token_hour": 1.80}
+      }
+    },
+    "gemini-2.5-flash-lite": {
+      "aliases": [], "generation": 2.5,
+      "modes": {
+        "standard": {"input": {"default": 0.10, "audio": 0.30}, "output": {"default": 0.40}, "cached_input": {"default": 0.01, "audio": 0.03}, "cache_storage_per_million_token_hour": 1.00},
+        "batch": {"input": {"default": 0.05, "audio": 0.15}, "output": {"default": 0.20}, "cached_input": {"default": 0.01, "audio": 0.03}, "cache_storage_per_million_token_hour": 1.00},
+        "flex": {"input": {"default": 0.05, "audio": 0.15}, "output": {"default": 0.20}, "cached_input": {"default": 0.01, "audio": 0.03}, "cache_storage_per_million_token_hour": 1.00},
+        "priority": {"input": {"default": 0.18, "audio": 0.54}, "output": {"default": 0.72}, "cached_input": {"default": 0.018, "audio": 0.054}, "cache_storage_per_million_token_hour": 1.80}
+      }
+    }
+  }
+}
