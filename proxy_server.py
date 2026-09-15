@@ -16,6 +16,7 @@ import litellm
 import config_manager
 import turn_ledger
 import telemetry_view
+import turn_notice
 from openai_pricing import (
     calculate_openai_response_cost,
     estimate_openai_input_cost,
@@ -329,6 +330,24 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
             reservation_id=reservation_id,
         )
 
+        # Turn Notice is a derived notification event, not accounting state. It is
+        # evaluated from the same settled estimate and stays independent of ledger I/O.
+        if completion_response is not None and reservation_id and ledger_cost is not None:
+            try:
+                conf = config_manager.get_config()
+                turn_notice.evaluate_and_publish(
+                    stage="completed",
+                    estimated_cost_usd=ledger_cost,
+                    threshold_usd=conf.get("turn_notice_threshold_usd"),
+                    thread_id=thread_id,
+                    turn_id=reservation_id,
+                    model_id=request_model,
+                    cost_basis=cost_basis,
+                    estimate_complete=estimate_complete,
+                )
+            except Exception as notice_error:
+                print(f"[TokenTotals Turn Notice Warning] Completed notice failed: {notice_error}")
+
         # Only TokenTotals-routed requests carry a stable server-owned reservation
         # ID. Use it as the durable turn ID so duplicate callbacks cannot create
         # duplicate ledger history. Direct/foreign callbacks without that identity
@@ -418,6 +437,24 @@ async def get_thread_telemetry(thread_id: str):
             detail=f"No TokenTotals turn telemetry exists for thread '{key}'.",
         )
     return view
+
+
+@app.get("/api/turn-notice")
+async def get_turn_notice(thread_id: str = None):
+    conf = config_manager.get_config()
+    threshold = turn_notice.normalize_threshold(conf.get("turn_notice_threshold_usd"))
+    key = None
+    if thread_id is not None:
+        key = str(thread_id).strip()
+        if not key:
+            raise HTTPException(status_code=400, detail="thread_id must be non-empty when supplied")
+    return {
+        "enabled": threshold is not None,
+        "reminder_threshold_usd": threshold,
+        "scope": "thread" if key is not None else "global",
+        "thread_id": key,
+        "notice": turn_notice.latest_notice(key),
+    }
 
 
 @app.post("/api/boost")
@@ -517,6 +554,23 @@ async def proxy_openai(request: Request):
                 f"would exceed your daily budget of ${limit:.2f}. Outgoing calls locked."
             ),
         )
+
+    # The preflight Turn Notice only exists after pacing admission. It describes
+    # the input-side estimate; it is not a claim about the final turn or account.
+    try:
+        conf = config_manager.get_config()
+        turn_notice.evaluate_and_publish(
+            stage="preflight",
+            estimated_cost_usd=estimated_cost,
+            threshold_usd=conf.get("turn_notice_threshold_usd"),
+            thread_id=thread_id,
+            turn_id=reservation_id,
+            model_id=model_id,
+            cost_basis=preflight_source,
+            estimate_complete=False,
+        )
+    except Exception as notice_error:
+        print(f"[TokenTotals Turn Notice Warning] Preflight notice failed: {notice_error}")
 
     # TokenTotals does not silently substitute models or providers. Pricing data
     # alone does not establish capability, tool/modality support, credentials,
