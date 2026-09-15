@@ -91,7 +91,7 @@ Point your IDE, agent framework, or scripts to `http://127.0.0.1:8080/v1` instea
 Left-click the tray icon or visit `http://127.0.0.1:8080/dashboard` in your browser to view:
 * Live Spend Fuel Gauge & remaining dollar headroom.
 * Per-thread/task spend tracking.
-* **Potential Savings Opportunity Meter:** Identifies when flagship models (GPT-4o) were used for routine/short queries that could have used lighter models for ~90% savings.
+* **Potential Savings Opportunity Meter:** Identifies when flagship models (GPT-5) were used for routine/short queries that could have used lighter models for ~90% savings.
 * 1-Click configuration copy for all major IDEs.
 * Direct receipts and links to official provider pricing documentation.
 
@@ -190,7 +190,7 @@ We encourage developers, researchers, and community builders to:
 
 ## 📊 Standardized Cross-Platform Pricing Comparison (Developer API Stack)
 
-TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet**), **OpenAI** (**o1** / **GPT-4o** / **GPT-4o-mini**), and **Google** (**Gemini 3.6 / 3.7 Flash** / **Gemini 2.5 Pro**):
+TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet**), **OpenAI** (**o1** / **GPT-5** / **GPT-5-mini**), and **Google** (**Gemini 3.6 / 3.7 Flash** / **Gemini 2.5 Pro**):
 
 ### Standard Turn Cost (10,000 Input / 2,000 Output Tokens)
 
@@ -198,11 +198,11 @@ TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet**
 | :--- | :--- | :--- | :--- | :--- |
 | **OpenAI** | OpenAI o1 | Frontier | **$0.2700** | **200.0x** |
 | **Anthropic** | Claude 3.7 Sonnet | Frontier | **$0.0600** | **44.4x** |
-| **OpenAI** | OpenAI GPT-4o | Workhorse | **$0.0450** | **33.3x** |
+| **OpenAI** | OpenAI GPT-5 | Workhorse | **$0.0450** | **33.3x** |
 | **Google** | Gemini 2.5 Pro | Frontier | **$0.0325** | **24.1x** |
 | **Google** | Gemini 3.6 / 3.7 Flash | Workhorse | **$0.0150** | **11.1x** |
 | **Anthropic** | Claude 3.5 Haiku | Economy | **$0.0160** | **11.8x** |
-| **OpenAI** | OpenAI GPT-4o-mini | Economy | **$0.0027** | **2.0x** |
+| **OpenAI** | OpenAI GPT-5-mini | Economy | **$0.0027** | **2.0x** |
 | **Google** | Gemini 2.0 Flash-Lite | Economy | **$0.00135** | **1.0x (Baseline)** |
 
 *For complete details, see [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md).*
@@ -244,7 +244,7 @@ TokenTotals exists because an independent developer got tired of waiting.
 TokenTotals' localhost-only architecture is uniquely suited for environments where cloud-based FinOps tools are prohibited or infeasible:
 
 ### Why Government & Defense Need This:
-* **OMB Budget Accountability:** Federal agencies running AI pilots on GPT-4o or Claude for document processing, intelligence analysis, or citizen services face Congressional audit scrutiny on every line item. TokenTotals provides per-task cost attribution without transmitting classified or sensitive data off-machine.
+* **OMB Budget Accountability:** Federal agencies running AI pilots on GPT-5 or Claude for document processing, intelligence analysis, or citizen services face Congressional audit scrutiny on every line item. TokenTotals provides per-task cost attribution without transmitting classified or sensitive data off-machine.
 * **FedRAMP & FISMA Compliance:** Cloud SaaS FinOps tools (Portkey, Helicone, Langfuse) require years of security certification before deployment in federal environments. A local, zero-egress tool that never transmits data off the machine sails through compliance review.
 * **Air-Gapped & Classified Networks (SCIFs):** Defense and intelligence community workloads on air-gapped networks literally *cannot* use cloud dashboards. A local loopback proxy is the only architecture that works.
 
