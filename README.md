@@ -82,10 +82,13 @@ Unknown models are rejected until a verified pricing entry is deliberately added
 <!-- TOKENTOTALS_VERIFIED_PRICING_START -->
 ## Current verified model pricing snapshot
 
-**Verified catalog date:** 2026-09-15  
+**Verified catalog date:** 2026-09-15
+
+**Official sources last checked:** 2026-09-15T14:36:21Z
+
 **Comparison workload:** 10,000 input tokens + 2,000 output tokens.
 
-This table is generated from the same `pricing_engine` view used by the proxy and `MODEL_COMPARISON_MATRIX.md`; it is not a separately maintained marketing table. Dollar values are independent approximations from represented provider rules and observed/estimated telemetry, not provider invoices.
+This block is generated from the same `pricing_engine` view used by the proxy, `MODEL_COMPARISON_MATRIX.md`, and the pricing status documentation. Dollar values are independent approximations from represented provider rules and observed/estimated telemetry, not provider invoices.
 
 | Provider | Verified model | Base input / 1M | Base output / 1M | 10K in + 2K out base estimate | Conservative pre-flight reservation |
 | :--- | :--- | ---: | ---: | ---: | ---: |
@@ -103,7 +106,7 @@ This table is generated from the same `pricing_engine` view used by the proxy an
 | OpenAI | `gpt-5.6-luna` | $0.2 | $1.2 | $0.004400 | $0.007600 |
 | OpenAI | `gpt-5.6-sol` | $4 | $20 | $0.080000 | $0.140000 |
 | OpenAI | `gpt-5.6-terra` | $2 | $12 | $0.044000 | $0.076000 |
-| OpenAI | `gpt-6-astra` | $10 | $50 | $0.200000 | $0.350000 |
+| OpenAI | `gpt-6-astra` | $10 | $50 | $0.200000 | $0.700000 |
 
 Base-turn approximation:
 
@@ -114,7 +117,7 @@ base_estimate = (input_tokens / 1,000,000 × base_input_rate)
 
 Pre-flight reservation uses the same formula with the catalog's conservative guard rates. The guard is deliberately a high-side pacing amount; it is **not** a prediction that the provider will invoice that amount. After usable provider token telemetry arrives, TokenTotals reconciles the reservation to the most specific supported estimate. Unknown pricing fails closed instead of receiving an invented rate.
 
-The compact table shows represented base text-token rates. Context bands, cache read/write rates, service modes, region, tools, modalities, promotions/effective dates, account-specific pricing, and other billable dimensions can change the applicable provider charge. See [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md) for the row-by-row guard rates and qualifiers.
+The compact table shows represented base text-token rates. Context bands, cache read/write rates, service modes, region, tools, modalities, promotions/effective dates, account-specific pricing, and other billable dimensions can change the applicable provider charge. See [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md) for row-by-row guard rates and [docs/PRICING_DAILY_STATUS.md](docs/PRICING_DAILY_STATUS.md) for the latest source-check receipt.
 <!-- TOKENTOTALS_VERIFIED_PRICING_END -->
 
 ## Budget-gate behavior

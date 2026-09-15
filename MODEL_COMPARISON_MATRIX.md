@@ -1,10 +1,10 @@
 # TokenTotals Verified Developer API Pricing Matrix
 
 **Checked-in catalog verification date:** 2026-09-15
+**Official sources last checked:** 2026-09-15T14:36:21Z
 
 This file is generated from TokenTotals' effective verified pricing view. Do not hand-edit prices here.
-The view combines the checked-in catalog with any promoted provider snapshot consumed by `pricing_engine`.
-OpenAI is currently the first dynamic official-source provider; Anthropic and Google remain dated verified catalog entries with non-destructive official-source drift checks.
+The matrix, README pricing block, whitepaper pricing receipt, and daily status document are regenerated together after successful official-source checks.
 Unknown models are rejected by the runtime until a verified pricing entry is deliberately added.
 
 ## What this matrix means
@@ -60,7 +60,7 @@ Rates are USD per 1M tokens. The represented base rates are the standard/base te
 | OpenAI | `gpt-5.6-luna` | $0.2 | $1.2 | $0.4 | $1.8 | $0.004400 | $0.007600 | >272K input uses higher long-context rates |
 | OpenAI | `gpt-5.6-sol` | $4 | $20 | $8 | $30 | $0.080000 | $0.140000 | published promotional base pricing available at least through 2026-11-21; >272K input uses higher long-context rates |
 | OpenAI | `gpt-5.6-terra` | $2 | $12 | $4 | $18 | $0.044000 | $0.076000 | >272K input uses higher long-context rates |
-| OpenAI | `gpt-6-astra` | $10 | $50 | $20 | $75 | $0.200000 | $0.350000 | >272K input uses higher long-context rates |
+| OpenAI | `gpt-6-astra` | $10 | $50 | $40 | $150 | $0.200000 | $0.700000 | >272K input uses higher long-context rates |
 
 ## Provider-specific qualifiers represented in this revision
 

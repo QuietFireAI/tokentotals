@@ -45,6 +45,22 @@ The matrix generator reads the same `pricing_engine` view as the runtime. When r
 
 Unknown models fail closed. TokenTotals does not substitute a generic “close enough” dollar rate.
 
+<!-- TOKENTOTALS_DAILY_PRICING_START -->
+### Daily pricing-integrity receipt
+
+**Catalog verified date:** 2026-09-15
+
+**Official sources checked:** 2026-09-15T14:36:21Z
+
+The daily integrity refresh treats the pricing catalog, model matrix, README pricing block, this whitepaper receipt, and calculation examples as one generated integrity surface. A provider validation failure prevents the refresh from being stamped current.
+
+- **OpenAI:** `01d1e3d0543cc8e2bc776dfb87c7d12b0388663a385be953b63988429c19c9b1` — official structured source parse; recognized safe changes refresh catalog, suspicious/source-only/model-set changes fail closed
+- **Anthropic:** `26fd92cabb5588693e785c851fbd8c66b102d337175a67f9e99e39212b554c6b` — official live base+guard drift validation; mismatch, missing model, parse ambiguity, or expiry fails closed
+- **Google:** `9a83fb941931c951f54e93caab426615f3d09111e57a6db261864930cf84bf51` — official live base+guard drift validation; mismatch, missing model, parse ambiguity, or expiry fails closed
+
+For the standard comparison workload of 10,000 input tokens + 2,000 output tokens, all displayed base estimates and conservative reservations are recalculated from the same verified catalog on each successful refresh. See `MODEL_COMPARISON_MATRIX.md` and `docs/PRICING_DAILY_STATUS.md` for the generated values and source receipt.
+<!-- TOKENTOTALS_DAILY_PRICING_END -->
+
 ### 3.1 Accuracy boundary
 
 Provider charges can include billing dimensions beyond uncached text input/output tokens, including model snapshots, token and cache telemetry, context bands, requested versus actual service tier, regional processing, modality, hosted tools, storage/runtime meters, fine-tuning, promotions/effective dates, account-specific pricing, retries/partial streams, missing telemetry, and provider-side pricing changes.
