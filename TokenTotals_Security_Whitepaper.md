@@ -102,31 +102,36 @@ The IR-009 overlap revalidation held two HTTP requests simultaneously at the moc
 
 Tracked state includes estimated/reserved daily spend, active-thread spend, request count, advisory savings estimate, lock state, and unreconciled stream count. `active_thread_id` / `thread_spend_usd` are one current display slot, not a historical per-thread ledger.
 
-## 6. Lock and acknowledgment behavior
+## 6. Lock, boost, and acknowledgment behavior
 
 When the local state is locked, new chat-completion requests receive HTTP 403 before TokenTotals performs an upstream LiteLLM call.
 
-The baseline HTTP unlock path was unconditional: it did not read or require request-supplied acknowledgment before clearing the lock, even though its response described the action as user-acknowledged.
+The baseline HTTP unlock path was unconditional: it did not read or require request-supplied acknowledgment before clearing the lock, even though its response described the action as user-acknowledged. The baseline HTTP boost path was also unconditional: it raised the configured daily budget by `$5.00` and cleared the lock without confirmation. The baseline application additionally installed permissive CORS middleware.
 
-The hardened HTTP unlock endpoint now requires the acknowledgment phrase:
+The hardened HTTP controls use two layers before mutation:
 
-```text
-I UNDERSTAND
-```
+1. **State-control transport/payload gate.** `/api/unlock` and `/api/boost` require `Content-Type: application/json`, syntactically valid JSON, and a JSON object. Missing media type, browser-style `text/plain`, malformed JSON, explicit JSON `null`, and non-object JSON are rejected before acknowledgment evaluation.
+2. **Intent phrase gate.** Unlock requires `I UNDERSTAND`; boost requires `BOOST $5`. The validator trims surrounding whitespace and compares letter case insensitively; different wording is rejected.
 
-The validator trims surrounding whitespace and compares letter case insensitively; different wording is rejected. This is an explicit acknowledgment gate, not an authentication mechanism.
+These phrases are explicit-intent controls, not passwords or authentication secrets.
 
 A valid unlock changes only `is_locked` to `False`. It does not reset tracked spend, request counts, savings, thread accounting, unreconciled-stream state, or the configured daily budget.
 
-The dashboard `+$5` boost endpoint requires:
+A valid HTTP boost changes exactly the configured daily budget by `+$5.00` and releases the lock. It preserves the already-recorded spend and accounting fields.
 
-```text
-BOOST $5
-```
+The Windows Tk lock dialog separately validates `I UNDERSTAND` before native unlock. Native tray/GUI boost controls are explicit local user actions and invoke the local state manager directly rather than the HTTP endpoint.
 
-The Windows Tk lock dialog separately validates the `I UNDERSTAND` phrase before native unlock. Native tray/GUI boost controls are explicit local user actions.
+TokenTotals does not install the baseline permissive CORS middleware. The IR-011 regression sends a foreign-origin preflight to `/api/boost` and requires that no `Access-Control-Allow-Origin` or `Access-Control-Allow-Methods` grant be returned.
 
-TokenTotals removed the baseline permissive CORS middleware so an arbitrary browser origin is not deliberately granted API access.
+### 6.1 Browser-simple-POST finding
+
+IR-011 specifically tested whether removing permissive CORS plus adding the phrase was enough. It was not.
+
+The first adversarial test sent the correct JSON-formatted phrase in a cross-origin request declared as `Content-Type: text/plain`. The endpoint returned **HTTP 200** and performed the boost because `request.json()` parsed the JSON-formatted body despite the text/plain media type. Certain browser cross-origin text/plain requests can be sent without a CORS preflight, so the first hardening pass left a real state-changing route.
+
+The final repair added the JSON-only state-control transport gate described above. The same browser-style request now receives HTTP 415 before JSON parsing or state mutation. An `application/json` cross-origin browser request requires preflight, and TokenTotals does not grant the tested foreign-origin preflight.
+
+This control reduces browser-origin/accidental triggering of localhost state actions. It does **not** authenticate against a malicious program already executing locally with the user's privileges; such a process can deliberately send valid JSON and the published acknowledgment phrase to the loopback endpoint.
 
 ## 7. Telemetry integrity rule
 
@@ -158,9 +163,9 @@ The constraints provide **version reproducibility for the validated CPython 3.12
 
 ## 11. Verification
 
-The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, simultaneous in-process reservation contention, request-context isolation under overlapping HTTP calls, HTTP unlock rejection for absent/malformed/wrong acknowledgments, intentional unlock-phrase normalization, unlock-only state mutation, boost acknowledgment enforcement, no-upstream rejection paths, bounded output reservation including conflicting output ceilings, direct proof that input-plus-output spend is committed before upstream execution, retention of a conservative reservation for streams without final usage, reservation against the model actually selected for automatic routing, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, Anthropic/Google base/standard source parsing and effective-date expiry enforcement, clean-install use of the declared LiteLLM runtime dependency, public-claim guards that preserve the actual provider synchronization scope, dependency-constraint coverage, clean constrained Linux/Windows environments, Python-version contract consistency, and constrained Windows packaging dependencies.
+The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, simultaneous in-process reservation contention, request-context isolation under overlapping HTTP calls, unlock acknowledgment/normalization/state integrity, state-control media-type and JSON-object validation, browser-style text/plain rejection, ungranted foreign-origin CORS preflight, boost acknowledgment/state integrity, no-upstream rejection paths, bounded output reservation including conflicting output ceilings, direct proof that input-plus-output spend is committed before upstream execution, retention of a conservative reservation for streams without final usage, reservation against the model actually selected for automatic routing, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, Anthropic/Google base/standard source parsing and effective-date expiry enforcement, clean-install use of the declared LiteLLM runtime dependency, public-claim guards that preserve the actual provider synchronization scope, dependency-constraint coverage, clean constrained Linux/Windows environments, Python-version contract consistency, and constrained Windows packaging dependencies.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **41 tests with 0 failures** on the IR-010 unlock-integrity revalidation revision. The IR-010 tests prove that missing/malformed/wrong request input cannot clear the lock, case/outer-whitespace normalization of `I UNDERSTAND` is intentional, and a successful unlock changes only the lock flag while preserving accounting and the configured budget.
+The IR-011 evidence chain intentionally includes failures. The first adversarial run produced **1 failed / 43 passed** because a browser-style text/plain POST unexpectedly returned HTTP 200 and performed the boost. After the production JSON-only gate was added, a second run produced **2 failed / 43 passed** because the test harness's `json=None` did not actually send an application/json null payload and therefore correctly received HTTP 415. The tests were changed to send an explicit body `null` with `Content-Type: application/json`. The corrected repair revision then passed **45 tests / 0 failures** on Ubuntu/Python 3.12, and `pip check` reported no broken requirements.
 
 Separate clean-environment jobs continue to exercise the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The daily Python compatibility check remains part of the same workflow and becomes scheduled automatically when the workflow resides on the repository default branch.
 
@@ -170,6 +175,6 @@ This is regression/source-validation evidence. It is not a substitute for live-p
 
 ## 12. Forensic record
 
-See `INTEGRITY_REPORT.md` for the separate baseline integrity findings and hardening findings, including confirmed machine-specific paths, silent pricing fallbacks, disconnected price synchronization, stale matrix data, input-only pre-flight accounting, API bypasses, concurrency hazards, static dashboard telemetry, routed-model reservation ordering, dependency reproducibility, and documentation claims that exceeded implementation.
+See `INTEGRITY_REPORT.md` for the separate baseline integrity findings and hardening findings, including confirmed machine-specific paths, silent pricing fallbacks, disconnected price synchronization, stale matrix data, input-only pre-flight accounting, API bypasses, concurrency hazards, static dashboard telemetry, routed-model reservation ordering, dependency reproducibility, browser-origin state-control hardening, and documentation claims that exceeded implementation.
 
-See `docs/IR-007_OUTPUT_RESERVATION_PROOF.md` for output-reservation lifecycle evidence, `docs/IR-008_CONCURRENT_RESERVATION_PROOF.md` for in-process contention evidence, `docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md` for overlapping request-context evidence, `docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md` for unlock acknowledgment evidence, and `docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md` for the measured dependency and Python compatibility evidence.
+See `docs/IR-007_OUTPUT_RESERVATION_PROOF.md` for output-reservation lifecycle evidence, `docs/IR-008_CONCURRENT_RESERVATION_PROOF.md` for in-process contention evidence, `docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md` for overlapping request-context evidence, `docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md` for unlock acknowledgment evidence, `docs/IR-011_BOOST_AND_BROWSER_ORIGIN_PROOF.md` for boost/browser-origin evidence, and `docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md` for the measured dependency and Python compatibility evidence.
