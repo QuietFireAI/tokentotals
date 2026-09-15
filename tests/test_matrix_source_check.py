@@ -5,18 +5,22 @@ import pytest
 import matrix_source_check
 
 
-def test_anthropic_base_rates_are_read_from_model_pricing_not_navigation():
+def test_anthropic_base_and_guard_rates_are_read_from_model_pricing_not_navigation():
     catalog = {
         "models": {
             "claude-fable-5.1": {
                 "provider": "Anthropic",
                 "input_price_per_1m": 10.0,
                 "output_price_per_1m": 50.0,
+                "guard_input_price_per_1m": 20.0,
+                "guard_output_price_per_1m": 50.0,
             },
             "claude-opus-5": {
                 "provider": "Anthropic",
                 "input_price_per_1m": 5.0,
                 "output_price_per_1m": 25.0,
+                "guard_input_price_per_1m": 10.0,
+                "guard_output_price_per_1m": 25.0,
             },
         }
     }
@@ -30,6 +34,8 @@ def test_anthropic_base_rates_are_read_from_model_pricing_not_navigation():
     """
     result = matrix_source_check.validate_provider_text("Anthropic", text, catalog)
     assert [row["model"] for row in result] == ["claude-fable-5.1", "claude-opus-5"]
+    assert result[0]["guard_input_price_per_1m"] == 20.0
+    assert result[1]["guard_output_price_per_1m"] == 25.0
 
 
 def test_google_validator_uses_standard_section_not_promo_or_priority_repeat():
@@ -61,6 +67,53 @@ def test_google_validator_uses_standard_section_not_promo_or_priority_repeat():
     result = matrix_source_check.validate_provider_text("Google", text, catalog)
     assert result[0]["input_price_per_1m"] == 2.0
     assert result[0]["output_price_per_1m"] == 12.0
+
+
+def test_google_guard_rates_are_validated_against_priority_section():
+    catalog = {
+        "models": {
+            "gemini-3.5-flash-lite": {
+                "provider": "Google",
+                "input_price_per_1m": 0.3,
+                "output_price_per_1m": 2.5,
+                "guard_input_price_per_1m": 0.594,
+                "guard_output_price_per_1m": 4.95,
+            }
+        }
+    }
+    text = """
+    Google models
+    Standard
+    Gemini 3.5 Flash-Lite Input Global $0.30 Non-global $0.33 Text output Global $2.50 Non-global $2.75
+    Price (/1M tokens) <= 200K input tokens with Priority
+    Gemini 3.5 Flash-Lite Input Global $0.54 Non-global $0.594 Text output Global $4.50 Non-global $4.95
+    """
+    result = matrix_source_check.validate_provider_text("Google", text, catalog)
+    assert result[0]["guard_input_price_per_1m"] == 0.594
+    assert result[0]["guard_output_price_per_1m"] == 4.95
+
+
+def test_google_guard_rate_drift_fails_instead_of_accepting_lower_standard_value():
+    catalog = {
+        "models": {
+            "gemini-3.5-flash-lite": {
+                "provider": "Google",
+                "input_price_per_1m": 0.3,
+                "output_price_per_1m": 2.5,
+                "guard_input_price_per_1m": 0.594,
+                "guard_output_price_per_1m": 2.75,
+            }
+        }
+    }
+    text = """
+    Google models
+    Standard
+    Gemini 3.5 Flash-Lite Input Global $0.30 Non-global $0.33 Text output Global $2.50 Non-global $2.75
+    Price (/1M tokens) <= 200K input tokens with Priority
+    Gemini 3.5 Flash-Lite Input Global $0.54 Non-global $0.594 Text output Global $4.50 Non-global $4.95
+    """
+    with pytest.raises(ValueError, match="guard output"):
+        matrix_source_check.validate_provider_text("Google", text, catalog)
 
 
 def test_live_source_drift_fails_instead_of_accepting_new_number_silently():
