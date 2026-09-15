@@ -5,8 +5,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Local Control Plane](https://img.shields.io/badge/Security-Local%20Control%20Plane-brightgreen.svg)]()
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
-
+[![Desktop](https://img.shields.io/badge/Desktop-Windows-lightgrey.svg)]()
 
 > [!IMPORTANT]
 > **Operational Scope & Liability Disclaimer:** TokenTotals is an independent developer cost calculator, real-time telemetry estimator, and local notification daemon. It calculates estimated spend from available telemetry, provider-published pricing references, and known provider-specific billing rules. TokenTotals is **not a billing mirror**, does **not** guarantee invoice-exact third-party vendor billing alignment, and does not guarantee absolute network-level traffic blocking under all operating system configurations. Users remain responsible for monitoring their direct cloud provider accounts and final provider invoices.
@@ -15,12 +14,14 @@
 
 ## 👁️ Three Ways You Stay Informed: The Look, The Hook, & The Dash
 
-TokenTotals surfaces real-time cost telemetry and local pacing state everywhere you work:
+TokenTotals surfaces real-time cost telemetry and local pacing state where you work:
 
 ### 1. 🚦 The Look (Glanceable System Tray Icon)
 * 🟢 **Green "T":** Below the configured local pacing threshold.
 * 🟡 **Amber "T":** Near the configured local pacing threshold.
-* 🔴 **Red "T":** Local pacing threshold reached / routed requests locally paused until acknowledged or the local threshold is changed.
+* 🔴 **Red "T":** Local pacing threshold reached / new requests routed through TokenTotals are locally paused until acknowledged or the local threshold is changed.
+
+The traffic light describes **TokenTotals' local pacing state**. It does not mean the provider has approved, rejected, or measured your remaining account funds.
 
 ### 2. 🪝 The Hook (Turn-by-Turn Chat Telemetry Badge)
 A client integration can render TokenTotals telemetry in its own working context. An illustrative shape is:
@@ -36,12 +37,15 @@ A client integration can render TokenTotals telemetry in its own working context
 The values above are illustrative UI copy, not a live pricing snapshot. Runtime calculations use the versioned provider registries and the telemetry actually available for each request.
 
 ### 3. 📊 The Dash (Localhost Web Dashboard)
-Visit `http://127.0.0.1:8080/dashboard` in your browser for:
-* Posted local estimated spend, in-flight preflight estimates, and configured local pacing-threshold state.
-* Per-thread/task estimated-spend tracking.
-* Turn Notice configuration and turn/thread telemetry.
-* 1-Click configuration copy for Cursor, VS Code, and Python.
-* Provider pricing reference links and local verification receipts.
+The dashboard is wired directly into the local FastAPI runtime. The server exposes `/`, `/dashboard`, `/dashboard/`, and `/dashboard.html`; the Windows tray opens the configured local dashboard automatically.
+
+With the default port, visit:
+
+```text
+http://127.0.0.1:8080/dashboard
+```
+
+The dashboard shows posted local estimated spend, in-flight preflight estimates, local pacing-threshold state, Turn Notice configuration, latest-turn telemetry, and mixed-model thread telemetry where available.
 
 ---
 
@@ -57,14 +61,14 @@ If you build with AI agents (Cursor Composer, Claude Code, CrewAI, AutoGen, or c
 
 ## 🛡️ The Solution: TokenTotals
 
-TokenTotals runs as a silent, featherweight daemon in your system tray on `http://127.0.0.1:8080`. 
+TokenTotals runs locally and listens on loopback. The Windows desktop runtime starts the proxy in the background and exposes the local dashboard on the configured port.
 
-Point your IDE, agent framework, or scripts to `http://127.0.0.1:8080/v1` instead of calling the model endpoint directly. 
+Point your IDE, agent framework, or scripts to the TokenTotals local `/v1` endpoint instead of calling the model endpoint directly.
 
 ```
 [ Cursor / Windsurf / Python Scripts / Agent Swarms ]
                        │
-                       ▼ (Calls http://127.0.0.1:8080/v1)
+                       ▼ (Calls TokenTotals local /v1 endpoint)
             ┌─────────────────────┐
             │  TokenTotals Proxy   │ ──► 1. Pre-flight token/cost estimate
             │   (Local on your PC) │ ──► 2. Checks configured local pacing threshold
@@ -95,19 +99,14 @@ Permitted requests still leave the local machine and egress to the selected upst
 ### 2. 🚦 Traffic Light Glanceable Tray Icon
 * 🟢 **Green "T":** Below 75% of the configured local pacing threshold.
 * 🟡 **Amber "T":** At or above the configured caution percentage and below the local pacing threshold.
-* 🔴 **Red "T":** Local pacing threshold reached / routed requests locally paused.
+* 🔴 **Red "T":** Local pacing threshold reached / new TokenTotals-routed requests locally paused.
 
-### 3. 📊 Built-In Web Dashboard
-Left-click the tray icon or visit `http://127.0.0.1:8080/dashboard` in your browser to view:
-* Posted local estimated spend, in-flight preflight estimate, combined local estimate, and local threshold percentage.
-* Per-thread/task estimated-spend tracking.
-* Latest-turn and mixed-model thread telemetry with explicit coverage.
-* Turn Notice configuration.
-* 1-Click configuration copy for major IDE/client workflows.
-* Direct receipts and links to provider-published pricing documentation.
-
-### 4. 🧾 Append-Only Local Turn Telemetry Ledger
+### 3. 🧾 Append-Only Local Turn Telemetry Ledger
 Completed TokenTotals-routed turns are written to a local runtime append-only JSONL ledger at `~/.tokentotals/turns.jsonl`.
+
+A lot of the raw ingredients have been sitting in provider response telemetry for years: token counts, cache details, model identity, usage metadata, and processing information. The problem is that those ingredients are often exposed as developer plumbing rather than presented back as a readable per-turn cost receipt in the working context.
+
+**The data is often there. The usable receipt usually isn't. TokenTotals makes one.**
 
 The ledger is deliberately **telemetry-only**. Its writer accepts a whitelisted schema rather than arbitrary request/callback objects. It does not persist prompt text, response text, API keys, or hidden reasoning content.
 
@@ -118,8 +117,8 @@ Where the selected provider exposes or TokenTotals can defensibly derive the fie
 * input, uncached input, cached input, cache-write/create, output, reasoning/thinking, and tool-input token categories;
 * modality token detail and supported server-tool counters when exposed;
 * provider-reported total tokens, TokenTotals reconstructed total, and any unclassified/residual tokens required to reconcile the two;
-* latency, requested/observed service-tier information where available;
-* estimated cost components, total turn estimate, estimate completeness, and the basis used (`provider_registry_complete`, LiteLLM fallback, known list-equivalent, or unavailable); and
+* latency and requested/observed service-tier information where available;
+* **estimated cost components, the component arithmetic inputs/rates used by the pricing engine, total turn estimate, estimate completeness, and explicit cost basis** (`provider_registry_complete`, LiteLLM fallback, known list-equivalent, or unavailable); and
 * cumulative local/thread estimated spend after settlement.
 
 **Missing is not zero.** A zero token count means zero was actually observed or defensibly derived. If the provider did not expose a category, the ledger keeps that category unavailable rather than manufacturing `0`.
@@ -128,7 +127,9 @@ Where the selected provider exposes or TokenTotals can defensibly derive the fie
 
 The ledger's runtime write path is append-only, but it is an ordinary file owned by the local user; it is not represented as immutable or tamper-evident storage.
 
-### 5. 🔒 Local Control Plane
+For the exact arithmetic behind TokenTotals-derived metrics—including preflight estimates, component costs, cache share, reconciliation deltas, output rate, average/median/P95 turn size, coverage, local pacing totals, and admission checks—see [`CALCULATION_TRANSPARENCY.md`](CALCULATION_TRANSPARENCY.md).
+
+### 4. 🔒 Local Control Plane
 * **No TokenTotals SaaS Telemetry:** No TokenTotals user account or secondary analytics service is required by the local runtime.
 * **Loopback Boundary:** The application listens on loopback and forwards permitted requests to the selected upstream provider through LiteLLM.
 * **Upstream Egress Exists:** permitted provider requests necessarily leave localhost and reach the selected provider.
@@ -138,23 +139,43 @@ The ledger's runtime write path is append-only, but it is an ordinary file owned
 
 ## 🚀 Quickstart
 
-### 1. Run the Executable (Windows)
-Download the latest TokenTotals Windows release, unzip it, and run the TokenTotals executable.
+### 1. Run the Windows Desktop Runtime
+The current desktop application is Windows-specific. `app_gui.py` uses Windows runtime facilities, and TokenTotals does not currently claim a validated macOS or Linux desktop release.
 
-A green "T" will appear in your system tray, and the proxy will start listening on the configured local port.
+Download the current Windows release when available, unzip it, and run the TokenTotals executable.
 
-### 2. Configure Your Tools
+A green `T` appears in the system tray and the local proxy starts on the configured port. The default is `8080`.
 
-#### Cursor / VS Code:
-1. Open your client settings.
+If the configured port is already occupied, the desktop runtime searches `8080` through `8089` for an available port and saves the selected port back to `~/.tokentotals/config.json`. The tray's **Open Web Dashboard** action always opens the configured port.
+
+### 2. Confirm the Local Dashboard
+From the tray, choose **Open Web Dashboard**. With the default port, the address is:
+
+```text
+http://127.0.0.1:8080/dashboard
+```
+
+If TokenTotals selected a different port, use the port stored in `~/.tokentotals/config.json`.
+
+### 3. Configure Your Client
+Use the same configured port for the OpenAI-compatible base URL:
+
+```text
+http://127.0.0.1:8080/v1
+```
+
+If the runtime selected a different port, replace `8080` accordingly.
+
+For Cursor / VS Code or another compatible client:
+
+1. Open the client's settings.
 2. Locate its OpenAI-compatible Base URL setting.
-3. Set the Base URL to:
-   ```
-   http://127.0.0.1:8080/v1
-   ```
-4. Configure the appropriate provider/API credentials required by the client and upstream model.
+3. Point it to the TokenTotals local `/v1` URL.
+4. Configure the provider/API credentials required by that client and upstream model.
+5. Send an explicit model ID. TokenTotals does not infer a default model.
 
-#### Python / OpenAI-compatible client:
+#### Python / OpenAI-compatible client
+
 ```python
 from openai import OpenAI
 
@@ -169,7 +190,14 @@ response = client.chat.completions.create(
 )
 ```
 
-The `model` field is required. TokenTotals does not infer a default model.
+### 4. Verify Telemetry
+After a completed TokenTotals-routed turn, the local runtime can expose:
+
+```text
+GET /api/telemetry/thread?thread_id=<id>
+```
+
+and the dashboard renders the normalized presentation object rather than reading the raw ledger directly.
 
 ---
 
@@ -207,13 +235,13 @@ Each registry records its verification date, provider documentation sources, mod
 
 For a provider outside the dedicated engines, preflight may use an **exact model key** from the pinned LiteLLM catalog as a disclosed secondary estimate. If no defensible preflight price exists, the request is rejected rather than assigned a universal fallback rate.
 
-See [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md) for a human-readable comparison of the **billing mechanics** TokenTotals models across providers. It intentionally does not duplicate another static model-price leaderboard.
+See [`CALCULATION_TRANSPARENCY.md`](CALCULATION_TRANSPARENCY.md) for the arithmetic behind every current TokenTotals-derived presentation metric, and [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md) for a human-readable comparison of the **billing mechanics** TokenTotals models across providers.
 
 ---
 
 ## 🤝 Open Source Community: Fork It & Make It Yours!
 
-TokenTotals is released under the **GNU General Public License v3.0 (GPLv3)**. 
+TokenTotals is released under the **GNU General Public License v3.0 (GPLv3)**.
 
 We encourage developers, researchers, and community builders to:
 * **Fork the repo** and experiment with your own custom local rules.
@@ -255,15 +283,17 @@ A simplified normalized response may look like:
 
 Provider-native telemetry can contain additional categories that must be interpreted separately. For example, Google/Gemini may expose cache, thinking, tool-use prompt, total-token, and modality-specific detail; Anthropic exposes cache read/write categories and can have geography/tier/tool particulars; OpenAI has its own cache, tier, context, modality, and hosted-tool rules.
 
-Where a required billing component and its rate are known, the arithmetic is straightforward:
+Where a required billing component and its rate are known, the basic arithmetic is straightforward:
 
-```
-(billable_units / 1,000,000) x applicable_rate = estimated_component_cost
+```text
+(billable_units / 1,000,000) × applicable_rate = estimated_component_cost
 ```
 
-But modern AI pricing increasingly resembles cloud infrastructure pricing rather than a single gas-pump rate. The applicable cost may depend on multiple categories and modifiers: uncached input, cached input, cache writes, output/reasoning tokens, service or processing tier, long-context thresholds, hosted tools, batch processing, regional or account pricing, negotiated contracts, credits, taxes, and provider-side adjustments.
+Modern AI pricing increasingly resembles cloud infrastructure pricing rather than a single gas-pump rate. The applicable cost may depend on multiple categories and modifiers: uncached input, cached input, cache writes, output/reasoning tokens, service or processing tier, long-context thresholds, hosted tools, batch processing, regional or account pricing, negotiated contracts, credits, taxes, and provider-side adjustments.
 
 **That is the job TokenTotals is designed to do:** observe the telemetry that is available, apply versioned provider pricing rules and known modifiers, show the resulting estimate and its assumptions, and avoid inventing precision when a billing dimension is missing.
+
+And because this is open-source cost tooling, TokenTotals should be able to **show its work**. The formulas used for every current derived presentation metric are documented in [`CALCULATION_TRANSPARENCY.md`](CALCULATION_TRANSPARENCY.md) so developers can check the arithmetic themselves.
 
 Think of it more like an AWS-style near-real-time cost meter than a clone of the provider's accounts-receivable system. The estimate can become very close when the telemetry and rules are complete; the provider's invoice remains the final authority.
 
@@ -282,10 +312,10 @@ Potential use cases include:
 * **Compliance-Sensitive Environments:** Avoiding an additional TokenTotals-operated telemetry SaaS while still using the selected upstream model provider.
 * **Restricted Observability Topologies:** A local monitoring layer where the authorized provider endpoint is reachable but an additional observability SaaS is not approved.
 
-### Commercial Enterprise Licensing
-TokenTotals is free and open-source under GPLv3. Organizations requiring different licensing, support, or documentation can contact QuietFireAI.
+### Commercial, Licensing & Acquisition Inquiries
+TokenTotals is free and open-source under GPLv3. Organizations requiring different licensing, support, documentation, partnership discussions, or acquisition conversations can contact QuietFireAI.
 
-📧 **Contact:** quietfireai@gmail.com  
+📧 **Contact:** support@quietfireAI.com  
 🔗 **ORCID:** [0009-0000-1375-1725](https://orcid.org/0009-0000-1375-1725)
 
 ## 📜 License & Trust
