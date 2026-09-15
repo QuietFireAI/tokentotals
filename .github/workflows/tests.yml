@@ -98,5 +98,5 @@ jobs:
         run: .venv/bin/python -m pip install -c constraints-py312.txt -r requirements-dev.txt
       - name: Verify constrained test dependency graph
         run: .venv/bin/python -m pip check
-      - name: Run focused regression suite
+      - name: Run regression and loopback integration suite
         run: .venv/bin/python -m pytest -q
