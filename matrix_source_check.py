@@ -2,8 +2,8 @@
 
 IR-005 guardrail: the committed matrix is generated from pricing_catalog.json, but
 Anthropic and Google do not yet have promoted dynamic runtime adapters. This module
-checks their dated catalog base rates against the official provider pricing pages.
-It never writes or promotes pricing data.
+checks their dated catalog base rates and, when present, conservative guard rates
+against the official provider pricing pages. It never writes or promotes pricing data.
 """
 from __future__ import annotations
 
@@ -75,11 +75,7 @@ def fetch_source(url: str, timeout: int = 30) -> tuple[str, str]:
 
 
 def pricing_scope(provider: str, text: str) -> str:
-    """Discard navigation/promo text before the provider's base pricing table.
-
-    Both official pages mention model names outside the price table. Anchoring first
-    prevents navigation text or marketing banners from being mistaken for a rate row.
-    """
+    """Discard navigation/promo text before the provider's base pricing table."""
     if provider == "Anthropic":
         anchor = text.find("Model pricing")
         if anchor < 0:
@@ -98,17 +94,36 @@ def pricing_scope(provider: str, text: str) -> str:
     raise ValueError(f"Unsupported live matrix provider: {provider}")
 
 
+def guard_pricing_scope(provider: str, text: str) -> str:
+    """Return the official section used to validate conservative guard rates.
+
+    Anthropic's model-pricing table exposes base, cache-write, cache-hit, and output
+    rates together, so the same model row can support the represented guard values.
+    Google's high-side guard values in this revision come from its Priority pricing
+    table (including context/region variants where published), not the Standard table.
+    """
+    if provider == "Anthropic":
+        return pricing_scope(provider, text)
+
+    if provider == "Google":
+        google_models = text.find("Google models")
+        if google_models < 0:
+            raise ValueError("Google pricing source did not expose the expected Google models section")
+        priority_header = text.find("with Priority", google_models)
+        if priority_header < 0:
+            raise ValueError("Google pricing source did not expose the expected Priority pricing table")
+        return text[priority_header:]
+
+    raise ValueError(f"Unsupported live matrix provider: {provider}")
+
+
 def _next_label_position(text: str, start: int, labels: Iterable[str]) -> int | None:
     positions = [pos for label in labels if (pos := text.find(label, start)) >= 0]
     return min(positions) if positions else None
 
 
 def model_window(text: str, label: str, provider_labels: Iterable[str]) -> str:
-    """Return a model's first base/standard pricing-table occurrence.
-
-    The input text must already be scoped to the provider's base/standard pricing
-    section. Later Priority/Flex/Batch tables therefore cannot satisfy this check.
-    """
+    """Return a model's first occurrence within an already-scoped pricing table."""
     start = text.find(label)
     if start < 0:
         raise ValueError(f"Model label not found in live source: {label}")
@@ -148,7 +163,7 @@ def validate_provider_text(
     today: date | None = None,
 ) -> list[dict]:
     today = today or datetime.now(timezone.utc).date()
-    text = pricing_scope(provider, text)
+    base_text = pricing_scope(provider, text)
     models = catalog.get("models", {})
     provider_models = [
         (model_id, record)
@@ -158,6 +173,12 @@ def validate_provider_text(
     if not provider_models:
         raise ValueError(f"No {provider} models are represented in the catalog")
 
+    has_guard_rates = any(
+        "guard_input_price_per_1m" in record or "guard_output_price_per_1m" in record
+        for _, record in provider_models
+    )
+    guard_text = guard_pricing_scope(provider, text) if has_guard_rates else None
+
     labels = [DISPLAY_NAMES[model_id] for model_id, _ in provider_models]
     results: list[dict] = []
     for model_id, record in provider_models:
@@ -165,25 +186,46 @@ def validate_provider_text(
         label = DISPLAY_NAMES.get(model_id)
         if not label:
             raise ValueError(f"No official display-name mapping for {model_id}")
-        window = model_window(text, label, labels)
-        values = dollar_values(window)
+
+        base_window = model_window(base_text, label, labels)
+        base_values = dollar_values(base_window)
         input_rate = float(record["input_price_per_1m"])
         output_rate = float(record["output_price_per_1m"])
-        if not _contains_rate(values, input_rate):
+        if not _contains_rate(base_values, input_rate):
             raise ValueError(
                 f"{provider} {model_id}: catalog input ${input_rate:g}/1M was not found "
                 "in the model's live base/standard pricing row"
             )
-        if not _contains_rate(values, output_rate):
+        if not _contains_rate(base_values, output_rate):
             raise ValueError(
                 f"{provider} {model_id}: catalog output ${output_rate:g}/1M was not found "
                 "in the model's live base/standard pricing row"
             )
+
+        guard_input = record.get("guard_input_price_per_1m")
+        guard_output = record.get("guard_output_price_per_1m")
+        if guard_input is not None or guard_output is not None:
+            assert guard_text is not None
+            guard_window = model_window(guard_text, label, labels)
+            guard_values = dollar_values(guard_window)
+            if guard_input is not None and not _contains_rate(guard_values, float(guard_input)):
+                raise ValueError(
+                    f"{provider} {model_id}: guard input ${float(guard_input):g}/1M was not found "
+                    "in the provider section used for conservative guard validation"
+                )
+            if guard_output is not None and not _contains_rate(guard_values, float(guard_output)):
+                raise ValueError(
+                    f"{provider} {model_id}: guard output ${float(guard_output):g}/1M was not found "
+                    "in the provider section used for conservative guard validation"
+                )
+
         results.append(
             {
                 "model": model_id,
                 "input_price_per_1m": input_rate,
                 "output_price_per_1m": output_rate,
+                "guard_input_price_per_1m": float(guard_input) if guard_input is not None else None,
+                "guard_output_price_per_1m": float(guard_output) if guard_output is not None else None,
                 "effective_from": record.get("effective_from"),
                 "effective_until": record.get("effective_until"),
             }
@@ -209,7 +251,7 @@ def validate_live_sources() -> dict:
 def main() -> int:
     audit = validate_live_sources()
     print(json.dumps(audit, indent=2, sort_keys=True))
-    print("IR-005 live matrix source validation passed; no pricing files were modified.")
+    print("IR-005 live matrix base + guard source validation passed; no pricing files were modified.")
     return 0
 
 
