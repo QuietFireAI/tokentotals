@@ -45,6 +45,16 @@ FORBIDDEN_EVERY_RESPONSE_RECONCILIATION_CLAIMS = (
     "every response contains everything you need to calculate exact spend",
 )
 
+FORBIDDEN_COMPLIANCE_CLAIMS = (
+    "sails through compliance review",
+    "fedramp & fisma compliance:",
+    "fedramp and fisma compliant",
+    "fedramp compliant by design",
+    "fisma compliant by design",
+    "automatically fedramp compliant",
+    "automatically fisma compliant",
+)
+
 
 def _public_claim_text() -> str:
     return "\n".join(path.read_text(encoding="utf-8").lower() for path in PUBLIC_CLAIM_FILES)
@@ -115,3 +125,16 @@ def test_every_response_exact_spend_claim_cannot_return():
     whitepaper = (ROOT / "TokenTotals_Security_Whitepaper.md").read_text(encoding="utf-8").lower()
     assert "missing telemetry" in readme
     assert "usage is unavailable" in whitepaper
+
+
+def test_fedramp_fisma_compliance_cannot_be_inferred_from_local_architecture():
+    text = _public_claim_text()
+    for phrase in FORBIDDEN_COMPLIANCE_CLAIMS:
+        assert phrase not in text, f"unsupported compliance claim returned: {phrase!r}"
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    whitepaper = (ROOT / "TokenTotals_Security_Whitepaper.md").read_text(encoding="utf-8")
+
+    assert "It is not a FedRAMP/FISMA authorization and does not make an environment compliant by itself." in readme
+    assert "They do not by themselves establish FedRAMP authorization, FISMA compliance" in whitepaper
+    assert "Those determinations belong to the relevant organization and security/compliance authority." in whitepaper
