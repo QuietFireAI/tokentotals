@@ -48,7 +48,11 @@ class OptimizerRetirementTests(unittest.TestCase):
         self.assertNotIn("flagged_routine_calls", config_manager.DEFAULT_STATE)
 
         params = inspect.signature(config_manager.update_spend).parameters
-        self.assertEqual(list(params), ["cost_usd", "thread_id"])
+        self.assertEqual(
+            list(params),
+            ["cost_usd", "thread_id", "reservation_id"],
+            "spend API may reconcile request reservations but must not reintroduce optimizer inputs",
+        )
 
     def test_status_endpoint_omits_retired_optimizer_metrics(self):
         original_get_state = self.proxy.config_manager.get_state
