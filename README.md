@@ -23,7 +23,7 @@ See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_ST
 - Request-scoped thread/routine/savings accounting stays local to each request rather than using shared callback globals.
 - Daily local spend state and active-thread spend state under `~/.tokentotals`.
 - Lock state with desktop tray/modal monitoring on the Windows GUI.
-- Literal `I UNDERSTAND` requirement for the HTTP unlock endpoint.
+- Request-supplied `I UNDERSTAND` acknowledgment requirement for the HTTP unlock endpoint; surrounding whitespace and letter case are normalized, but different wording is rejected.
 - Explicit `BOOST $5` acknowledgement for dashboard budget boosts.
 - Dashboard that displays runtime state only; it does not ship fake token/cache telemetry.
 - SSE-style streaming pass-through. If final usage is unavailable, TokenTotals keeps the conservative reservation and marks the stream unreconciled rather than inventing a final cost.
@@ -151,7 +151,7 @@ Configure a compatible client to use the local `/v1` base URL and provide the re
 
 ## Windows tray application
 
-`app_gui.py` starts the proxy, tray monitor, and dashboard integration. The modal lock dialog requires typing `I UNDERSTAND` before native unlock. The native `+$5` button is an explicit local user action.
+`app_gui.py` starts the proxy, tray monitor, and dashboard integration. The modal lock dialog requires the `I UNDERSTAND` acknowledgment phrase before native unlock. The native `+$5` button is an explicit local user action.
 
 Build on Windows with CPython 3.12:
 
@@ -180,7 +180,10 @@ The forensic hardening suite now covers:
 - true simultaneous in-process reservation contention;
 - overlapping request-context isolation for thread identity, routine classification, and potential-savings metadata;
 - regression guards preventing the old shared request-scoped globals/callback from returning;
-- unlock and boost acknowledgements;
+- HTTP unlock rejection for missing, malformed, empty, or wrong acknowledgment input;
+- intentional case/whitespace normalization of the `I UNDERSTAND` phrase;
+- proof that successful unlock changes only the lock flag and preserves accounting plus configured budget;
+- boost acknowledgements;
 - prevention of upstream calls after price/budget rejection;
 - bounded output reservation, including conflicting output-bound fields;
 - proof that the full input-plus-output reservation is committed before upstream execution begins;
@@ -204,9 +207,9 @@ The forensic hardening suite now covers:
 - Python 3.12 agreement across the compatibility contract, CI, and Windows build path;
 - constrained Windows PyInstaller packaging dependencies.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **38 tests / 0 failures** on the IR-009 overlap revalidation revision. The IR-008 contention test proves the in-process budget gate serializes two simultaneous reservations that cannot both fit. The IR-009 tests prove the old request-scoped globals/callback cannot silently return and that overlapping requests retain their own accounting identity through reservation and reconciliation. Separate clean-environment jobs continue to exercise the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The non-destructive matrix-source workflow previously passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass. This is regression/source-validation evidence, not a substitute for live-provider integration, broader load, final executable packaging, or security testing.
+GitHub Actions on Ubuntu/Python 3.12 passed **41 tests / 0 failures** on the IR-010 unlock-integrity revalidation revision. The IR-008 contention test proves the in-process budget gate serializes two simultaneous reservations that cannot both fit. The IR-009 tests prove the old request-scoped globals/callback cannot silently return and that overlapping requests retain their own accounting identity through reservation and reconciliation. The IR-010 tests prove the HTTP unlock path rejects absent/malformed/wrong acknowledgment, intentionally normalizes case/outer whitespace for the required phrase, and changes only the lock state after valid acknowledgment. Separate clean-environment jobs continue to exercise the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The non-destructive matrix-source workflow previously passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass. This is regression/source-validation evidence, not a substitute for live-provider integration, broader load, final executable packaging, or security testing.
 
-See [`docs/IR-007_OUTPUT_RESERVATION_PROOF.md`](docs/IR-007_OUTPUT_RESERVATION_PROOF.md) for output-reservation evidence, [`docs/IR-008_CONCURRENT_RESERVATION_PROOF.md`](docs/IR-008_CONCURRENT_RESERVATION_PROOF.md) for in-process contention evidence, [`docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md`](docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md) for request-context isolation evidence, and [`docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md`](docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md) for dependency-reproducibility and daily Python compatibility evidence.
+See [`docs/IR-007_OUTPUT_RESERVATION_PROOF.md`](docs/IR-007_OUTPUT_RESERVATION_PROOF.md) for output-reservation evidence, [`docs/IR-008_CONCURRENT_RESERVATION_PROOF.md`](docs/IR-008_CONCURRENT_RESERVATION_PROOF.md) for in-process contention evidence, [`docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md`](docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md) for request-context isolation evidence, [`docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md`](docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md) for unlock acknowledgment evidence, and [`docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md`](docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md) for dependency-reproducibility and daily Python compatibility evidence.
 
 ## Security and privacy boundary
 
