@@ -1,7 +1,9 @@
 # TokenTotals Verified Developer API Pricing Matrix
 
 **Checked-in catalog verification date:** 2026-09-15
-**Official sources last checked:** 2026-09-15T14:36:21Z
+**Official sources last checked:** 2026-09-15T14:42:31Z
+
+**Freshness contract:** a verified pricing receipt is CURRENT for at most 24 hours from `source_checked_at`. Once older than 24 hours, TokenTotals treats the pricing surface as STALE and the integrity gate fails closed until a new verified refresh succeeds.
 
 This file is generated from TokenTotals' effective verified pricing view. Do not hand-edit prices here.
 The matrix, README pricing block, whitepaper pricing receipt, and daily status document are regenerated together after successful official-source checks.

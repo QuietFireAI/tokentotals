@@ -271,7 +271,7 @@
   },
   "daily_integrity_refresh": {
     "status": "verified",
-    "source_checked_at": "2026-09-15T14:36:21Z",
+    "source_checked_at": "2026-09-15T14:42:31Z",
     "verified_at": "2026-09-15",
     "providers": {
       "OpenAI": {
@@ -284,150 +284,13 @@
           "gpt-5.6-terra",
           "gpt-6-astra"
         ],
-        "recognized_changes": [
-          {
-            "model": "gpt-6-astra",
-            "field": "cached_input_price_per_1m",
-            "old": null,
-            "new": 1.0
-          },
-          {
-            "model": "gpt-6-astra",
-            "field": "cache_write_price_per_1m",
-            "old": null,
-            "new": 12.5
-          },
-          {
-            "model": "gpt-6-astra",
-            "field": "guard_input_price_per_1m",
-            "old": 20.0,
-            "new": 40.0
-          },
-          {
-            "model": "gpt-6-astra",
-            "field": "guard_output_price_per_1m",
-            "old": 75.0,
-            "new": 150.0
-          },
-          {
-            "model": "gpt-6-astra",
-            "field": "pricing_rules",
-            "old": null,
-            "new": {
-              "cache_write_multiplier": 1.25,
-              "long_context": {
-                "threshold_input_tokens": 272000,
-                "input_multiplier": 2.0,
-                "cache_multiplier": 2.0,
-                "output_multiplier": 1.5
-              },
-              "service_tier_multipliers": {
-                "batch": 0.5,
-                "flex": 0.5,
-                "fast": 2.0
-              }
-            }
-          },
-          {
-            "model": "gpt-5.6-sol",
-            "field": "cached_input_price_per_1m",
-            "old": null,
-            "new": 0.4
-          },
-          {
-            "model": "gpt-5.6-sol",
-            "field": "cache_write_price_per_1m",
-            "old": null,
-            "new": 5.0
-          },
-          {
-            "model": "gpt-5.6-sol",
-            "field": "pricing_rules",
-            "old": null,
-            "new": {
-              "cache_write_multiplier": 1.25,
-              "long_context": {
-                "threshold_input_tokens": 272000,
-                "input_multiplier": 2.0,
-                "cache_multiplier": null,
-                "output_multiplier": 1.5
-              },
-              "service_tier_multipliers": {
-                "batch": null,
-                "flex": null,
-                "fast": null
-              }
-            }
-          },
-          {
-            "model": "gpt-5.6-terra",
-            "field": "cached_input_price_per_1m",
-            "old": null,
-            "new": 0.2
-          },
-          {
-            "model": "gpt-5.6-terra",
-            "field": "cache_write_price_per_1m",
-            "old": null,
-            "new": 2.5
-          },
-          {
-            "model": "gpt-5.6-terra",
-            "field": "pricing_rules",
-            "old": null,
-            "new": {
-              "cache_write_multiplier": 1.25,
-              "long_context": {
-                "threshold_input_tokens": 272000,
-                "input_multiplier": 2.0,
-                "cache_multiplier": null,
-                "output_multiplier": 1.5
-              },
-              "service_tier_multipliers": {
-                "batch": null,
-                "flex": null,
-                "fast": null
-              }
-            }
-          },
-          {
-            "model": "gpt-5.6-luna",
-            "field": "cached_input_price_per_1m",
-            "old": null,
-            "new": 0.02
-          },
-          {
-            "model": "gpt-5.6-luna",
-            "field": "cache_write_price_per_1m",
-            "old": null,
-            "new": 0.25
-          },
-          {
-            "model": "gpt-5.6-luna",
-            "field": "pricing_rules",
-            "old": null,
-            "new": {
-              "cache_write_multiplier": 1.25,
-              "long_context": {
-                "threshold_input_tokens": 272000,
-                "input_multiplier": 2.0,
-                "cache_multiplier": null,
-                "output_multiplier": 1.5
-              },
-              "service_tier_multipliers": {
-                "batch": null,
-                "flex": null,
-                "fast": null
-              }
-            }
-          }
-        ],
+        "recognized_changes": [],
         "mode": "official structured source parse; recognized safe changes refresh catalog, suspicious/source-only/model-set changes fail closed"
       },
       "Anthropic": {
         "status": "verified",
         "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
-        "source_sha256": "26fd92cabb5588693e785c851fbd8c66b102d337175a67f9e99e39212b554c6b",
+        "source_sha256": "0e17bb956ba1fbc12d6e342d8ec3fa2d627ea99069add51f0cf47bd227b7b648",
         "models_checked": [
           "claude-fable-5.1",
           "claude-opus-5",
@@ -439,7 +302,7 @@
       "Google": {
         "status": "verified",
         "source_url": "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing",
-        "source_sha256": "9a83fb941931c951f54e93caab426615f3d09111e57a6db261864930cf84bf51",
+        "source_sha256": "fb7cf3200bfe6af9884e5a214808552f7473fcce472b4bf96a4d55dce28326f7",
         "models_checked": [
           "gemini-3.1-pro-preview",
           "gemini-3.8-flash",

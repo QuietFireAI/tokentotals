@@ -2,9 +2,11 @@
 
 > Generated file. Do not hand-edit pricing values or freshness metadata here.
 
-**Last successful official-source refresh:** 2026-09-15T14:36:21Z
+**Last successful official-source refresh:** 2026-09-15T14:42:31Z
 
 **Verified catalog date:** 2026-09-15
+
+**Freshness contract:** a verified pricing receipt is CURRENT for at most 24 hours from `source_checked_at`. Once older than 24 hours, TokenTotals treats the pricing surface as STALE and the integrity gate fails closed until a new verified refresh succeeds.
 
 **Calculation workload:** 10,000 input tokens + 2,000 output tokens
 
@@ -13,8 +15,8 @@ A successful daily refresh means every represented provider passed its configure
 | Provider | Status | Refresh mode | Source hash |
 | :--- | :--- | :--- | :--- |
 | OpenAI | verified | official structured source parse; recognized safe changes refresh catalog, suspicious/source-only/model-set changes fail closed | `01d1e3d0543cc8e2bc776dfb87c7d12b0388663a385be953b63988429c19c9b1` |
-| Anthropic | verified | official live base+guard drift validation; mismatch, missing model, parse ambiguity, or expiry fails closed | `26fd92cabb5588693e785c851fbd8c66b102d337175a67f9e99e39212b554c6b` |
-| Google | verified | official live base+guard drift validation; mismatch, missing model, parse ambiguity, or expiry fails closed | `9a83fb941931c951f54e93caab426615f3d09111e57a6db261864930cf84bf51` |
+| Anthropic | verified | official live base+guard drift validation; mismatch, missing model, parse ambiguity, or expiry fails closed | `0e17bb956ba1fbc12d6e342d8ec3fa2d627ea99069add51f0cf47bd227b7b648` |
+| Google | verified | official live base+guard drift validation; mismatch, missing model, parse ambiguity, or expiry fails closed | `fb7cf3200bfe6af9884e5a214808552f7473fcce472b4bf96a4d55dce28326f7` |
 
 ## Current generated comparison
 
