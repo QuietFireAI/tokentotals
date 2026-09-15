@@ -70,9 +70,11 @@ R = (Tin / 1,000,000 * Pin_guard)
   + (Tout / 1,000,000 * Pout_guard)
 ```
 
-The request is eligible for upstream routing only if the in-process atomic check-and-reserve operation can commit `S + R <= L`.
+The request is eligible for upstream routing only if the in-process atomic check-and-reserve operation can commit `S + R <= L`. The reservation is committed before `litellm.acompletion()` begins.
 
-If the caller supplies no output-token maximum, TokenTotals applies `default_max_output_tokens`, lowering it further when necessary to fit the remaining budget. This converts an otherwise unbounded output-cost assumption into an explicit bound.
+If the caller supplies both `max_tokens` and `max_completion_tokens`, TokenTotals reserves against the larger valid output ceiling. If the caller supplies no output-token maximum, TokenTotals applies `default_max_output_tokens`, lowering it further when necessary to fit the remaining budget. This converts an otherwise unbounded output-cost assumption into an explicit bound.
+
+The 2026-09-15 IR-007 revalidation directly instrumented the mocked upstream boundary and verified that `current_spend_usd` already contained the full input-plus-output conservative reservation when upstream execution began. This is lifecycle evidence that reservation is pre-egress rather than merely calculated before the call and committed later.
 
 ### 4.1 Input token estimation
 
@@ -82,7 +84,7 @@ The current pre-flight estimator is a conservative local UTF-8-length heuristic.
 
 For non-stream responses containing usable input/output token counts, TokenTotals calculates the supported pricing estimate and replaces the pre-flight reservation with that estimate.
 
-For streams where final usage is unavailable, TokenTotals keeps the conservative reservation and increments an `unreconciled_streams` counter. It does not replace unknown cost with an invented constant.
+For streams where final usage is unavailable, TokenTotals keeps the conservative reservation and increments an `unreconciled_streams` counter. It does not replace unknown cost with an invented constant or release budget headroom without evidence. The IR-007 revalidation includes a streamed-response regression test that proves the reservation remains after a stream completes without final usage telemetry.
 
 ### 4.3 Process boundary
 
@@ -144,9 +146,11 @@ The constraints provide **version reproducibility for the validated CPython 3.12
 
 ## 11. Verification
 
-The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation including conflicting output ceilings, reservation against the exact model selected for automatic routing, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, Anthropic/Google base/standard source parsing and effective-date expiry enforcement, clean-install use of the declared LiteLLM runtime dependency, public-claim guards that preserve the actual provider synchronization scope, dependency-constraint coverage, clean constrained Linux/Windows environments, Python-version contract consistency, and constrained Windows packaging dependencies.
+The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation including conflicting output ceilings, direct proof that input-plus-output spend is committed before upstream execution, retention of a conservative reservation for streams without final usage, reservation against the model actually selected for automatic routing, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, Anthropic/Google base/standard source parsing and effective-date expiry enforcement, clean-install use of the declared LiteLLM runtime dependency, public-claim guards that preserve the actual provider synchronization scope, dependency-constraint coverage, clean constrained Linux/Windows environments, Python-version contract consistency, and constrained Windows packaging dependencies.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **33 tests with 0 failures** on the final IR-020 reproducibility revision. Separate clean-environment jobs also passed the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The daily Python compatibility check is part of the same workflow and becomes scheduled automatically when the workflow resides on the repository default branch.
+GitHub Actions on Ubuntu/Python 3.12 passed **35 tests with 0 failures** on the IR-007 output-reservation revalidation revision. The new tests inspect the reservation from inside the mocked upstream function and exercise a streamed response with no final usage telemetry. No production proxy logic was changed during that revalidation because the existing hardened implementation already satisfied those invariants.
+
+Separate clean-environment jobs continue to exercise the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The daily Python compatibility check remains part of the same workflow and becomes scheduled automatically when the workflow resides on the repository default branch.
 
 The separate non-destructive matrix-source workflow also passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass.
 
@@ -156,4 +160,4 @@ This is regression/source-validation evidence. It is not a substitute for live-p
 
 See `INTEGRITY_REPORT.md` for the separate baseline integrity findings and hardening findings, including confirmed machine-specific paths, silent pricing fallbacks, disconnected price synchronization, stale matrix data, input-only pre-flight accounting, API bypasses, concurrency hazards, static dashboard telemetry, routed-model reservation ordering, dependency reproducibility, and documentation claims that exceeded implementation.
 
-See `docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md` for the measured dependency and Python compatibility evidence.
+See `docs/IR-007_OUTPUT_RESERVATION_PROOF.md` for the output-reservation lifecycle evidence and `docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md` for the measured dependency and Python compatibility evidence.
