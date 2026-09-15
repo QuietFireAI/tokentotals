@@ -12,6 +12,7 @@
 - **UNSUPPORTED CLAIM** — documentation promises behavior not present in the baseline implementation.
 - **STUB / FALLBACK** — substitute logic masks a missing dependency or implementation.
 - **STALE DATA** — published data no longer matches the cited authority.
+- **EVIDENCE GAP** — important behavior existed or appeared plausible but lacked direct validation at the stated boundary.
 - **CONFIRMED IMPLEMENTED** — claim materially exists in code.
 
 ## Findings
@@ -297,6 +298,20 @@ The prior daily Anthropic/Google source checker validated only base/Standard row
 
 See `docs/IR-021_GOOGLE_FLASH_LITE_GUARD_RATE_PROOF.md` for the dedicated proof sheet.
 
+### IR-022 — Real loopback HTTP integration/load behavior lacked direct proof — EVIDENCE GAP / REVALIDATED
+
+The hardened suite already exercised pricing, routing, state transitions, and concurrency, but most HTTP route tests used FastAPI/Starlette `TestClient`. That left an evidence gap at the actual Uvicorn + loopback TCP boundary used by the production proxy.
+
+**Validation approach:** `tests/test_http_integration_load.py` starts the production `proxy_server.app` behind a real Uvicorn listener on an ephemeral `127.0.0.1` port and sends requests through `httpx` over the actual loopback HTTP/TCP path. The upstream provider call is deliberately mocked so the test isolates TokenTotals' local transport, reservation, reconciliation, and state behavior without spending provider money.
+
+The first test proves a real loopback `/v1/chat/completions` round trip returns provider content unchanged, records one request, exposes the reconciled value through `/api/status`, and reconciles the conservative reservation to the expected usage-based estimate. The second test releases **24 client threads simultaneously** against the real Uvicorn listener while the mocked async upstream delays briefly to force overlap. All 24 requests must succeed, the upstream count must be exactly 24, `total_requests` must be exactly 24, final spend must equal the sum of the 24 reconciled estimates, and no unreconciled stream or accidental budget lock may appear.
+
+**Result:** no production-code change was required. GitHub Actions proof run `34984018982` passed **55/55** tests on Ubuntu / CPython 3.12, plus the constrained Linux runtime smoke, Windows runtime smoke, Windows PyInstaller toolchain smoke, and dependency checks.
+
+**Boundary:** this is a controlled single-process local integration/concurrency burst with mocked provider egress. It does not claim unlimited production throughput, sustained soak endurance, multi-process safety, provider-network reliability, invoice parity, or a live paid-provider canary.
+
+See `docs/IR-022_HTTP_INTEGRATION_LOAD_PROOF.md` for the dedicated proof sheet.
+
 ## Confirmed implemented baseline behavior
 
 The forensic review also found real code, not just claims:
@@ -312,9 +327,9 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression suite on the hardened branch: **51 passed / 0 failed** on Ubuntu/Python 3.12.
+Current GitHub Actions regression/integration suite on the hardened branch: **55 passed / 0 failed** on Ubuntu/Python 3.12.
 
-Regression coverage includes:
+Regression/integration coverage includes:
 
 1. verified input + output cost math;
 2. conservative guard rate >= displayed base estimate;
@@ -366,7 +381,11 @@ Regression coverage includes:
 48. non-stream provider assistant content remains pass-through and is not silently decorated with TokenTotals badge content;
 49. the README verified-pricing block must exactly match the generator/current verified pricing view and stale GPT-4o/o1/o3-mini/Claude-3.x/Gemini-2.x comparison rows cannot return;
 50. Google conservative guard rates are positively validated against the official Priority pricing section used for this revision's high-side text guard;
-51. a lower Standard value cannot satisfy the Google guard check when the official Priority section publishes a higher represented rate.
+51. a lower Standard value cannot satisfy the Google guard check when the official Priority section publishes a higher represented rate;
+52. a verified pricing receipt at exactly 24 hours old remains current;
+53. a pricing receipt older than 24 hours fails the freshness gate instead of being treated as current;
+54. a real Uvicorn/loopback HTTP chat-completion round trip reconciles state and exposes the same reconciled spend through `/api/status`;
+55. a 24-request overlapping loopback HTTP burst preserves every request and reconciled spend update without creating an unreconciled stream or accidental lock.
 
 IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
 
@@ -374,9 +393,13 @@ IR-005/IR-021 additionally use the separate `matrix-source-check` workflow. On t
 
 IR-020 additionally has clean-environment Linux runtime, Windows runtime, and Windows build-tool jobs using the same CPython 3.12 constraints. The same workflow carries a daily schedule on the default branch to detect future Python-version or dependency-resolution drift.
 
+The daily pricing-integrity path additionally enforces a **24-hour maximum age** for the successful official-source receipt. A receipt at 24:00:00 remains current; once it is older than 24 hours the freshness gate fails closed until a new verified source check succeeds. The unattended schedule becomes operational only when the workflow exists on the repository default branch; `main` remains untouched during this hardening review.
+
+IR-022 additionally runs the production FastAPI app behind a real Uvicorn `127.0.0.1` listener and exercises both a single TCP round trip and a 24-request overlapping local burst. Provider egress is mocked in that proof so no paid-provider claim is inferred from the local integration result.
+
 ## Remaining limitations before calling this production-proven
 
-- The 51-test suite is focused regression coverage, not a full integration or load test.
+- Real loopback HTTP integration and a controlled 24-request overlapping burst are now proven, but sustained soak/stress testing, higher concurrency envelopes, and production capacity limits remain uncharacterized.
 - The HTTP acknowledgment phrases are intent gates, not authentication secrets. A malicious local process running with the user's privileges can deliberately call loopback control endpoints with valid JSON and the published phrase.
 - The live OpenAI, Anthropic, and Google source checks prove the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must be surfaced for review rather than treated as proof that the provider price changed.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
@@ -389,6 +412,6 @@ IR-020 additionally has clean-environment Linux runtime, Windows runtime, and Wi
 
 ## Integrity conclusion
 
-The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, stale matrix data, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect, a dependency-reproducibility gap, an incomplete first browser-origin defense on the budget-control endpoint, and understated/misaligned Google Flash-Lite conservative guard rates before release.
+The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, stale matrix data, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect, a dependency-reproducibility gap, an incomplete first browser-origin defense on the budget-control endpoint, and understated/misaligned Google Flash-Lite conservative guard rates before release. It also closed the prior local integration/load evidence gap with real loopback Uvicorn tests without requiring a production-code change.
 
 The hardening branch removes the known silent fabrication/fallback paths and changes the governing rule to: **unknown or unreconciled data stays unknown/conservative; it is never converted into a plausible-looking number merely to keep the UI green.**
