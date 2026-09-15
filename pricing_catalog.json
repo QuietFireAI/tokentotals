@@ -8,143 +8,20 @@
     "google": "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing"
   },
   "models": {
-    "gpt-6-astra": {
-      "provider": "OpenAI",
-      "aliases": ["openai/gpt-6-astra"],
-      "input_price_per_1m": 10.0,
-      "output_price_per_1m": 50.0,
-      "guard_input_price_per_1m": 20.0,
-      "guard_output_price_per_1m": 75.0,
-      "source": "openai"
-    },
-    "gpt-5.6-sol": {
-      "provider": "OpenAI",
-      "aliases": ["openai/gpt-5.6-sol"],
-      "input_price_per_1m": 4.0,
-      "output_price_per_1m": 20.0,
-      "guard_input_price_per_1m": 8.0,
-      "guard_output_price_per_1m": 30.0,
-      "source": "openai"
-    },
-    "gpt-5.6-terra": {
-      "provider": "OpenAI",
-      "aliases": ["openai/gpt-5.6-terra"],
-      "input_price_per_1m": 2.0,
-      "output_price_per_1m": 12.0,
-      "guard_input_price_per_1m": 4.0,
-      "guard_output_price_per_1m": 18.0,
-      "source": "openai"
-    },
-    "gpt-5.6-luna": {
-      "provider": "OpenAI",
-      "aliases": ["openai/gpt-5.6-luna"],
-      "input_price_per_1m": 0.2,
-      "output_price_per_1m": 1.2,
-      "guard_input_price_per_1m": 0.4,
-      "guard_output_price_per_1m": 1.8,
-      "source": "openai"
-    },
-    "claude-fable-5.1": {
-      "provider": "Anthropic",
-      "aliases": ["anthropic/claude-fable-5.1", "claude-fable-5-1"],
-      "input_price_per_1m": 10.0,
-      "output_price_per_1m": 50.0,
-      "guard_input_price_per_1m": 11.0,
-      "guard_output_price_per_1m": 55.0,
-      "source": "anthropic"
-    },
-    "claude-opus-5": {
-      "provider": "Anthropic",
-      "aliases": ["anthropic/claude-opus-5"],
-      "input_price_per_1m": 5.0,
-      "output_price_per_1m": 25.0,
-      "guard_input_price_per_1m": 11.0,
-      "guard_output_price_per_1m": 55.0,
-      "source": "anthropic"
-    },
-    "claude-sonnet-5": {
-      "provider": "Anthropic",
-      "aliases": ["anthropic/claude-sonnet-5"],
-      "input_price_per_1m": 2.0,
-      "output_price_per_1m": 10.0,
-      "guard_input_price_per_1m": 2.2,
-      "guard_output_price_per_1m": 11.0,
-      "source": "anthropic"
-    },
-    "claude-haiku-4.5": {
-      "provider": "Anthropic",
-      "aliases": ["anthropic/claude-haiku-4.5", "claude-haiku-4-5"],
-      "input_price_per_1m": 1.0,
-      "output_price_per_1m": 5.0,
-      "guard_input_price_per_1m": 1.1,
-      "guard_output_price_per_1m": 5.5,
-      "source": "anthropic"
-    },
-    "gemini-3.1-pro-preview": {
-      "provider": "Google",
-      "aliases": ["google/gemini-3.1-pro-preview", "gemini/gemini-3.1-pro-preview"],
-      "input_price_per_1m": 2.0,
-      "output_price_per_1m": 12.0,
-      "guard_input_price_per_1m": 4.0,
-      "guard_output_price_per_1m": 18.0,
-      "source": "google"
-    },
-    "gemini-3.8-flash": {
-      "provider": "Google",
-      "aliases": ["google/gemini-3.8-flash", "gemini/gemini-3.8-flash"],
-      "input_price_per_1m": 0.75,
-      "output_price_per_1m": 3.75,
-      "guard_input_price_per_1m": 0.825,
-      "guard_output_price_per_1m": 4.125,
-      "source": "google",
-      "note": "Current promotional standard pricing through 2026-12-31 on the cited Google Cloud pricing page."
-    },
-    "gemini-3.7-flash": {
-      "provider": "Google",
-      "aliases": ["google/gemini-3.7-flash", "gemini/gemini-3.7-flash"],
-      "input_price_per_1m": 0.75,
-      "output_price_per_1m": 3.75,
-      "guard_input_price_per_1m": 0.825,
-      "guard_output_price_per_1m": 4.125,
-      "source": "google",
-      "note": "Current promotional standard pricing through 2026-12-31 on the cited Google Cloud pricing page."
-    },
-    "gemini-3.6-flash": {
-      "provider": "Google",
-      "aliases": ["google/gemini-3.6-flash", "gemini/gemini-3.6-flash"],
-      "input_price_per_1m": 0.75,
-      "output_price_per_1m": 3.75,
-      "guard_input_price_per_1m": 0.825,
-      "guard_output_price_per_1m": 4.125,
-      "source": "google",
-      "note": "Current promotional standard pricing through 2026-12-31 on the cited Google Cloud pricing page."
-    },
-    "gemini-3.5-flash": {
-      "provider": "Google",
-      "aliases": ["google/gemini-3.5-flash", "gemini/gemini-3.5-flash"],
-      "input_price_per_1m": 1.5,
-      "output_price_per_1m": 9.0,
-      "guard_input_price_per_1m": 1.65,
-      "guard_output_price_per_1m": 9.9,
-      "source": "google"
-    },
-    "gemini-3.5-flash-lite": {
-      "provider": "Google",
-      "aliases": ["google/gemini-3.5-flash-lite", "gemini/gemini-3.5-flash-lite"],
-      "input_price_per_1m": 0.3,
-      "output_price_per_1m": 2.5,
-      "guard_input_price_per_1m": 0.33,
-      "guard_output_price_per_1m": 2.75,
-      "source": "google"
-    },
-    "gemini-3.1-flash-lite": {
-      "provider": "Google",
-      "aliases": ["google/gemini-3.1-flash-lite", "gemini/gemini-3.1-flash-lite"],
-      "input_price_per_1m": 0.25,
-      "output_price_per_1m": 1.5,
-      "guard_input_price_per_1m": 0.275,
-      "guard_output_price_per_1m": 1.65,
-      "source": "google"
-    }
+    "gpt-6-astra": {"provider":"OpenAI","aliases":["openai/gpt-6-astra"],"input_price_per_1m":10.0,"output_price_per_1m":50.0,"guard_input_price_per_1m":20.0,"guard_output_price_per_1m":75.0,"source":"openai"},
+    "gpt-5.6-sol": {"provider":"OpenAI","aliases":["openai/gpt-5.6-sol"],"input_price_per_1m":4.0,"output_price_per_1m":20.0,"guard_input_price_per_1m":8.0,"guard_output_price_per_1m":30.0,"source":"openai"},
+    "gpt-5.6-terra": {"provider":"OpenAI","aliases":["openai/gpt-5.6-terra"],"input_price_per_1m":2.0,"output_price_per_1m":12.0,"guard_input_price_per_1m":4.0,"guard_output_price_per_1m":18.0,"source":"openai"},
+    "gpt-5.6-luna": {"provider":"OpenAI","aliases":["openai/gpt-5.6-luna"],"input_price_per_1m":0.2,"output_price_per_1m":1.2,"guard_input_price_per_1m":0.4,"guard_output_price_per_1m":1.8,"source":"openai"},
+    "claude-fable-5.1": {"provider":"Anthropic","aliases":["anthropic/claude-fable-5.1","claude-fable-5-1"],"input_price_per_1m":10.0,"output_price_per_1m":50.0,"guard_input_price_per_1m":20.0,"guard_output_price_per_1m":50.0,"source":"anthropic"},
+    "claude-opus-5": {"provider":"Anthropic","aliases":["anthropic/claude-opus-5"],"input_price_per_1m":5.0,"output_price_per_1m":25.0,"guard_input_price_per_1m":10.0,"guard_output_price_per_1m":25.0,"source":"anthropic"},
+    "claude-sonnet-5": {"provider":"Anthropic","aliases":["anthropic/claude-sonnet-5"],"input_price_per_1m":2.0,"output_price_per_1m":10.0,"guard_input_price_per_1m":4.0,"guard_output_price_per_1m":10.0,"source":"anthropic"},
+    "claude-haiku-4.5": {"provider":"Anthropic","aliases":["anthropic/claude-haiku-4.5","claude-haiku-4-5"],"input_price_per_1m":1.0,"output_price_per_1m":5.0,"guard_input_price_per_1m":2.0,"guard_output_price_per_1m":5.0,"source":"anthropic"},
+    "gemini-3.1-pro-preview": {"provider":"Google","aliases":["google/gemini-3.1-pro-preview","gemini/gemini-3.1-pro-preview"],"input_price_per_1m":2.0,"output_price_per_1m":12.0,"guard_input_price_per_1m":7.2,"guard_output_price_per_1m":32.4,"source":"google"},
+    "gemini-3.8-flash": {"provider":"Google","aliases":["google/gemini-3.8-flash","gemini/gemini-3.8-flash"],"input_price_per_1m":0.75,"output_price_per_1m":3.75,"guard_input_price_per_1m":1.485,"guard_output_price_per_1m":7.425,"source":"google","note":"Current promotional standard pricing through 2026-12-31 on the cited Google Cloud pricing page."},
+    "gemini-3.7-flash": {"provider":"Google","aliases":["google/gemini-3.7-flash","gemini/gemini-3.7-flash"],"input_price_per_1m":0.75,"output_price_per_1m":3.75,"guard_input_price_per_1m":1.485,"guard_output_price_per_1m":7.425,"source":"google","note":"Current promotional standard pricing through 2026-12-31 on the cited Google Cloud pricing page."},
+    "gemini-3.6-flash": {"provider":"Google","aliases":["google/gemini-3.6-flash","gemini/gemini-3.6-flash"],"input_price_per_1m":0.75,"output_price_per_1m":3.75,"guard_input_price_per_1m":1.485,"guard_output_price_per_1m":7.425,"source":"google","note":"Current promotional standard pricing through 2026-12-31 on the cited Google Cloud pricing page."},
+    "gemini-3.5-flash": {"provider":"Google","aliases":["google/gemini-3.5-flash","gemini/gemini-3.5-flash"],"input_price_per_1m":1.5,"output_price_per_1m":9.0,"guard_input_price_per_1m":2.97,"guard_output_price_per_1m":17.82,"source":"google"},
+    "gemini-3.5-flash-lite": {"provider":"Google","aliases":["google/gemini-3.5-flash-lite","gemini/gemini-3.5-flash-lite"],"input_price_per_1m":0.3,"output_price_per_1m":2.5,"guard_input_price_per_1m":0.594,"guard_output_price_per_1m":2.75,"source":"google"},
+    "gemini-3.1-flash-lite": {"provider":"Google","aliases":["google/gemini-3.1-flash-lite","gemini/gemini-3.1-flash-lite"],"input_price_per_1m":0.25,"output_price_per_1m":1.5,"guard_input_price_per_1m":0.55,"guard_output_price_per_1m":1.65,"source":"google"}
   }
 }
