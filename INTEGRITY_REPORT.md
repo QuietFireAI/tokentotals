@@ -102,13 +102,13 @@ Circuit breaker unlocked by user acknowledgment.
 
 It accepted no acknowledgment value. The desktop Tk dialog did verify `I UNDERSTAND`, so the protection existed in one UI but was bypassable through the API.
 
-**Repair:** `/api/unlock` requires exact `I UNDERSTAND`.
+**Repair:** `/api/unlock` requires the literal phrase `I UNDERSTAND`.
 
 ### IR-011 — Budget boost endpoint could be invoked without confirmation — CONFIRMED DEFECT
 
 Baseline `/api/boost` raised the budget and unlocked immediately. Combined with permissive CORS configuration, this unnecessarily enlarged the local attack surface.
 
-**Repair:** permissive CORS middleware was removed; dashboard boost requires exact `BOOST $5`. Native tray actions remain explicit local user actions.
+**Repair:** permissive CORS middleware was removed; dashboard boost requires the literal phrase `BOOST $5`. Native tray actions remain explicit local user actions.
 
 ### IR-012 — Dashboard telemetry numbers were hard-coded — FABRICATED / PLACEHOLDER TELEMETRY
 
@@ -131,11 +131,11 @@ Baseline README said every developer turn renders a badge directly in the workin
 
 **Repair requirement:** documentation must call this planned/not implemented unless an adapter is later added and tested.
 
-### IR-014 — “BPE token count” / exact-token language — UNSUPPORTED CLAIM
+### IR-014 — “BPE token count” / unsupported precision language — UNSUPPORTED CLAIM
 
 Baseline pre-flight fallback used a character-length heuristic rather than a provider/model BPE tokenizer. The whitepaper described deterministic BPE counts.
 
-**Repair:** current estimator is explicitly labeled a conservative local estimate. Post-response provider usage is preferred for reconciliation. Documentation must not call the pre-flight count exact BPE.
+**Repair:** current estimator is explicitly labeled a conservative local estimate. Post-response provider usage is preferred for reconciliation. Documentation must not represent the pre-flight count as a provider/model BPE count.
 
 ### IR-015 — WebSocket claim — UNSUPPORTED CLAIM
 
@@ -143,11 +143,11 @@ The whitepaper described an HTTP/WebSocket proxy. The reviewed application imple
 
 **Repair requirement:** remove WebSocket language unless implemented and tested.
 
-### IR-016 — “Every response contains everything needed for exact spend” — UNSUPPORTED / OVERBROAD CLAIM
+### IR-016 — “Every response contains everything needed to calculate spend” — UNSUPPORTED / OVERBROAD CLAIM
 
 Provider response schemas, streaming behavior, caching fields, tools, service tiers, long-context rates, regional rates, and provider-specific billable items vary. Baseline itself already had to fall back when cost/usage was absent.
 
-**Repair:** missing stream usage retains the conservative reservation and increments `unreconciled_streams`; it is not silently called exact.
+**Repair:** missing stream usage retains the conservative reservation and increments `unreconciled_streams`; it is not represented as invoice-level reconciliation.
 
 ### IR-017 — Government/FedRAMP statement — UNSUPPORTED CLAIM
 
@@ -182,7 +182,7 @@ Regression coverage includes:
 
 1. verified input + output cost math;
 2. conservative guard rate >= displayed base estimate;
-3. exact alias resolution, no fuzzy model pricing;
+3. strict alias resolution, no fuzzy model pricing;
 4. unknown model pricing fails closed;
 5. atomic reservation blocks concurrent-style over-budget reservations;
 6. reservation reconciliation releases unused headroom;
@@ -198,7 +198,7 @@ Regression coverage includes:
 - The 12-test suite is focused regression coverage, not a full integration or load test.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
 - Multi-process workers are not supported for the file-lock budget invariant; the current lock is process-local. Run one TokenTotals proxy process unless cross-process locking is added.
-- Tool-call fees, image/audio billing, prompt caching details, batch/flex/priority modes, regional variations, and provider promotions require explicit catalog/accounting support before they can be called exact.
+- Tool-call fees, image/audio billing, prompt caching details, batch/flex/priority modes, regional variations, and provider promotions require explicit catalog/accounting support before they can be represented as a provider-rule estimate with high confidence.
 - Streaming responses without final usage retain the worst-case reservation and are marked unreconciled rather than guessed.
 - Vendor prices change. The verification date is evidence of when the catalog was checked, not a promise that prices can never change afterward.
 
