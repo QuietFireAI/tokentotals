@@ -22,6 +22,11 @@ README_START = "<!-- TOKENTOTALS_VERIFIED_PRICING_START -->"
 README_END = "<!-- TOKENTOTALS_VERIFIED_PRICING_END -->"
 WHITEPAPER_START = "<!-- TOKENTOTALS_DAILY_PRICING_START -->"
 WHITEPAPER_END = "<!-- TOKENTOTALS_DAILY_PRICING_END -->"
+FRESHNESS_POLICY = (
+    "**Freshness contract:** a verified pricing receipt is CURRENT for at most 24 hours "
+    "from `source_checked_at`. Once older than 24 hours, TokenTotals treats the pricing "
+    "surface as STALE and the integrity gate fails closed until a new verified refresh succeeds."
+)
 
 
 def _money(value: float) -> str:
@@ -112,6 +117,8 @@ def render_readme_pricing_section() -> str:
             "",
             f"**Official sources last checked:** {checked_at}",
             "",
+            FRESHNESS_POLICY,
+            "",
             "**Comparison workload:** 10,000 input tokens + 2,000 output tokens.",
             "",
             "This block is generated from the same `pricing_engine` view used by the proxy, `MODEL_COMPARISON_MATRIX.md`, and the pricing status documentation. Dollar values are independent approximations from represented provider rules and observed/estimated telemetry, not provider invoices.",
@@ -153,6 +160,8 @@ def render_whitepaper_pricing_section() -> str:
             "",
             f"**Official sources checked:** {checked_at}",
             "",
+            FRESHNESS_POLICY,
+            "",
             "The daily integrity refresh treats the pricing catalog, model matrix, README pricing block, this whitepaper receipt, and calculation examples as one generated integrity surface. A provider validation failure prevents the refresh from being stamped current.",
             "",
             *provider_lines,
@@ -184,6 +193,8 @@ def render_daily_status() -> str:
             f"**Last successful official-source refresh:** {checked_at}",
             "",
             f"**Verified catalog date:** {catalog.get('verified_at', 'UNKNOWN')}",
+            "",
+            FRESHNESS_POLICY,
             "",
             f"**Calculation workload:** {INPUT_TOKENS:,} input tokens + {OUTPUT_TOKENS:,} output tokens",
             "",
@@ -244,6 +255,8 @@ def render() -> str:
             "# TokenTotals Verified Developer API Pricing Matrix",
             "",
             *verification_lines,
+            "",
+            FRESHNESS_POLICY,
             "",
             "This file is generated from TokenTotals' effective verified pricing view. Do not hand-edit prices here.",
             "The matrix, README pricing block, whitepaper pricing receipt, and daily status document are regenerated together after successful official-source checks.",
