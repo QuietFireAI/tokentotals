@@ -102,16 +102,19 @@ def test_pricing_receipt_fails_closed_after_24_hours():
         check_freshness(stale, now=now)
 
 
-def test_daily_refresh_workflow_is_schedule_driven_at_0005_eastern():
+def test_daily_refresh_workflow_is_schedule_driven_once_per_day_utc():
     """Pricing refresh is clock-driven; source drift is evidence, never the trigger."""
     workflow = Path(".github/workflows/daily-integrity-refresh.yml").read_text(encoding="utf-8")
 
     assert "\n  push:" not in workflow
     assert "workflow_dispatch:" in workflow
-    assert "- cron: '5 4 * * *'" in workflow
+    assert workflow.count("- cron:") == 1
     assert "- cron: '5 5 * * *'" in workflow
-    assert "America/New_York" in workflow
-    assert "00:05" in workflow
-    assert "github.event.schedule" in workflow
+    assert "- cron: '5 4 * * *'" not in workflow
+    assert "eastern-midnight-gate" not in workflow
+    assert "github.event.schedule" not in workflow
     assert "Perform scheduled daily pricing integrity refresh" in workflow
     assert "Validate that the last successful daily refresh receipt is current" in workflow
+    assert "Publish one atomic daily integrity commit" in workflow
+    assert "Email successful daily integrity report" in workflow
+    assert "TOKENTOTALS_REPORT_TO: dailyreport@firelandsai.com" in workflow
