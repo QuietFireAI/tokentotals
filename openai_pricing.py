@@ -3,6 +3,14 @@ from pathlib import Path
 
 REGISTRY_PATH = Path(__file__).resolve().parent / "pricing" / "openai_registry.json"
 _PROVIDER_PREFIXES = ("openai/",)
+_HOSTED_TOOL_ITEM_TYPES = {
+    "web_search_call",
+    "file_search_call",
+    "computer_call",
+    "computer_use_call",
+    "code_interpreter_call",
+    "image_generation_call",
+}
 
 
 def _obj_get(obj, key, default=None):
@@ -91,6 +99,16 @@ def _tier_multiplier(record, service_tier):
     if tier not in tiers:
         return None, tier
     return float(tiers[tier]), tier
+
+
+def _hosted_tool_activity(completion_response):
+    detected = set()
+    output = _obj_get(completion_response, "output", []) or []
+    for item in output:
+        item_type = _obj_get(item, "type", "")
+        if item_type in _HOSTED_TOOL_ITEM_TYPES:
+            detected.add(item_type)
+    return sorted(detected)
 
 
 def calculate_openai_cost(model_id, usage, service_tier=None):
@@ -184,7 +202,12 @@ def calculate_openai_cost(model_id, usage, service_tier=None):
     }
 
 
-def calculate_openai_response_cost(request_model_id, completion_response, request_service_tier=None):
+def calculate_openai_response_cost(
+    request_model_id,
+    completion_response,
+    request_service_tier=None,
+    request_feature_hints=None,
+):
     response_model = _obj_get(completion_response, "model", None) or request_model_id
     usage = _obj_get(completion_response, "usage", None)
     actual_service_tier = _obj_get(completion_response, "service_tier", None)
@@ -205,10 +228,30 @@ def calculate_openai_response_cost(request_model_id, completion_response, reques
     result["response_model_id"] = response_model
     result["service_tier_source"] = "response" if actual_service_tier else "request_or_default"
 
-    if actual_service_tier is None and (request_service_tier is None or request_service_tier == "auto"):
+    unresolved_auto_tier = actual_service_tier is None and (
+        request_service_tier is None or str(request_service_tier).lower() == "auto"
+    )
+    if unresolved_auto_tier:
+        result["complete"] = False
+        result["total_cost_usd"] = None
         result["notes"] = list(result.get("notes", [])) + [
-            "Resolved service tier was not returned; default pricing is assumed unless project settings route auto elsewhere."
+            "Resolved service tier was not returned. Auto follows project settings, so Standard/Fast/Flex pricing cannot be inferred safely."
         ]
+
+    hosted_tools = set(_hosted_tool_activity(completion_response))
+    for hint in request_feature_hints or []:
+        if hint:
+            hosted_tools.add(str(hint))
+
+    if hosted_tools:
+        result["complete"] = False
+        result["total_cost_usd"] = None
+        result["hosted_tool_activity"] = sorted(hosted_tools)
+        result["notes"] = list(result.get("notes", [])) + [
+            "Hosted OpenAI tool activity may carry charges beyond model-token pricing; no all-in total was asserted."
+        ]
+    else:
+        result["hosted_tool_activity"] = []
 
     return result
 
