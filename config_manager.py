@@ -26,6 +26,7 @@ DEFAULT_STATE = {
     "is_locked": False,
     "total_requests": 0,
     "flagged_routine_calls": 0,
+    "unreconciled_responses": 0,
     "unreconciled_streams": 0,
 }
 
@@ -163,14 +164,29 @@ def reconcile_reserved_spend(reserved_cost_usd, actual_cost_usd, thread_id=None)
         return state
 
 
-def mark_unreconciled_stream(delta=1):
+def mark_unreconciled_response(delta=1, *, stream=False):
+    """Record a completed response that lacked usable final usage telemetry.
+
+    The conservative reservation remains unchanged. ``unreconciled_responses`` is
+    the total across response modes; ``unreconciled_streams`` is retained as the
+    backwards-compatible stream subset for existing state/readers.
+    """
     with _LOCK:
         state = _load_state_unlocked()
-        state["unreconciled_streams"] = max(
-            0, int(state.get("unreconciled_streams", 0)) + int(delta)
+        state["unreconciled_responses"] = max(
+            0, int(state.get("unreconciled_responses", 0)) + int(delta)
         )
+        if stream:
+            state["unreconciled_streams"] = max(
+                0, int(state.get("unreconciled_streams", 0)) + int(delta)
+            )
         _atomic_json_write(STATE_FILE, state)
         return state
+
+
+def mark_unreconciled_stream(delta=1):
+    """Backward-compatible stream-specific wrapper."""
+    return mark_unreconciled_response(delta, stream=True)
 
 
 def update_spend(cost_usd, thread_id=None, potential_saving=0.0, is_routine=False):
