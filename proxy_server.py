@@ -528,11 +528,16 @@ async def serve_dashboard():
 async def proxy_openai(request: Request):
     state = config_manager.get_state()
 
-    # 1. HARD DEAD MAN'S SWITCH CHECK
+    # 1. LOCAL PACING LOCK CHECK
     if state.get("is_locked", False):
         raise HTTPException(
             status_code=403,
-            detail="🛑 QuietFireAI Emergency Shutdown: Daily budget cap reached. Outgoing calls are HARD-LOCKED to protect your card. Acknowledge in the desktop popup or dashboard to resume.",
+            detail=(
+                "TokenTotals Local Pacing Lock: the configured local pacing threshold is reached. "
+                "New requests routed through this TokenTotals proxy are paused until acknowledged "
+                "or the local threshold is changed. Direct requests outside TokenTotals, provider "
+                "work already in flight, and provider-account billing are outside this local lock."
+            ),
         )
 
     try:
@@ -569,8 +574,9 @@ async def proxy_openai(request: Request):
         )
 
     # Atomically reserve the known preflight estimate before the provider call.
-    # This prevents concurrent requests from independently spending the same local
-    # headroom. It does not claim to predict response-dependent output/tool cost.
+    # This prevents concurrent requests from independently consuming the same known
+    # local threshold capacity. It does not claim to predict response-dependent
+    # output/tool cost.
     reservation_id = uuid.uuid4().hex
     reservation = config_manager.reserve_preflight_budget(
         reservation_id,
@@ -584,21 +590,23 @@ async def proxy_openai(request: Request):
             raise HTTPException(
                 status_code=429,
                 detail=(
-                    "TokenTotals Pacing Hold: available local headroom is temporarily "
-                    "reserved by other in-flight requests. This request was not sent "
-                    "upstream; retry after those requests settle."
+                    "TokenTotals Pacing Hold: other in-flight requests currently occupy enough "
+                    "of the configured local pacing threshold that this routed request cannot be "
+                    "admitted yet. It was not sent upstream; retry after those requests settle."
                 ),
             )
         if reason == "locked":
             raise HTTPException(
                 status_code=403,
-                detail="🛑 QuietFireAI Emergency Shutdown: local pacing is locked.",
+                detail="TokenTotals Local Pacing Lock: new requests routed through this proxy are paused.",
             )
         raise HTTPException(
             status_code=403,
             detail=(
-                f"🚨 QuietFireAI Circuit Breaker: This request ({estimated_cost:.4f} USD) "
-                f"would exceed your daily budget of ${limit:.2f}. Outgoing calls locked."
+                f"TokenTotals Local Pacing Threshold: this request's preflight estimate "
+                f"({estimated_cost:.4f} USD) would exceed the configured local threshold "
+                f"of ${limit:.2f}. This routed request was not sent upstream and the local "
+                "pacing state is now locked."
             ),
         )
 
@@ -660,7 +668,7 @@ async def proxy_openai(request: Request):
             finally:
                 # Normally the LiteLLM success callback settles the reservation.
                 # If a stream aborts before that callback occurs, do not strand
-                # ephemeral pacing headroom indefinitely.
+                # ephemeral pacing capacity indefinitely.
                 config_manager.release_preflight_reservation(reservation_id)
                 yield "data: [DONE]\n\n"
 
