@@ -187,16 +187,37 @@ app.add_middleware(
 )
 
 LAST_LATENCY_MS = 0
-CURRENT_THREAD_ID = "default"
+THREAD_METADATA_KEY = "tokentotals_thread_id"
 
 litellm.suppress_debug_info = True
 
 
+def callback_thread_id(kwargs):
+    """Read TokenTotals' request-local thread ID from LiteLLM callback metadata."""
+    containers = []
+    for container_name in ("litellm_params", "optional_params"):
+        container = kwargs.get(container_name)
+        if isinstance(container, dict):
+            containers.append(container)
+    containers.append(kwargs)
+
+    for container in containers:
+        for metadata_name in ("litellm_metadata", "metadata"):
+            metadata = container.get(metadata_name)
+            if not isinstance(metadata, dict):
+                continue
+            value = metadata.get(THREAD_METADATA_KEY)
+            if value is not None and str(value).strip():
+                return str(value).strip()
+    return "default"
+
+
 def track_cost_callback(kwargs, completion_response, start_time, end_time):
-    global LAST_LATENCY_MS, CURRENT_THREAD_ID
+    global LAST_LATENCY_MS
     try:
         LAST_LATENCY_MS = int((end_time - start_time).total_seconds() * 1000)
         request_model = kwargs.get("model", "")
+        thread_id = callback_thread_id(kwargs)
         cost = None
         provider_result = None
 
@@ -273,7 +294,7 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
 
         config_manager.update_spend(
             cost_usd=cost,
-            thread_id=CURRENT_THREAD_ID,
+            thread_id=thread_id,
         )
     except Exception as e:
         print(f"[TokenTotals Pricing Warning] Cost callback failed: {e}")
@@ -340,8 +361,6 @@ async def serve_dashboard():
 
 @app.post("/v1/chat/completions")
 async def proxy_openai(request: Request):
-    global CURRENT_THREAD_ID
-
     state = config_manager.get_state()
     conf = config_manager.get_config()
 
@@ -364,7 +383,8 @@ async def proxy_openai(request: Request):
             detail="TokenTotals requires an explicit non-empty model ID; no default model is inferred.",
         )
     model_id = model_id.strip()
-    CURRENT_THREAD_ID = request.headers.get("x-thread-id") or payload.get("user") or "default"
+    thread_id = request.headers.get("x-thread-id") or payload.get("user") or "default"
+    thread_id = str(thread_id).strip() or "default"
 
     # 2. PRE-FLIGHT AUDIT
     # This is deliberately an estimate. Actual post-response provider accounting
@@ -404,6 +424,9 @@ async def proxy_openai(request: Request):
     stream = payload.pop("stream", False)
     messages = payload.pop("messages", [])
     payload.pop("model", None)
+    # litellm_metadata is reserved for TokenTotals' request-local callback
+    # attribution. Do not let client input replace this server-owned metadata.
+    payload.pop("litellm_metadata", None)
 
     try:
         response = await litellm.acompletion(
@@ -411,6 +434,7 @@ async def proxy_openai(request: Request):
             messages=messages,
             api_key=api_key,
             stream=stream,
+            litellm_metadata={THREAD_METADATA_KEY: thread_id},
             **payload,
         )
     except Exception as e:
