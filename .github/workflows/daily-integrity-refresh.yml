@@ -68,6 +68,7 @@ jobs:
           git diff --check
 
       - name: Publish one atomic daily integrity commit
+        id: publish
         shell: bash
         run: |
           set -euo pipefail
@@ -80,3 +81,18 @@ jobs:
             git commit -m "Daily pricing integrity refresh $(date -u +%F)"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
+          published_sha="$(git rev-parse HEAD)"
+          echo "published_sha=$published_sha" >> "$GITHUB_OUTPUT"
+          echo "Published/current daily integrity SHA: $published_sha"
+
+      - name: Email successful daily integrity report
+        env:
+          TOKENTOTALS_SMTP_HOST: ${{ secrets.TOKENTOTALS_SMTP_HOST }}
+          TOKENTOTALS_SMTP_PORT: ${{ secrets.TOKENTOTALS_SMTP_PORT }}
+          TOKENTOTALS_SMTP_SECURITY: ${{ secrets.TOKENTOTALS_SMTP_SECURITY }}
+          TOKENTOTALS_SMTP_USERNAME: ${{ secrets.TOKENTOTALS_SMTP_USERNAME }}
+          TOKENTOTALS_SMTP_PASSWORD: ${{ secrets.TOKENTOTALS_SMTP_PASSWORD }}
+          TOKENTOTALS_REPORT_FROM: ${{ secrets.TOKENTOTALS_REPORT_FROM }}
+          TOKENTOTALS_REPORT_TO: dailyreport@firelandsai.com
+          TOKENTOTALS_PUBLISHED_SHA: ${{ steps.publish.outputs.published_sha }}
+        run: $RUNNER_TEMP/tokentotals-integrity-venv/bin/python scripts/send_daily_integrity_email.py
