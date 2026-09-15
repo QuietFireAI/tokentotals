@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "verified_at": "2026-09-15",
-  "notes": "Checked-in pricing receipts. Runtime does not invent prices for unknown models. Guard rates are conservative maxima of the published standard/context/geography rates represented here.",
+  "notes": "Checked-in pricing receipts. Runtime does not invent prices for unknown models. Guard rates are conservative high-side text-token rates across the published context/geography/service-mode dimensions represented here; unsupported modalities/tools are not silently folded into token math.",
   "sources": {
     "openai": "https://developers.openai.com/api/docs/pricing",
     "anthropic": "https://platform.claude.com/docs/en/about-claude/pricing",
@@ -21,7 +21,7 @@
     "gemini-3.7-flash": {"provider":"Google","aliases":["google/gemini-3.7-flash","gemini/gemini-3.7-flash"],"input_price_per_1m":0.75,"output_price_per_1m":3.75,"guard_input_price_per_1m":1.485,"guard_output_price_per_1m":7.425,"source":"google","effective_until":"2026-12-31","note":"Current promotional standard pricing through 2026-12-31 on the cited Google Cloud pricing page."},
     "gemini-3.6-flash": {"provider":"Google","aliases":["google/gemini-3.6-flash","gemini/gemini-3.6-flash"],"input_price_per_1m":0.75,"output_price_per_1m":3.75,"guard_input_price_per_1m":1.485,"guard_output_price_per_1m":7.425,"source":"google","effective_until":"2026-12-31","note":"Current promotional standard pricing through 2026-12-31 on the cited Google Cloud pricing page."},
     "gemini-3.5-flash": {"provider":"Google","aliases":["google/gemini-3.5-flash","gemini/gemini-3.5-flash"],"input_price_per_1m":1.5,"output_price_per_1m":9.0,"guard_input_price_per_1m":2.97,"guard_output_price_per_1m":17.82,"source":"google"},
-    "gemini-3.5-flash-lite": {"provider":"Google","aliases":["google/gemini-3.5-flash-lite","gemini/gemini-3.5-flash-lite"],"input_price_per_1m":0.3,"output_price_per_1m":2.5,"guard_input_price_per_1m":0.594,"guard_output_price_per_1m":2.75,"source":"google"},
-    "gemini-3.1-flash-lite": {"provider":"Google","aliases":["google/gemini-3.1-flash-lite","gemini/gemini-3.1-flash-lite"],"input_price_per_1m":0.25,"output_price_per_1m":1.5,"guard_input_price_per_1m":0.55,"guard_output_price_per_1m":1.65,"source":"google"}
+    "gemini-3.5-flash-lite": {"provider":"Google","aliases":["google/gemini-3.5-flash-lite","gemini/gemini-3.5-flash-lite"],"input_price_per_1m":0.3,"output_price_per_1m":2.5,"guard_input_price_per_1m":0.594,"guard_output_price_per_1m":4.95,"source":"google","note":"Guard reflects current Priority non-global text-token high-side pricing represented on the cited Google page."},
+    "gemini-3.1-flash-lite": {"provider":"Google","aliases":["google/gemini-3.1-flash-lite","gemini/gemini-3.1-flash-lite"],"input_price_per_1m":0.25,"output_price_per_1m":1.5,"guard_input_price_per_1m":0.495,"guard_output_price_per_1m":2.97,"source":"google","note":"Guard reflects current Priority non-global text-token high-side pricing represented on the cited Google page; audio is a separate modality and is not priced by the current text estimator."}
   }
 }
