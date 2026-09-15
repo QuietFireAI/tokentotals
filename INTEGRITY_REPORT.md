@@ -224,11 +224,27 @@ Baseline README said every developer turn or agent interaction rendered a live t
 
 See `docs/IR-013_TELEMETRY_BADGE_CLAIM_PROOF.md` for the dedicated proof sheet.
 
-### IR-014 — “BPE token count” / unsupported precision language — UNSUPPORTED CLAIM
+### IR-014 — “BPE token count” / unsupported precision language — UNSUPPORTED CLAIM / REPAIRED AND REVALIDATED
 
-Baseline pre-flight fallback used a character-length heuristic rather than a provider/model BPE tokenizer. The whitepaper described deterministic BPE counts.
+Baseline public documentation described the pre-flight count as a BPE token count even though the reviewed implementation did not execute a verified provider/model tokenizer for that pre-flight estimate. Baseline README architecture copy said **“Pre-flight BPE token count & budget audit,”** while the whitepaper described **“pre-flight cryptographic/BPE token counts.”**
 
-**Repair:** current estimator is explicitly labeled a conservative local estimate. Post-response provider usage is preferred for reconciliation. Documentation must not represent the pre-flight count as a provider/model BPE count.
+**Impact:** the public wording implied model/provider tokenization precision that the implementation did not provide.
+
+**Repair:** the current pre-flight estimator is explicitly defined as a local pacing heuristic:
+
+```text
+estimated_tokens = max(1, ceil(len(text encoded as UTF-8 bytes) / 3))
+```
+
+The optional model argument does not alter that calculation. Current README and whitepaper wording explicitly state that TokenTotals does not represent this value as a provider/model BPE count. `docs/TOKEN_ESTIMATION_CONTRACT.md` makes that boundary normative and prohibits BPE/exact/provider-accurate/model-specific tokenization claims unless a future implementation actually executes and validates the applicable tokenizer. No production estimator was rewritten merely to preserve the old marketing claim.
+
+**Validation:** three independent guards now cover the lifecycle. The pricing-engine regression proves the exact UTF-8-byte heuristic and proves the same text receives the same estimate across representative OpenAI, Anthropic, and Google model names. The public-claim integrity regression rejects the old BPE/exact/provider-accurate wording. Finally, `tests/test_ir014_token_estimation_boundary.py` deliberately forces the local estimate to **10,000 input tokens** while the mocked provider reports **7 input + 3 output tokens**. The test captures the larger pre-flight reservation and requires the persisted final spend to reconcile to the supported calculation using the provider-reported 7/3 usage rather than retaining the heuristic amount.
+
+**Result:** GitHub Actions run `34990973664` on commit `f9decbafa2f9fbc1cfd9dac0d94464a890828fac` passed **64/64** tests on Ubuntu / CPython 3.12.14, plus Linux runtime smoke, Windows runtime smoke, Windows constrained PyInstaller/build-tool smoke, and `pip check`.
+
+**Boundary:** provider-reported usage is stronger observed telemetry than the local pre-flight heuristic, but the resulting dollar value remains an independent estimate rather than invoice parity. A future true tokenizer integration must define and validate tokenizer/model mappings, version provenance, request serialization, aliases/snapshots, unsupported-model behavior, and reference fixtures before stronger tokenization language is permitted.
+
+See `docs/IR-014_TOKEN_ESTIMATION_PRECISION_PROOF.md` and `docs/TOKEN_ESTIMATION_CONTRACT.md` for the dedicated proof and normative contract.
 
 ### IR-015 — WebSocket claim — UNSUPPORTED CLAIM
 
@@ -341,7 +357,7 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression/integration suite on the hardened branch: **56 passed / 0 failed** on Ubuntu/Python 3.12.
+Current GitHub Actions regression/integration suite on the hardened branch: **64 passed / 0 failed** on Ubuntu/Python 3.12.
 
 Regression/integration coverage includes:
 
@@ -400,7 +416,15 @@ Regression/integration coverage includes:
 53. a pricing receipt older than 24 hours fails the freshness gate instead of being treated as current;
 54. a real Uvicorn/loopback HTTP chat-completion round trip reconciles state and exposes the same reconciled spend through `/api/status`;
 55. a 24-request overlapping loopback HTTP burst preserves every request and reconciled spend update without creating an unreconciled stream or accidental lock;
-56. eight successive 32-request loopback bursts (256 requests total) preserve exact cumulative request/spend accounting at every round with no unreconciled streams or accidental lock.
+56. eight successive 32-request loopback bursts (256 requests total) preserve exact cumulative request/spend accounting at every round with no unreconciled streams or accidental lock;
+57. the current pre-flight token estimator is exactly the documented UTF-8-byte heuristic and is model-independent;
+58. public claim surfaces cannot describe the current pre-flight heuristic as BPE, exact, deterministic-provider, cryptographic, or provider-accurate tokenization;
+59. the pricing-integrity workflow is schedule-driven by one fixed daily UTC cron, retains manual dispatch, and has no price-change/push trigger;
+60. the daily success email is built from the generated pricing-status receipt, uses the exact published commit SHA, and targets `dailyreport@firelandsai.com`;
+61. missing required SMTP configuration fails loudly rather than pretending a daily email was sent;
+62. each successful daily pricing status is archived byte-for-byte at a unique UTC timestamped repository path;
+63. an existing daily archive receipt cannot be overwritten by a later refresh using the same timestamp; and
+64. usable provider-reported input/output usage supersedes an intentionally divergent local pre-flight token heuristic during supported post-response reconciliation.
 
 IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
 
@@ -408,11 +432,13 @@ IR-005/IR-021 additionally use the separate `matrix-source-check` workflow. On t
 
 IR-020 additionally has clean-environment Linux runtime, Windows runtime, and Windows build-tool jobs using the same CPython 3.12 constraints. The same workflow carries a daily schedule on the default branch to detect future Python-version or dependency-resolution drift.
 
-The daily pricing-integrity path additionally enforces a **24-hour maximum age** for the successful official-source receipt. A receipt at 24:00:00 remains current; once it is older than 24 hours the freshness gate fails closed until a new verified source check succeeds. The unattended schedule becomes operational only when the workflow exists on the repository default branch; `main` remains untouched during this hardening review.
+The daily pricing-integrity path is now **schedule-first rather than change-triggered**. The workflow runs once per day at `05:05 UTC` plus explicit manual dispatch. A successful run verifies provider sources, regenerates the catalog-derived matrix/README/whitepaper/status calculations, writes an immutable timestamped copy under `docs/pricing_archive/YYYY/MM/`, runs the telemetry-honesty and full regression gates, publishes the allowed surfaces plus archive in one atomic commit, and then attempts to email the generated daily status to `dailyreport@firelandsai.com`. The 24-hour check is a validator/watchdog proving the last successfully published verified refresh is still current; it is not the mechanism that triggers refresh. A receipt at 24:00:00 remains current and at 24:00:01 fails closed. The unattended cron becomes operational only when the workflow exists on the repository default branch; actual email delivery additionally requires the documented SMTP repository secrets. `main` remains untouched during this hardening review.
 
 IR-022 additionally runs the production FastAPI app behind a real Uvicorn `127.0.0.1` listener and exercises both a single TCP round trip and a 24-request overlapping local burst. Provider egress is mocked in that proof so no paid-provider claim is inferred from the local integration result.
 
 IR-023 extends that same real-loopback harness through eight repeated 32-request bursts. It is an integrity soak for cumulative accounting correctness, not a throughput rating.
+
+IR-014 additionally has a dedicated normative token-estimation contract. The current pre-flight estimate is a local pacing heuristic, while usable provider-reported token usage is the stronger observed quantity for the supported post-response reconciliation path.
 
 ## Remaining limitations before calling this production-proven
 
@@ -424,11 +450,12 @@ IR-023 extends that same real-loopback harness through eight repeated 32-request
 - OpenAI source synchronization does not by itself implement every OpenAI billing dimension in transaction accounting. Tool-call fees, image/audio billing, prompt caching details, service tiers, regional variations, provider promotions, and other applicable meters require explicit accounting support before they can be represented as a high-confidence provider-rule estimate.
 - Anthropic and Google have live source-drift validation for their dated catalog base and represented guard rates, but they do not yet have the dynamic promoted runtime-pricing adapter implemented for OpenAI.
 - Streaming responses without final usage retain the worst-case reservation and are marked unreconciled rather than guessed.
+- The unattended daily pricing cron is not operational until the workflow is present on the repository default branch, and the daily email cannot be delivered until the documented SMTP secrets are configured.
 - Dependency versions are constrained for the validated CPython 3.12 graph, but package hashes are not pinned; external package repositories remain part of the installation trust chain.
 - Vendor prices and page structures change. Source verification evidence records what was checked; it is not a promise that a provider cannot later change either pricing or documentation format.
 
 ## Integrity conclusion
 
-The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, stale matrix data, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect, a dependency-reproducibility gap, an incomplete first browser-origin defense on the budget-control endpoint, and understated/misaligned Google Flash-Lite conservative guard rates before release. It also closed the prior local integration/load and bounded sustained-concurrency evidence gaps with real loopback Uvicorn tests without requiring production-code changes.
+The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, stale matrix data, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect, a dependency-reproducibility gap, an incomplete first browser-origin defense on the budget-control endpoint, and understated/misaligned Google Flash-Lite conservative guard rates before release. It also closed the prior local integration/load and bounded sustained-concurrency evidence gaps with real loopback Uvicorn tests without requiring production-code changes. The daily pricing-integrity lifecycle is now explicitly schedule-first, archived, regression-gated, and designed to publish one auditable receipt per successful refresh; IR-014 additionally aligns token-estimation language with the actual pre-flight heuristic and provider-usage reconciliation behavior.
 
 The hardening branch removes the known silent fabrication/fallback paths and changes the governing rule to: **unknown or unreconciled data stays unknown/conservative; it is never converted into a plausible-looking number merely to keep the UI green.**
