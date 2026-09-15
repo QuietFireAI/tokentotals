@@ -173,3 +173,76 @@ def test_concurrent_loopback_http_burst_has_no_lost_spend_updates(live_server, m
     assert state["unreconciled_streams"] == 0
     assert state["is_locked"] is False
     assert state["current_spend_usd"] == pytest.approx(expected_total, abs=1e-9)
+
+
+def test_repeated_concurrent_loopback_soak_preserves_exact_accounting(live_server, monkeypatch):
+    """Exercise cumulative state integrity across repeated real-TCP concurrency bursts.
+
+    This is a bounded local soak, not a throughput benchmark: eight rounds of 32
+    simultaneous requests (256 total). State is checked after every round so a
+    transient lost update cannot be hidden by a correct-looking final value.
+    """
+    concurrency = 32
+    rounds = 8
+    upstream_calls = 0
+    upstream_lock = threading.Lock()
+
+    async def delayed_completion(**kwargs):
+        nonlocal upstream_calls
+        with upstream_lock:
+            upstream_calls += 1
+        await asyncio.sleep(0.025)
+        return ProviderResponse(prompt_tokens=10, completion_tokens=5)
+
+    monkeypatch.setattr(proxy_server.litellm, "acompletion", delayed_completion)
+
+    pricing = proxy_server.resolve_model("gpt-5.6-luna")
+    per_request_actual = proxy_server.calculate_cost(
+        pricing, 10, 5, conservative=False
+    )["total_cost_usd"]
+
+    for round_index in range(rounds):
+        start_barrier = threading.Barrier(concurrency)
+
+        def send_one(index: int):
+            start_barrier.wait(timeout=15.0)
+            with httpx.Client(base_url=live_server, timeout=20.0, trust_env=False) as client:
+                response = client.post(
+                    "/v1/chat/completions",
+                    headers={
+                        "Authorization": "Bearer soak-test",
+                        "X-Thread-ID": f"soak-{round_index}-{index}",
+                    },
+                    json={
+                        "model": "gpt-5.6-luna",
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": f"soak round {round_index} request {index}",
+                            }
+                        ],
+                        "max_tokens": 20,
+                    },
+                )
+                return response.status_code
+
+        with ThreadPoolExecutor(max_workers=concurrency) as pool:
+            statuses = list(pool.map(send_one, range(concurrency)))
+
+        assert statuses == [200] * concurrency
+
+        expected_requests = (round_index + 1) * concurrency
+        expected_spend = round(per_request_actual * expected_requests, 6)
+        state = config_manager.get_state()
+
+        assert upstream_calls == expected_requests
+        assert state["total_requests"] == expected_requests
+        assert state["unreconciled_streams"] == 0
+        assert state["is_locked"] is False
+        assert state["current_spend_usd"] == pytest.approx(expected_spend, abs=1e-9)
+
+        with httpx.Client(base_url=live_server, timeout=10.0, trust_env=False) as client:
+            status = client.get("/api/status")
+        assert status.status_code == 200
+        assert status.json()["total_requests"] == expected_requests
+        assert status.json()["current_spend_usd"] == pytest.approx(expected_spend, abs=1e-9)
