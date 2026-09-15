@@ -187,15 +187,13 @@ app.add_middleware(
 )
 
 LAST_LATENCY_MS = 0
-CURRENT_ROUTINE_FLAG = False
-CURRENT_POTENTIAL_SAVING = 0.0
 CURRENT_THREAD_ID = "default"
 
 litellm.suppress_debug_info = True
 
 
 def track_cost_callback(kwargs, completion_response, start_time, end_time):
-    global LAST_LATENCY_MS, CURRENT_ROUTINE_FLAG, CURRENT_POTENTIAL_SAVING, CURRENT_THREAD_ID
+    global LAST_LATENCY_MS, CURRENT_THREAD_ID
     try:
         LAST_LATENCY_MS = int((end_time - start_time).total_seconds() * 1000)
         request_model = kwargs.get("model", "")
@@ -276,8 +274,6 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
         config_manager.update_spend(
             cost_usd=cost,
             thread_id=CURRENT_THREAD_ID,
-            potential_saving=CURRENT_POTENTIAL_SAVING,
-            is_routine=CURRENT_ROUTINE_FLAG,
         )
     except Exception as e:
         print(f"[TokenTotals Pricing Warning] Cost callback failed: {e}")
@@ -316,11 +312,8 @@ async def get_status():
         "remaining_budget_usd": max(0.0, round(limit - current, 4)),
         "budget_used_pct": pct,
         "thread_spend_usd": state.get("thread_spend_usd", 0.00),
-        "potential_savings_usd": state.get("potential_savings_usd", 0.00),
-        "flagged_routine_calls": state.get("flagged_routine_calls", 0),
         "last_latency_ms": LAST_LATENCY_MS,
         "is_locked": state.get("is_locked", False),
-        "auto_economy_mode": conf.get("auto_economy_mode", False),
         "port": conf.get("port", 8080),
     }
 
@@ -347,7 +340,7 @@ async def serve_dashboard():
 
 @app.post("/v1/chat/completions")
 async def proxy_openai(request: Request):
-    global CURRENT_ROUTINE_FLAG, CURRENT_POTENTIAL_SAVING, CURRENT_THREAD_ID
+    global CURRENT_THREAD_ID
 
     state = config_manager.get_state()
     conf = config_manager.get_config()
@@ -373,7 +366,7 @@ async def proxy_openai(request: Request):
     model_id = model_id.strip()
     CURRENT_THREAD_ID = request.headers.get("x-thread-id") or payload.get("user") or "default"
 
-    # 2. PRE-FLIGHT AUDIT & POTENTIAL SAVINGS CALCULATION
+    # 2. PRE-FLIGHT AUDIT
     # This is deliberately an estimate. Actual post-response provider accounting
     # uses observed usage telemetry whenever the dedicated provider engine can
     # fully reconstruct the applicable public pricing mechanics.
@@ -400,32 +393,9 @@ async def proxy_openai(request: Request):
             detail=f"🚨 QuietFireAI Circuit Breaker: This request ({estimated_cost:.4f} USD) would exceed your daily budget of ${limit:.2f}. Outgoing calls locked.",
         )
 
-    # Heuristic: Is this a routine/lightweight task?
-    word_count = len(prompt_text.split())
-    is_premium_model = any(
-        m in model_id.lower() for m in ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-pro"]
-    )
-    is_lightweight = word_count < 80 or estimated_tokens < 300
-
-    CURRENT_ROUTINE_FLAG = is_premium_model and is_lightweight
-    CURRENT_POTENTIAL_SAVING = 0.0
-
-    if CURRENT_ROUTINE_FLAG:
-        econ_model = "o3-mini" if "gpt" in model_id.lower() else "gemini-2.0-flash-lite"
-        economy_cost, _ = preflight_input_estimate(econ_model, estimated_tokens, payload)
-
-        if economy_cost is not None:
-            CURRENT_POTENTIAL_SAVING = max(0.0, estimated_cost - economy_cost)
-
-            # Opt-In Auto-Economy Pilot (Default: False). Never switch to an
-            # economy target that TokenTotals cannot preflight-price.
-            if conf.get("auto_economy_mode", False):
-                model_id = econ_model
-        else:
-            print(
-                "[TokenTotals Pricing Warning] Economy target could not be priced; "
-                f"skipping savings estimate and auto-routing for {econ_model!r}."
-            )
+    # TokenTotals does not silently substitute models or providers. Pricing data
+    # alone does not establish capability, tool/modality support, credentials,
+    # provider-policy compatibility, or equivalent output behavior.
 
     # 3. UPSTREAM ROUTING VIA LITELLM
     auth_header = request.headers.get("authorization", "")
@@ -499,7 +469,6 @@ header { display: flex; justify-content: space-between; align-items: center; bor
 .btn-copy { background: #23293d; color: var(--text); border: 1px solid #374151; font-size: 12px; }
 .btn-copy:hover { background: #374151; }
 pre { background: #0c0e14; padding: 12px; border-radius: 8px; font-size: 13px; color: #a5b4fc; overflow-x: auto; margin-top: 8px; }
-.alert-box { border-left: 4px solid var(--yellow); background: rgba(245, 158, 11, 0.08); padding: 12px 16px; border-radius: 0 8px 8px 0; }
 .receipts-list { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
 .receipt-link { font-size: 13px; color: #60a5fa; text-decoration: none; display: flex; align-items: center; gap: 4px; }
 .receipt-link:hover { text-decoration: underline; }
@@ -554,22 +523,10 @@ pre { background: #0c0e14; padding: 12px; border-radius: 8px; font-size: 13px; c
       <div style="font-size:12px; color:var(--subtext); margin-top:4px;">Resets per chat/task session</div>
     </div>
     <div class="card">
-      <div class="metric-title">Potential Savings Opportunity</div>
-      <div class="metric-value" id="savingsVal" style="color:var(--yellow);">$0.0000</div>
-      <div style="font-size:12px; color:var(--subtext); margin-top:4px;" id="savingsNote">0 routine calls on flagship tier</div>
-    </div>
-    <div class="card">
       <div class="metric-title">Proxy Port & Latency</div>
       <div class="metric-value" id="latencyVal" style="font-size:22px;">8080 <span style="font-size:14px; color:var(--subtext);">| 0 ms</span></div>
       <div style="font-size:12px; color:var(--subtext); margin-top:4px;">100% Local Zero-Egress Loopback</div>
     </div>
-  </div>
-
-  <div class="card alert-box" id="insightCard">
-    <h3 style="font-size:14px; margin-bottom:4px; color:#fbbf24;">💡 Cost Optimization Insight</h3>
-    <p style="font-size:13px; color:#e5e7eb;">
-      Routine tasks (formatting, short checks) sent to flagship models like GPT-4o can be shifted to lighter models like <code>o3-mini</code> or <code>gemini-2.0-flash</code> for an estimated potential savings of up to ~90%.
-    </p>
   </div>
 
   <div class="card">
@@ -607,12 +564,11 @@ async function refresh() {
     const data = await res.json();
     document.getElementById('spendVal').innerText = '$' + data.current_spend_usd.toFixed(4);
     document.getElementById('limitVal').innerText = '/ $' + data.daily_budget_limit_usd.toFixed(2) + ' Limit';
+    document.getElementById('remainingVal').innerText = 'Remaining: $' + data.remaining_budget_limit_usd;
     document.getElementById('remainingVal').innerText = 'Remaining: $' + data.remaining_budget_usd.toFixed(4);
     document.getElementById('pctVal').innerText = data.budget_used_pct + '% Used';
     document.getElementById('progressFill').style.width = Math.min(100, data.budget_used_pct) + '%';
     document.getElementById('threadVal').innerText = '$' + data.thread_spend_usd.toFixed(4);
-    document.getElementById('savingsVal').innerText = '$' + data.potential_savings_usd.toFixed(4);
-    document.getElementById('savingsNote').innerText = data.flagged_routine_calls + ' routine calls flagged';
     document.getElementById('latencyVal').innerHTML = data.port + ' <span style="font-size:14px; color:var(--subtext);">| ' + data.last_latency_ms + ' ms</span>';
 
     const badge = document.getElementById('statusBadge');
