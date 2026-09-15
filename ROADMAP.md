@@ -19,44 +19,43 @@ Verification receipt:
 
 ### 2. Append-only local turn telemetry ledger
 
-**Status:** Next engineering item.
+**Status:** Complete and verified.
 
-Persist a compact factual/derived telemetry record for each proxied turn without storing prompt or response content. The ledger is the substrate for TokenTotals' historical token totals, mixed-model sessions, Turn Notices, exports, and later Community Labs research.
+Completed TokenTotals-routed turns now write a whitelisted telemetry record to the local runtime append-only JSONL ledger at `~/.tokentotals/turns.jsonl`. The server-owned reservation identifier is reused as the stable turn identifier, giving the live callback and ledger the same idempotency boundary.
 
-Required record categories include, when legitimately exposed or defensibly derived:
+Implemented record categories include, when legitimately exposed or defensibly derived:
 
-- timestamp / local turn identifier / request identifier / thread identifier;
-- requested model, canonical registry model, and provider-observed/applied model kept as distinct fields where those values differ;
+- start/completion timestamp, turn ID, and thread ID;
+- requested model, canonical registry model, and provider-observed model as distinct fields;
 - provider and pricing-registry verification date;
-- input/prompt tokens;
-- uncached input tokens;
-- cached input tokens;
-- cache-write/cache-create tokens where applicable;
-- output tokens;
-- reasoning/thinking tokens when exposed;
-- tool-use input tokens and supported server-tool invocation counts where exposed;
-- modality-specific token categories when exposed;
-- provider-reported total tokens when available;
+- input/prompt, uncached input, cached input, cache-write/create, output, reasoning/thinking, and tool-input token categories;
+- modality-specific token categories and supported server-tool counters when exposed;
+- provider-reported total tokens;
 - TokenTotals reconstructed token total;
-- unclassified/residual tokens when provider totals do not reconcile with identified categories;
-- requested and observed/applied service or processing tier where available;
-- context load and documented model context limit where defensibly available;
-- latency and, where timing data permits, true time-based output throughput;
-- component cost estimates and total turn estimate;
-- estimate status/basis (`complete`, `incomplete`, known list-equivalent, LiteLLM fallback, etc.);
-- cumulative factual thread token totals and local estimated spend after the turn.
+- unclassified/residual and reconciliation-delta tokens when provider totals do not reconcile with identified categories;
+- requested and observed/applied service or processing tier where exposed;
+- latency;
+- provider calculation components, total estimated turn cost, completeness, and explicit cost basis;
+- cumulative local/thread estimated spend after settlement.
 
-**Mixed-model thread accounting is mandatory.** The same thread must preserve independent totals by model/provider so a session can truthfully report, for example, how many turns and observed tokens were handled by each model without treating a model switch as a new thread.
+**Mixed-model thread accounting is implemented and tested.** One continuing thread preserves independent model/provider turn, token, and estimated-cost totals without resetting when the caller changes models.
 
-Missing telemetry must never be silently converted to observed zero. `0` means zero was actually observed or defensibly derived; otherwise the field is unavailable/unknown or omitted with an explicit status.
+**Missing telemetry is not silently converted to observed zero.** Each normalized token field carries an `observed`, `derived`, or `unavailable` basis. An explicit provider `0` remains zero; an absent category remains unavailable. Thread summaries also retain an `observed_turns` count for each category so a partial sum cannot masquerade as full coverage.
 
-The ledger must remain telemetry-only: no prompt text, response text, hidden reasoning, credential material, DOM scraping, private endpoint interception, or undocumented provider-state extraction.
+The ledger writer accepts only its documented schema. Prompt text, response text, arbitrary callback/request fields, API keys, and hidden reasoning content are not written. The runtime file is append-only in TokenTotals' write path but is an ordinary local-user file, not immutable or tamper-evident storage.
 
-Internal cost accumulation should retain substantially more precision than the four-decimal human-facing display so repeated sub-cent turns are not lost through per-turn display rounding.
+Internal local-spend accumulation was also raised above four-decimal presentation precision, and a 1,000-micro-turn regression proves sub-cent turns are not erased. Ledger cost aggregation uses integer picodollar units before rendering back to dollars.
+
+Context-window occupancy is not fabricated in the ledger. The current repo does not yet have a defensible normalized context-limit/current-context source across the supported providers; those fields remain unavailable until such a source is explicitly modeled and tested.
+
+Verification receipt:
+
+- `archive/verification-receipts/2026-09-15_turn-telemetry-ledger-recheck.md`
+- documentation/runtime acceptance: 127/127 tests passed on GitHub Actions run `35032681955`.
 
 ### 3. Turn/thread telemetry presentation and Turn Notice
 
-**Status:** Planned immediately after the ledger substrate.
+**Status:** Next engineering item.
 
 Use the ledger to expose the token and cost metrics developers can inspect while a session is still running. Prefer factual/derived labels over ambiguous financial or capability language.
 
@@ -69,7 +68,7 @@ Priority turn metrics include:
 - unclassified/residual token count when totals do not reconcile;
 - cache share of observed input, without equating token share to dollar savings;
 - input/output and reasoning shares where meaningful;
-- context occupancy against a documented model context limit;
+- context occupancy against a documented model context limit only when a defensible source is available;
 - latency and true output tokens/second where measurable;
 - estimated turn cost, cost components, pricing basis, registry verification date, and complete/incomplete estimate status.
 
@@ -81,8 +80,8 @@ Priority historical/thread metrics include:
 - input / cached / uncached / cache-write / output / reasoning / tool / modality totals;
 - average, median, and P95 tokens per turn;
 - largest token turn and most expensive estimated turn;
-- context-growth history where meaningful;
-- cumulative local estimated thread cost with its estimate basis preserved.
+- context-growth history only where defensibly measurable;
+- cumulative local estimated thread cost with its estimate basis/coverage preserved.
 
 **Turn Notice** is the generic notification event name. A configurable Turn Notice may fire when an individual preflight or completed-turn estimate crosses a user-selected reminder value. The notice must say what was estimated/observed and why it fired; it must not imply provider-account clearance or a guaranteed maximum cost for the next action.
 
@@ -143,4 +142,4 @@ This track is intentionally held back until the delivery methodology is strong e
 
 ## Completed hardening milestones
 
-The repository's verification receipts under `archive/verification-receipts/` are the evidence source for completed work, including provider-specific pricing engines, removal of the legacy pricing sync and machine-specific fallback, runtime model-catalog hardening, retirement of automatic model substitution, public pricing-document reconciliation, dashboard truthfulness, concurrent post-response accounting, and in-flight preflight reservation.
+The repository's verification receipts under `archive/verification-receipts/` are the evidence source for completed work, including provider-specific pricing engines, removal of the legacy pricing sync and machine-specific fallback, runtime model-catalog hardening, retirement of automatic model substitution, public pricing-document reconciliation, dashboard truthfulness, concurrent post-response accounting, in-flight preflight reservation, high-precision local spend accumulation, and the append-only local turn telemetry ledger.
