@@ -132,17 +132,25 @@ Baseline used shared request-scoped module globals (`CURRENT_THREAD_ID`, `CURREN
 
 See `docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md` for the dedicated proof sheet.
 
-### IR-010 — `/api/unlock` claimed acknowledgment it never verified — CONFIRMED INTEGRITY DEFECT
+### IR-010 — `/api/unlock` claimed acknowledgment it never verified — CONFIRMED INTEGRITY DEFECT / REPAIRED AND REVALIDATED
 
-Baseline endpoint unlocked immediately and returned:
+Baseline `/api/unlock` was unconditional. It did not read or require request-supplied acknowledgment data before calling `unlock_circuit_breaker()`, yet it returned:
 
 ```text
 Circuit breaker unlocked by user acknowledgment.
 ```
 
-It accepted no acknowledgment value. The desktop Tk dialog did verify `I UNDERSTAND`, so the protection existed in one UI but was bypassable through the API.
+The important defect was not that one special malformed value could fool a check; there was no HTTP acknowledgment decision at all. Once a POST reached the handler, request input was irrelevant to the unlock outcome. The Windows Tk dialog separately verified `I UNDERSTAND`, so acknowledgment protection existed in the native UI but not in the HTTP path.
 
-**Repair:** `/api/unlock` requires the literal phrase `I UNDERSTAND`.
+**Impact:** an HTTP caller could clear the budget lock without demonstrating the acknowledgment that the endpoint claimed had occurred.
+
+**Repair:** `/api/unlock` now parses the request body and validates the `acknowledgement` field before it calls the state transition. The required phrase is `I UNDERSTAND`. The validator intentionally trims surrounding whitespace and compares letter case insensitively; different wording is rejected. This is an explicit acknowledgment gate, not an authentication mechanism.
+
+`unlock_circuit_breaker()` changes only `is_locked` to `False`. It does not reset recorded spend, request counts, savings, thread accounting, unreconciled-stream count, or the configured daily budget.
+
+**Validation:** the 2026-09-15 IR-010 pass added three focused tests. Missing body, malformed JSON, empty JSON, `YES`, and `I UNDERSTAND THIS` all return HTTP 400 and leave the state locked. A normalization test proves `"  i understand  "` is intentionally accepted. A state-integrity test seeds non-default spend, budget, request, savings, thread, and unreconciled values and proves valid acknowledgment changes only `is_locked`. The clean regression suite passed **41/41**.
+
+See `docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md` for the dedicated proof sheet.
 
 ### IR-011 — Budget boost endpoint could be invoked without confirmation — CONFIRMED DEFECT
 
@@ -209,7 +217,7 @@ A regression test added during the hardening pass forced the auto-economy select
 
 **Repair:** route selection now occurs before the budget calculation. The proxy resolves pricing for the exact model that will be sent upstream, estimates/reserves against that routed model, and uses the same routed pricing for response reconciliation. If auto-economy selects a model with no verified pricing, the request fails closed before upstream egress.
 
-**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **38/38** clean regression suite.
+**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **41/41** clean regression suite.
 
 ### IR-020 — Dependency graph was not version-reproducible — CONFIRMED HARDENING DEFECT / REPAIRED AND REVALIDATED
 
@@ -242,7 +250,7 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression suite on the hardened branch: **38 passed / 0 failed** on Ubuntu/Python 3.12.
+Current GitHub Actions regression suite on the hardened branch: **41 passed / 0 failed** on Ubuntu/Python 3.12.
 
 Regression coverage includes:
 
@@ -283,7 +291,10 @@ Regression coverage includes:
 35. a stream without final usage retains its conservative reservation and is marked unreconciled;
 36. two simultaneous in-process reservations that cannot both fit the remaining budget produce exactly one acceptance and one rejection;
 37. baseline request-scoped accounting globals and the old callback symbol cannot silently return;
-38. overlapping requests preserve distinct thread identity and routine/savings context through reservation and reconciliation.
+38. overlapping requests preserve distinct thread identity and routine/savings context through reservation and reconciliation;
+39. missing, malformed, empty, or wrong HTTP unlock acknowledgments cannot clear the lock;
+40. unlock acknowledgment normalization (surrounding whitespace/case) is intentional and tested;
+41. valid HTTP unlock changes only the lock flag and preserves accounting plus configured budget.
 
 IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
 
@@ -293,7 +304,7 @@ IR-020 additionally has clean-environment Linux runtime, Windows runtime, and Wi
 
 ## Remaining limitations before calling this production-proven
 
-- The 38-test suite is focused regression coverage, not a full integration or load test.
+- The 41-test suite is focused regression coverage, not a full integration or load test.
 - The live OpenAI, Anthropic, and Google source checks prove the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must be surfaced for review rather than treated as proof that the provider price changed.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
 - Multi-process workers are not supported for the file-lock budget invariant; the current lock is process-local. Run one TokenTotals proxy process unless cross-process locking is added.
