@@ -148,15 +148,29 @@ The important defect was not that one special malformed value could fool a check
 
 `unlock_circuit_breaker()` changes only `is_locked` to `False`. It does not reset recorded spend, request counts, savings, thread accounting, unreconciled-stream count, or the configured daily budget.
 
-**Validation:** the 2026-09-15 IR-010 pass added three focused tests. Missing body, malformed JSON, empty JSON, `YES`, and `I UNDERSTAND THIS` all return HTTP 400 and leave the state locked. A normalization test proves `"  i understand  "` is intentionally accepted. A state-integrity test seeds non-default spend, budget, request, savings, thread, and unreconciled values and proves valid acknowledgment changes only `is_locked`. The clean regression suite passed **41/41**.
+**Validation:** the 2026-09-15 IR-010 pass added three focused tests. Missing body, malformed JSON, empty JSON, `YES`, and `I UNDERSTAND THIS` were rejected and left the state locked. A normalization test proved `"  i understand  "` is intentionally accepted. A state-integrity test seeded non-default spend, budget, request, savings, thread, and unreconciled values and proved valid acknowledgment changes only `is_locked`. The clean regression suite passed **41/41** on the IR-010 revision.
+
+IR-011 subsequently added a shared transport gate for the HTTP state-changing controls: `/api/unlock` and `/api/boost` now require `Content-Type: application/json` and an object payload before their phrase checks run. The unlock regression was extended to prove explicit JSON `null` and browser-style `text/plain` cannot unlock. This strengthens the transport boundary without changing the IR-010 acknowledgment invariant.
 
 See `docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md` for the dedicated proof sheet.
 
-### IR-011 — Budget boost endpoint could be invoked without confirmation — CONFIRMED DEFECT
+### IR-011 — Budget boost endpoint could be invoked without confirmation — CONFIRMED CONTROL DEFECT / REPAIRED AND REVALIDATED
 
-Baseline `/api/boost` raised the budget and unlocked immediately. Combined with permissive CORS configuration, this unnecessarily enlarged the local attack surface.
+Baseline `/api/boost` raised the daily budget by `$5.00` and cleared the lock immediately, without reading any request-supplied confirmation. The baseline application also installed permissive CORS middleware allowing arbitrary origins, methods, and headers.
 
-**Repair:** permissive CORS middleware was removed; dashboard boost requires the literal phrase `BOOST $5`. Native tray actions remain explicit local user actions.
+**Impact:** the HTTP budget-control path could change the configured spending ceiling and lock state without demonstrating an intentional boost action.
+
+**First repair and adversarial finding:** the initial hardening removed permissive CORS and required the `BOOST $5` acknowledgment phrase. During IR-011 revalidation, a new browser-style test deliberately sent the correct JSON-formatted phrase in a cross-origin `Content-Type: text/plain` POST. That request unexpectedly returned **HTTP 200** and performed the boost. The handler's `request.json()` call parsed the JSON-formatted body despite the declared text/plain media type. Because a browser can send certain text/plain cross-origin POSTs without a CORS preflight, phrase validation plus removal of permissive CORS was not sufficient by itself.
+
+**Final repair:** a shared `_read_state_action_json()` gate now sits before both HTTP state-changing controls (`/api/boost` and `/api/unlock`). It requires `Content-Type: application/json`, valid JSON, and a JSON object before acknowledgment validation. `/api/boost` then requires the `BOOST $5` phrase; the API trims surrounding whitespace and compares letter case insensitively, while different wording is rejected. TokenTotals grants no tested foreign-origin CORS preflight permission. Native Windows tray/popup boost actions remain explicit local user actions and call the state manager directly rather than the HTTP endpoint.
+
+A valid boost changes exactly two intended values: `daily_budget_limit_usd` increases by `$5.00`, and `is_locked` becomes `False`. It does not erase or reset existing spend, request, savings, thread, routine-call, or unreconciled-stream accounting.
+
+**Validation:** the evidence chain preserves both failures rather than hiding them. The first adversarial run failed **1 test / 43 passed** because the browser-style text/plain request returned HTTP 200, exposing the incomplete repair. After the production transport gate was added, a second run had **2 failed / 43 passed** because `TestClient(json=None)` did not actually send an application/json null body and therefore correctly received HTTP 415 rather than the test's expected 400; this was a harness ambiguity, not a state-mutation failure. The tests were corrected to send an explicit body `null` with `Content-Type: application/json`. The corrected repair run passed **45/45**. It proves text/plain is rejected before mutation, CORS preflight is not granted, missing/null/empty/wrong confirmation cannot change config or state, and valid boost changes only the `$5` limit increase plus lock release.
+
+**Boundary:** this is a localhost HTTP intent/transport control, not authentication against a malicious local process already running with the user's privileges. A deliberate local program can still call the loopback endpoint with valid JSON and the published acknowledgment phrase.
+
+See `docs/IR-011_BOOST_AND_BROWSER_ORIGIN_PROOF.md` for the dedicated proof sheet.
 
 ### IR-012 — Dashboard telemetry numbers were hard-coded — FABRICATED / PLACEHOLDER TELEMETRY
 
@@ -217,7 +231,7 @@ A regression test added during the hardening pass forced the auto-economy select
 
 **Repair:** route selection now occurs before the budget calculation. The proxy resolves pricing for the exact model that will be sent upstream, estimates/reserves against that routed model, and uses the same routed pricing for response reconciliation. If auto-economy selects a model with no verified pricing, the request fails closed before upstream egress.
 
-**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **41/41** clean regression suite.
+**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **45/45** clean regression suite.
 
 ### IR-020 — Dependency graph was not version-reproducible — CONFIRMED HARDENING DEFECT / REPAIRED AND REVALIDATED
 
@@ -250,7 +264,7 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression suite on the hardened branch: **41 passed / 0 failed** on Ubuntu/Python 3.12.
+Current GitHub Actions regression suite on the hardened branch: **45 passed / 0 failed** on Ubuntu/Python 3.12.
 
 Regression coverage includes:
 
@@ -294,7 +308,11 @@ Regression coverage includes:
 38. overlapping requests preserve distinct thread identity and routine/savings context through reservation and reconciliation;
 39. missing, malformed, empty, or wrong HTTP unlock acknowledgments cannot clear the lock;
 40. unlock acknowledgment normalization (surrounding whitespace/case) is intentional and tested;
-41. valid HTTP unlock changes only the lock flag and preserves accounting plus configured budget.
+41. valid HTTP unlock changes only the lock flag and preserves accounting plus configured budget;
+42. browser-style cross-origin `text/plain` state-control POSTs are rejected before boost/unlock mutation;
+43. the boost endpoint does not grant the tested foreign-origin CORS preflight;
+44. missing, explicit JSON `null`, empty, or wrong boost confirmation cannot change budget or lock state;
+45. valid HTTP boost changes only the daily budget by `$5.00` and releases the lock while preserving accounting.
 
 IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
 
@@ -304,7 +322,8 @@ IR-020 additionally has clean-environment Linux runtime, Windows runtime, and Wi
 
 ## Remaining limitations before calling this production-proven
 
-- The 41-test suite is focused regression coverage, not a full integration or load test.
+- The 45-test suite is focused regression coverage, not a full integration or load test.
+- The HTTP acknowledgment phrases are intent gates, not authentication secrets. A malicious local process running with the user's privileges can deliberately call loopback control endpoints with valid JSON and the published phrase.
 - The live OpenAI, Anthropic, and Google source checks prove the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must be surfaced for review rather than treated as proof that the provider price changed.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
 - Multi-process workers are not supported for the file-lock budget invariant; the current lock is process-local. Run one TokenTotals proxy process unless cross-process locking is added.
@@ -316,6 +335,6 @@ IR-020 additionally has clean-environment Linux runtime, Windows runtime, and Wi
 
 ## Integrity conclusion
 
-The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, stale matrix data, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect and a dependency-reproducibility gap before release.
+The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, stale matrix data, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect, a dependency-reproducibility gap, and an incomplete first browser-origin defense on the budget-control endpoint before release.
 
 The hardening branch removes the known silent fabrication/fallback paths and changes the governing rule to: **unknown or unreconciled data stays unknown/conservative; it is never converted into a plausible-looking number merely to keep the UI green.**
