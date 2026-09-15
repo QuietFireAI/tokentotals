@@ -6,8 +6,15 @@ candidate only. It never writes TokenTotals' runtime verified pricing snapshot.
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 from pathlib import Path
+
+# Running a file under scripts/ makes that directory sys.path[0]. Add the repository
+# root explicitly so this validator imports the same modules the application uses.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import openai_pricing_sync
 
