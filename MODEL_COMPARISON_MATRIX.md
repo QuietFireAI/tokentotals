@@ -1,6 +1,6 @@
 # TokenTotals Verified Developer API Pricing Matrix
 
-**Checked-in catalog verification date:** 2026-09-14
+**Checked-in catalog verification date:** 2026-09-15
 
 This file is generated from TokenTotals' effective verified pricing view. Do not hand-edit prices here.
 The view combines the checked-in catalog with any promoted provider snapshot consumed by `pricing_engine`.
