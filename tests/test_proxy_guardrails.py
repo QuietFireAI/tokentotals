@@ -80,6 +80,59 @@ def test_output_reservation_can_block_before_upstream(client, monkeypatch):
     assert called is False
 
 
+def test_conflicting_output_bounds_reserve_largest_before_upstream(client, monkeypatch):
+    conf = config_manager.get_config()
+    conf["daily_budget_limit_usd"] = 0.005
+    config_manager.save_config(conf)
+    called = False
+
+    async def fail_if_called(**kwargs):
+        nonlocal called
+        called = True
+        return FakeResponse()
+
+    monkeypatch.setattr(proxy_server.litellm, "acompletion", fail_if_called)
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "gpt-6-astra",
+            "messages": [{"role": "user", "content": "hello"}],
+            "max_completion_tokens": 1,
+            "max_tokens": 1000,
+        },
+    )
+    assert response.status_code == 403
+    assert called is False
+
+
+def test_auto_economy_reserves_for_model_actually_routed(client, monkeypatch):
+    conf = config_manager.get_config()
+    conf["daily_budget_limit_usd"] = 0.005
+    conf["auto_economy_mode"] = True
+    config_manager.save_config(conf)
+    called = False
+
+    async def fail_if_called(**kwargs):
+        nonlocal called
+        called = True
+        return FakeResponse()
+
+    # Force a deliberately more-expensive "economy" route to prove the reservation
+    # follows the model actually sent rather than the originally requested model.
+    monkeypatch.setattr(proxy_server, "_economy_model_for", lambda provider: "gpt-6-astra")
+    monkeypatch.setattr(proxy_server.litellm, "acompletion", fail_if_called)
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "gpt-5.6-luna",
+            "messages": [{"role": "user", "content": "hello"}],
+            "max_tokens": 1000,
+        },
+    )
+    assert response.status_code == 403
+    assert called is False
+
+
 def test_missing_max_tokens_gets_bounded_and_reconciled(client, monkeypatch):
     captured = {}
     async def fake_completion(**kwargs):
