@@ -1,0 +1,319 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-09-15",
+  "notes": "Checked-in pricing receipts. Runtime does not invent prices for unknown models. Guard rates are conservative high-side text-token rates across the published context/geography/service-mode dimensions represented here; unsupported modalities/tools are not silently folded into token math.",
+  "sources": {
+    "openai": "https://developers.openai.com/api/docs/pricing",
+    "anthropic": "https://platform.claude.com/docs/en/about-claude/pricing",
+    "google": "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing"
+  },
+  "models": {
+    "gpt-6-astra": {
+      "provider": "OpenAI",
+      "aliases": [
+        "openai/gpt-6-astra"
+      ],
+      "input_price_per_1m": 10.0,
+      "output_price_per_1m": 50.0,
+      "guard_input_price_per_1m": 40.0,
+      "guard_output_price_per_1m": 150.0,
+      "source": "openai",
+      "cached_input_price_per_1m": 1.0,
+      "cache_write_price_per_1m": 12.5,
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-6-astra",
+      "source_markdown_url": "https://developers.openai.com/api/docs/models/gpt-6-astra.md",
+      "source_hash": "f45ae813c3f69708e2576328056de14cdf71fec174c875f4b81d236105545625",
+      "pricing_rules": {
+        "cache_write_multiplier": 1.25,
+        "long_context": {
+          "threshold_input_tokens": 272000,
+          "input_multiplier": 2.0,
+          "cache_multiplier": 2.0,
+          "output_multiplier": 1.5
+        },
+        "service_tier_multipliers": {
+          "batch": 0.5,
+          "flex": 0.5,
+          "fast": 2.0
+        }
+      }
+    },
+    "gpt-5.6-sol": {
+      "provider": "OpenAI",
+      "aliases": [
+        "gpt-5.6",
+        "openai/gpt-5.6-sol",
+        "openai/gpt-5.6"
+      ],
+      "input_price_per_1m": 4.0,
+      "output_price_per_1m": 20.0,
+      "guard_input_price_per_1m": 8.0,
+      "guard_output_price_per_1m": 30.0,
+      "source": "openai",
+      "cached_input_price_per_1m": 0.4,
+      "cache_write_price_per_1m": 5.0,
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-sol",
+      "source_markdown_url": "https://developers.openai.com/api/docs/models/gpt-5.6-sol.md",
+      "source_hash": "23f4ff2c236486d42145e21693f450bfcac272c37ee839a5ee6f9455cd1d8b7b",
+      "pricing_rules": {
+        "cache_write_multiplier": 1.25,
+        "long_context": {
+          "threshold_input_tokens": 272000,
+          "input_multiplier": 2.0,
+          "cache_multiplier": null,
+          "output_multiplier": 1.5
+        },
+        "service_tier_multipliers": {
+          "batch": null,
+          "flex": null,
+          "fast": null
+        }
+      }
+    },
+    "gpt-5.6-terra": {
+      "provider": "OpenAI",
+      "aliases": [
+        "openai/gpt-5.6-terra"
+      ],
+      "input_price_per_1m": 2.0,
+      "output_price_per_1m": 12.0,
+      "guard_input_price_per_1m": 4.0,
+      "guard_output_price_per_1m": 18.0,
+      "source": "openai",
+      "cached_input_price_per_1m": 0.2,
+      "cache_write_price_per_1m": 2.5,
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-terra",
+      "source_markdown_url": "https://developers.openai.com/api/docs/models/gpt-5.6-terra.md",
+      "source_hash": "359b9ad58c0c7f2339273fff8627ff3225acb9bca0f1d9c5edcee41701808209",
+      "pricing_rules": {
+        "cache_write_multiplier": 1.25,
+        "long_context": {
+          "threshold_input_tokens": 272000,
+          "input_multiplier": 2.0,
+          "cache_multiplier": null,
+          "output_multiplier": 1.5
+        },
+        "service_tier_multipliers": {
+          "batch": null,
+          "flex": null,
+          "fast": null
+        }
+      }
+    },
+    "gpt-5.6-luna": {
+      "provider": "OpenAI",
+      "aliases": [
+        "openai/gpt-5.6-luna"
+      ],
+      "input_price_per_1m": 0.2,
+      "output_price_per_1m": 1.2,
+      "guard_input_price_per_1m": 0.4,
+      "guard_output_price_per_1m": 1.8,
+      "source": "openai",
+      "cached_input_price_per_1m": 0.02,
+      "cache_write_price_per_1m": 0.25,
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
+      "source_markdown_url": "https://developers.openai.com/api/docs/models/gpt-5.6-luna.md",
+      "source_hash": "1f425d8f2a93f8418702ac7acbb62b26850b98fe20680f82205bed5fce38fed0",
+      "pricing_rules": {
+        "cache_write_multiplier": 1.25,
+        "long_context": {
+          "threshold_input_tokens": 272000,
+          "input_multiplier": 2.0,
+          "cache_multiplier": null,
+          "output_multiplier": 1.5
+        },
+        "service_tier_multipliers": {
+          "batch": null,
+          "flex": null,
+          "fast": null
+        }
+      }
+    },
+    "claude-fable-5.1": {
+      "provider": "Anthropic",
+      "aliases": [
+        "anthropic/claude-fable-5.1",
+        "claude-fable-5-1"
+      ],
+      "input_price_per_1m": 10.0,
+      "output_price_per_1m": 50.0,
+      "guard_input_price_per_1m": 20.0,
+      "guard_output_price_per_1m": 50.0,
+      "source": "anthropic"
+    },
+    "claude-opus-5": {
+      "provider": "Anthropic",
+      "aliases": [
+        "anthropic/claude-opus-5"
+      ],
+      "input_price_per_1m": 5.0,
+      "output_price_per_1m": 25.0,
+      "guard_input_price_per_1m": 10.0,
+      "guard_output_price_per_1m": 25.0,
+      "source": "anthropic"
+    },
+    "claude-sonnet-5": {
+      "provider": "Anthropic",
+      "aliases": [
+        "anthropic/claude-sonnet-5"
+      ],
+      "input_price_per_1m": 2.0,
+      "output_price_per_1m": 10.0,
+      "guard_input_price_per_1m": 4.0,
+      "guard_output_price_per_1m": 10.0,
+      "source": "anthropic"
+    },
+    "claude-haiku-4.5": {
+      "provider": "Anthropic",
+      "aliases": [
+        "anthropic/claude-haiku-4.5",
+        "claude-haiku-4-5"
+      ],
+      "input_price_per_1m": 1.0,
+      "output_price_per_1m": 5.0,
+      "guard_input_price_per_1m": 2.0,
+      "guard_output_price_per_1m": 5.0,
+      "source": "anthropic"
+    },
+    "gemini-3.1-pro-preview": {
+      "provider": "Google",
+      "aliases": [
+        "google/gemini-3.1-pro-preview",
+        "gemini/gemini-3.1-pro-preview"
+      ],
+      "input_price_per_1m": 2.0,
+      "output_price_per_1m": 12.0,
+      "guard_input_price_per_1m": 7.2,
+      "guard_output_price_per_1m": 32.4,
+      "source": "google"
+    },
+    "gemini-3.8-flash": {
+      "provider": "Google",
+      "aliases": [
+        "google/gemini-3.8-flash",
+        "gemini/gemini-3.8-flash"
+      ],
+      "input_price_per_1m": 0.75,
+      "output_price_per_1m": 3.75,
+      "guard_input_price_per_1m": 1.485,
+      "guard_output_price_per_1m": 7.425,
+      "source": "google",
+      "effective_until": "2026-12-31",
+      "note": "Current promotional standard pricing through 2026-12-31 on the cited Google Cloud pricing page."
+    },
+    "gemini-3.7-flash": {
+      "provider": "Google",
+      "aliases": [
+        "google/gemini-3.7-flash",
+        "gemini/gemini-3.7-flash"
+      ],
+      "input_price_per_1m": 0.75,
+      "output_price_per_1m": 3.75,
+      "guard_input_price_per_1m": 1.485,
+      "guard_output_price_per_1m": 7.425,
+      "source": "google",
+      "effective_until": "2026-12-31",
+      "note": "Current promotional standard pricing through 2026-12-31 on the cited Google Cloud pricing page."
+    },
+    "gemini-3.6-flash": {
+      "provider": "Google",
+      "aliases": [
+        "google/gemini-3.6-flash",
+        "gemini/gemini-3.6-flash"
+      ],
+      "input_price_per_1m": 0.75,
+      "output_price_per_1m": 3.75,
+      "guard_input_price_per_1m": 1.485,
+      "guard_output_price_per_1m": 7.425,
+      "source": "google",
+      "effective_until": "2026-12-31",
+      "note": "Current promotional standard pricing through 2026-12-31 on the cited Google Cloud pricing page."
+    },
+    "gemini-3.5-flash": {
+      "provider": "Google",
+      "aliases": [
+        "google/gemini-3.5-flash",
+        "gemini/gemini-3.5-flash"
+      ],
+      "input_price_per_1m": 1.5,
+      "output_price_per_1m": 9.0,
+      "guard_input_price_per_1m": 2.97,
+      "guard_output_price_per_1m": 17.82,
+      "source": "google"
+    },
+    "gemini-3.5-flash-lite": {
+      "provider": "Google",
+      "aliases": [
+        "google/gemini-3.5-flash-lite",
+        "gemini/gemini-3.5-flash-lite"
+      ],
+      "input_price_per_1m": 0.3,
+      "output_price_per_1m": 2.5,
+      "guard_input_price_per_1m": 0.594,
+      "guard_output_price_per_1m": 4.95,
+      "source": "google",
+      "note": "Guard reflects current Priority non-global text-token high-side pricing represented on the cited Google page."
+    },
+    "gemini-3.1-flash-lite": {
+      "provider": "Google",
+      "aliases": [
+        "google/gemini-3.1-flash-lite",
+        "gemini/gemini-3.1-flash-lite"
+      ],
+      "input_price_per_1m": 0.25,
+      "output_price_per_1m": 1.5,
+      "guard_input_price_per_1m": 0.495,
+      "guard_output_price_per_1m": 2.97,
+      "source": "google",
+      "note": "Guard reflects current Priority non-global text-token high-side pricing represented on the cited Google page; audio is a separate modality and is not priced by the current text estimator."
+    }
+  },
+  "daily_integrity_refresh": {
+    "status": "verified",
+    "source_checked_at": "2026-09-15T14:42:31Z",
+    "verified_at": "2026-09-15",
+    "providers": {
+      "OpenAI": {
+        "status": "verified",
+        "source_url": "https://developers.openai.com/api/docs/pricing",
+        "combined_source_hash": "01d1e3d0543cc8e2bc776dfb87c7d12b0388663a385be953b63988429c19c9b1",
+        "models_checked": [
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-5.6-terra",
+          "gpt-6-astra"
+        ],
+        "recognized_changes": [],
+        "mode": "official structured source parse; recognized safe changes refresh catalog, suspicious/source-only/model-set changes fail closed"
+      },
+      "Anthropic": {
+        "status": "verified",
+        "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "source_sha256": "0e17bb956ba1fbc12d6e342d8ec3fa2d627ea99069add51f0cf47bd227b7b648",
+        "models_checked": [
+          "claude-fable-5.1",
+          "claude-opus-5",
+          "claude-sonnet-5",
+          "claude-haiku-4.5"
+        ],
+        "mode": "official live base+guard drift validation; mismatch, missing model, parse ambiguity, or expiry fails closed"
+      },
+      "Google": {
+        "status": "verified",
+        "source_url": "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing",
+        "source_sha256": "fb7cf3200bfe6af9884e5a214808552f7473fcce472b4bf96a4d55dce28326f7",
+        "models_checked": [
+          "gemini-3.1-pro-preview",
+          "gemini-3.8-flash",
+          "gemini-3.7-flash",
+          "gemini-3.6-flash",
+          "gemini-3.5-flash",
+          "gemini-3.5-flash-lite",
+          "gemini-3.1-flash-lite"
+        ],
+        "mode": "official live base+guard drift validation; mismatch, missing model, parse ambiguity, or expiry fails closed"
+      }
+    }
+  }
+}

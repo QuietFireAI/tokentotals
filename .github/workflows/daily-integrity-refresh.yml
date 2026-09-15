@@ -1,0 +1,181 @@
+name: daily-integrity-refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    # One predictable daily refresh. GitHub cron is UTC.
+    # 05:05 UTC is 00:05 EST / 01:05 EDT, safely after the Eastern day boundary.
+    - cron: '5 5 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tokentotals-daily-integrity-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh-validate-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Stamp this daily integrity attempt
+        shell: bash
+        run: |
+          echo "TOKENTOTALS_RECEIPT_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+          echo "TOKENTOTALS_REFRESH_LOG=$RUNNER_TEMP/tokentotals-daily-refresh.log" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Create clean integrity environment outside repository
+        run: python -m venv $RUNNER_TEMP/tokentotals-integrity-venv
+
+      - name: Verify supported Python runtime
+        run: $RUNNER_TEMP/tokentotals-integrity-venv/bin/python runtime_compat.py
+
+      - name: Install constrained test dependencies
+        run: $RUNNER_TEMP/tokentotals-integrity-venv/bin/python -m pip install -c constraints-py312.txt -r requirements-dev.txt
+
+      - name: Verify dependency graph
+        run: $RUNNER_TEMP/tokentotals-integrity-venv/bin/python -m pip check
+
+      - name: Perform scheduled daily pricing integrity refresh from live official sources
+        id: refresh
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          $RUNNER_TEMP/tokentotals-integrity-venv/bin/python scripts/daily_integrity_refresh.py 2>&1 | tee "$TOKENTOTALS_REFRESH_LOG"
+
+      - name: Validate that the last successful daily refresh receipt is current
+        id: freshness
+        if: steps.refresh.outcome == 'success'
+        continue-on-error: true
+        run: $RUNNER_TEMP/tokentotals-integrity-venv/bin/python scripts/check_pricing_freshness.py
+
+      - name: Enforce telemetry-honesty stop-line gates
+        id: telemetry
+        if: steps.refresh.outcome == 'success'
+        continue-on-error: true
+        run: >-
+          $RUNNER_TEMP/tokentotals-integrity-venv/bin/python -m pytest -q
+          tests/test_proxy_guardrails.py::test_dashboard_has_no_fabricated_static_telemetry
+          tests/test_proxy_guardrails.py::test_dashboard_dynamic_metrics_are_backed_by_status_fields
+
+      - name: Run complete forensic regression suite
+        id: regression
+        if: steps.refresh.outcome == 'success'
+        continue-on-error: true
+        run: $RUNNER_TEMP/tokentotals-integrity-venv/bin/python -m pytest -q
+
+      - name: Reject unexpected refresh writes
+        id: writes
+        if: steps.refresh.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          allowed='^(pricing_catalog\.json|MODEL_COMPARISON_MATRIX\.md|README\.md|TokenTotals_Security_Whitepaper\.md|docs/PRICING_DAILY_STATUS\.md|docs/pricing_archive/[0-9]{4}/[0-9]{2}/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}Z\.md)$'
+          unexpected="$(git status --porcelain | sed -E 's/^.. //' | grep -Ev "$allowed" || true)"
+          if [ -n "$unexpected" ]; then
+            echo "Daily refresh modified unexpected files:"
+            echo "$unexpected"
+            exit 1
+          fi
+          git diff --check
+
+      - name: Write immutable PASS/FAIL workflow receipt
+        if: always()
+        env:
+          TOKENTOTALS_REFRESH_OUTCOME: ${{ steps.refresh.outcome }}
+          TOKENTOTALS_FRESHNESS_OUTCOME: ${{ steps.freshness.outcome }}
+          TOKENTOTALS_TELEMETRY_OUTCOME: ${{ steps.telemetry.outcome }}
+          TOKENTOTALS_REGRESSION_OUTCOME: ${{ steps.regression.outcome }}
+          TOKENTOTALS_WRITES_OUTCOME: ${{ steps.writes.outcome }}
+        run: $RUNNER_TEMP/tokentotals-integrity-venv/bin/python scripts/write_daily_integrity_workflow_receipt.py
+
+      - name: Publish daily receipt and successful surfaces atomically when eligible
+        id: publish
+        if: always()
+        shell: bash
+        env:
+          REFRESH_OUTCOME: ${{ steps.refresh.outcome }}
+          FRESHNESS_OUTCOME: ${{ steps.freshness.outcome }}
+          TELEMETRY_OUTCOME: ${{ steps.telemetry.outcome }}
+          REGRESSION_OUTCOME: ${{ steps.regression.outcome }}
+          WRITES_OUTCOME: ${{ steps.writes.outcome }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          all_green=true
+          for outcome in "$REFRESH_OUTCOME" "$FRESHNESS_OUTCOME" "$TELEMETRY_OUTCOME" "$REGRESSION_OUTCOME" "$WRITES_OUTCOME"; do
+            if [ "$outcome" != 'success' ]; then
+              all_green=false
+            fi
+          done
+
+          if [ "$all_green" = true ]; then
+            git add pricing_catalog.json MODEL_COMPARISON_MATRIX.md README.md TokenTotals_Security_Whitepaper.md docs/PRICING_DAILY_STATUS.md docs/pricing_archive/
+            commit_message="Daily pricing integrity refresh $(date -u +%F)"
+          else
+            # A failed daily attempt is evidence, not publishable pricing state.
+            # Preserve only the immutable archive receipts and restore generated
+            # public/current surfaces to the branch state that existed at checkout.
+            git restore --worktree --staged -- pricing_catalog.json MODEL_COMPARISON_MATRIX.md README.md TokenTotals_Security_Whitepaper.md docs/PRICING_DAILY_STATUS.md || true
+            git add docs/pricing_archive/
+            commit_message="Archive failed daily pricing integrity receipt $(date -u +%F)"
+          fi
+
+          if git diff --cached --quiet; then
+            echo 'No daily integrity changes to publish.'
+          else
+            git commit -m "$commit_message"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+          published_sha="$(git rev-parse HEAD)"
+          echo "published_sha=$published_sha" >> "$GITHUB_OUTPUT"
+          echo "Published/current daily integrity SHA: $published_sha"
+
+      - name: Email successful daily integrity report
+        if: >-
+          steps.refresh.outcome == 'success' &&
+          steps.freshness.outcome == 'success' &&
+          steps.telemetry.outcome == 'success' &&
+          steps.regression.outcome == 'success' &&
+          steps.writes.outcome == 'success'
+        env:
+          TOKENTOTALS_SMTP_HOST: ${{ secrets.TOKENTOTALS_SMTP_HOST }}
+          TOKENTOTALS_SMTP_PORT: ${{ secrets.TOKENTOTALS_SMTP_PORT }}
+          TOKENTOTALS_SMTP_SECURITY: ${{ secrets.TOKENTOTALS_SMTP_SECURITY }}
+          TOKENTOTALS_SMTP_USERNAME: ${{ secrets.TOKENTOTALS_SMTP_USERNAME }}
+          TOKENTOTALS_SMTP_PASSWORD: ${{ secrets.TOKENTOTALS_SMTP_PASSWORD }}
+          TOKENTOTALS_REPORT_FROM: ${{ secrets.TOKENTOTALS_REPORT_FROM }}
+          TOKENTOTALS_REPORT_TO: dailyreport@firelandsai.com
+          TOKENTOTALS_PUBLISHED_SHA: ${{ steps.publish.outputs.published_sha }}
+        run: $RUNNER_TEMP/tokentotals-integrity-venv/bin/python scripts/send_daily_integrity_email.py
+
+      - name: Fail the workflow after preserving a bad receipt
+        if: always()
+        shell: bash
+        env:
+          REFRESH_OUTCOME: ${{ steps.refresh.outcome }}
+          FRESHNESS_OUTCOME: ${{ steps.freshness.outcome }}
+          TELEMETRY_OUTCOME: ${{ steps.telemetry.outcome }}
+          REGRESSION_OUTCOME: ${{ steps.regression.outcome }}
+          WRITES_OUTCOME: ${{ steps.writes.outcome }}
+        run: |
+          set -euo pipefail
+          for outcome in "$REFRESH_OUTCOME" "$FRESHNESS_OUTCOME" "$TELEMETRY_OUTCOME" "$REGRESSION_OUTCOME" "$WRITES_OUTCOME"; do
+            if [ "$outcome" != 'success' ]; then
+              echo 'Daily integrity attempt failed; immutable failure receipt was preserved in docs/pricing_archive/.'
+              exit 1
+            fi
+          done

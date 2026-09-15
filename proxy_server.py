@@ -1,125 +1,191 @@
 import json
-import time
-import sys
 import os
-from pathlib import Path
+import sys
+from typing import Any
 
 if sys.stdout is None:
     sys.stdout = open(os.devnull, "w")
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w")
 
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-import litellm
-import config_manager
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, StreamingResponse
 
-# Pricing engine integration
-sys.path.insert(0, str(Path(r"C:\Users\Command Center\.gemini\config\plugins\token-cost-estimator\scripts")))
 try:
-    from pricing_engine import resolve_model, calculate_cost
-    from token_estimator import estimate_text_tokens
-except ImportError:
-    def resolve_model(m): return {"input_price_per_1m": 2.50, "output_price_per_1m": 10.00}
-    def calculate_cost(p, i, o): return {"input_cost_usd": (i/1e6)*p["input_price_per_1m"]}
-    def estimate_text_tokens(t, m): return max(1, len(t) // 4)
+    import litellm
+except ImportError as exc:
+    raise RuntimeError(
+        "TokenTotals requires LiteLLM. Install dependencies with: pip install -r requirements.txt"
+    ) from exc
 
-app = FastAPI(title="TokenTotals by QuietFireAI")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+import config_manager
+from pricing_engine import (
+    UnknownModelPrice,
+    affordable_output_tokens,
+    calculate_cost,
+    estimate_text_tokens,
+    list_models as pricing_models,
+    load_catalog,
+    resolve_model,
 )
 
-LAST_LATENCY_MS = 0
-CURRENT_ROUTINE_FLAG = False
-CURRENT_POTENTIAL_SAVING = 0.0
-CURRENT_THREAD_ID = "default"
-
+app = FastAPI(title="TokenTotals by QuietFireAI")
 litellm.suppress_debug_info = True
+LAST_LATENCY_MS = 0
 
-def track_cost_callback(kwargs, completion_response, start_time, end_time):
-    global LAST_LATENCY_MS, CURRENT_ROUTINE_FLAG, CURRENT_POTENTIAL_SAVING, CURRENT_THREAD_ID
-    try:
-        LAST_LATENCY_MS = int((end_time - start_time).total_seconds() * 1000)
-        cost = kwargs.get("response_cost", 0.0)
-        if not cost and completion_response:
-            # Fallback estimation if response_cost not populated
-            usage = getattr(completion_response, "usage", None)
-            if usage:
-                in_tok = getattr(usage, "prompt_tokens", 0)
-                out_tok = getattr(usage, "completion_tokens", 0)
-                model = kwargs.get("model", "gpt-4o")
-                p = resolve_model(model)
-                calc = calculate_cost(p, in_tok, out_tok)
-                cost = calc.get("total_cost_usd", 0.001)
 
-        config_manager.update_spend(
-            cost_usd=cost or 0.0,
-            thread_id=CURRENT_THREAD_ID,
-            potential_saving=CURRENT_POTENTIAL_SAVING,
-            is_routine=CURRENT_ROUTINE_FLAG
+def _usage_value(usage: Any, *names: str) -> int:
+    if usage is None:
+        return 0
+    for name in names:
+        if isinstance(usage, dict) and name in usage:
+            try:
+                return int(usage.get(name) or 0)
+            except Exception:
+                continue
+        value = getattr(usage, name, None)
+        if value is not None:
+            try:
+                return int(value or 0)
+            except Exception:
+                continue
+    return 0
+
+
+def _usage_from_response(response: Any):
+    usage = getattr(response, "usage", None)
+    if usage is None and isinstance(response, dict):
+        usage = response.get("usage")
+    input_tokens = _usage_value(usage, "prompt_tokens", "input_tokens")
+    output_tokens = _usage_value(usage, "completion_tokens", "output_tokens")
+    if input_tokens or output_tokens:
+        return input_tokens, output_tokens
+    return None
+
+
+def _economy_model_for(provider: str) -> str | None:
+    return {
+        "OpenAI": "gpt-5.6-luna",
+        "Anthropic": "claude-haiku-4.5",
+        "Google": "gemini-3.1-flash-lite",
+    }.get(provider)
+
+
+def _require_ack(payload: dict, expected: str, field: str = "acknowledgement"):
+    value = str(payload.get(field, "")).strip().upper()
+    if value != expected.upper():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Enter the acknowledgement phrase '{expected}' to continue.",
         )
-    except Exception as e:
-        pass
 
-litellm.success_callback = [track_cost_callback]
+
+async def _read_state_action_json(request: Request) -> dict:
+    """Read JSON for state-changing control endpoints.
+
+    Requiring application/json prevents these localhost control actions from being
+    triggered by browser "simple" text/plain/form POSTs that can be sent without a
+    CORS preflight. The acknowledgement phrase is an intent gate, not a secret.
+    """
+    content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if content_type != "application/json":
+        raise HTTPException(
+            status_code=415,
+            detail="State-changing control requests require Content-Type: application/json.",
+        )
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="JSON payload must be an object")
+    return payload
+
+
+def _requested_output_bound(payload: dict) -> int | None:
+    """Return the largest caller-supplied output ceiling.
+
+    Clients/providers use both max_tokens and max_completion_tokens. If both are
+    present, reserving against the smaller one can under-reserve if a downstream path
+    honors the larger field, so the budget gate always uses the largest valid bound.
+    """
+    bounds = []
+    for field in ("max_tokens", "max_completion_tokens"):
+        value = payload.get(field)
+        if value is None:
+            continue
+        try:
+            parsed = int(value)
+        except Exception:
+            raise HTTPException(status_code=400, detail=f"{field} must be an integer")
+        if parsed <= 0:
+            raise HTTPException(status_code=400, detail=f"{field} must be positive")
+        bounds.append(parsed)
+    return max(bounds) if bounds else None
+
 
 @app.get("/v1/models")
 async def list_models():
-    return {
-        "object": "list",
-        "data": [
-            {"id": "gpt-4o", "object": "model", "owned_by": "openai"},
-            {"id": "o3-mini", "object": "model", "owned_by": "openai"},
-            {"id": "claude-3-5-sonnet", "object": "model", "owned_by": "anthropic"},
-            {"id": "gemini-2.0-flash", "object": "model", "owned_by": "google"}
-        ]
-    }
+    data = []
+    for model_id, record in pricing_models().items():
+        data.append(
+            {
+                "id": model_id,
+                "object": "model",
+                "owned_by": str(record.get("provider", "unknown")).lower(),
+            }
+        )
+    return {"object": "list", "data": data}
+
 
 @app.get("/api/status")
 async def get_status():
     conf = config_manager.get_config()
     state = config_manager.get_state()
-    limit = conf.get("daily_budget_limit_usd", 10.00)
-    current = state.get("current_spend_usd", 0.00)
+    limit = float(conf.get("daily_budget_limit_usd", 10.00))
+    current = float(state.get("current_spend_usd", 0.00))
     pct = round((current / limit * 100), 1) if limit > 0 else 0
-    
     traffic_light = "GREEN"
     if state.get("is_locked"):
         traffic_light = "RED"
     elif pct >= conf.get("warning_threshold_pct", 75):
         traffic_light = "YELLOW"
-
     return {
         "status": "LOCKED" if state.get("is_locked") else "ACTIVE",
         "traffic_light": traffic_light,
         "current_spend_usd": current,
         "daily_budget_limit_usd": limit,
-        "remaining_budget_usd": max(0.0, round(limit - current, 4)),
+        "remaining_budget_usd": max(0.0, round(limit - current, 6)),
         "budget_used_pct": pct,
-        "thread_spend_usd": state.get("thread_spend_usd", 0.00),
-        "potential_savings_usd": state.get("potential_savings_usd", 0.00),
-        "flagged_routine_calls": state.get("flagged_routine_calls", 0),
+        "thread_spend_usd": float(state.get("thread_spend_usd", 0.00)),
+        "potential_savings_usd": float(state.get("potential_savings_usd", 0.00)),
+        "flagged_routine_calls": int(state.get("flagged_routine_calls", 0)),
+        "total_requests": int(state.get("total_requests", 0)),
+        "unreconciled_responses": int(state.get("unreconciled_responses", 0)),
+        "unreconciled_streams": int(state.get("unreconciled_streams", 0)),
         "last_latency_ms": LAST_LATENCY_MS,
-        "is_locked": state.get("is_locked", False),
-        "auto_economy_mode": conf.get("auto_economy_mode", False),
-        "port": conf.get("port", 8080)
+        "is_locked": bool(state.get("is_locked", False)),
+        "auto_economy_mode": bool(conf.get("auto_economy_mode", False)),
+        "port": int(conf.get("port", 8080)),
+        "pricing_verified_at": load_catalog().get("verified_at"),
     }
 
+
 @app.post("/api/boost")
-async def api_quick_boost():
+async def api_quick_boost(request: Request):
+    payload = await _read_state_action_json(request)
+    _require_ack(payload, "BOOST $5")
     new_limit = config_manager.quick_boost(5.00)
     return {"message": "Budget boosted by $5.00", "new_limit_usd": new_limit, "is_locked": False}
 
+
 @app.post("/api/unlock")
-async def api_unlock():
+async def api_unlock(request: Request):
+    payload = await _read_state_action_json(request)
+    _require_ack(payload, "I UNDERSTAND")
     config_manager.unlock_circuit_breaker()
-    return {"message": "Circuit breaker unlocked by user acknowledgment.", "is_locked": False}
+    return {"message": "Circuit breaker unlocked by verified user acknowledgment.", "is_locked": False}
+
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -128,281 +194,206 @@ async def api_unlock():
 async def serve_dashboard():
     return HTMLResponse(content=DASHBOARD_HTML)
 
+
 @app.post("/v1/chat/completions")
 async def proxy_openai(request: Request):
-    global CURRENT_ROUTINE_FLAG, CURRENT_POTENTIAL_SAVING, CURRENT_THREAD_ID
-    
+    global LAST_LATENCY_MS
     state = config_manager.get_state()
     conf = config_manager.get_config()
-
-    # 1. HARD DEAD MAN'S SWITCH CHECK
     if state.get("is_locked", False):
-        raise HTTPException(
-            status_code=403,
-            detail="🛑 QuietFireAI Emergency Shutdown: Daily budget cap reached. Outgoing calls are HARD-LOCKED to protect your card. Acknowledge in the desktop popup or dashboard to resume."
-        )
-
+        raise HTTPException(status_code=403, detail="QuietFireAI Emergency Shutdown: daily budget gate is locked.")
     try:
         payload = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="JSON payload must be an object")
 
-    model_id = payload.get("model", "gpt-4o")
-    CURRENT_THREAD_ID = request.headers.get("x-thread-id") or payload.get("user") or "default"
+    model_id = str(payload.get("model") or "").strip()
+    if not model_id:
+        raise HTTPException(status_code=400, detail="A model is required")
+    try:
+        requested_pricing = resolve_model(model_id)
+    except UnknownModelPrice as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
-    # 2. PRE-FLIGHT AUDIT & POTENTIAL SAVINGS CALCULATION
-    prompt_text = json.dumps(payload.get("messages", []))
-    estimated_tokens = estimate_text_tokens(prompt_text, model_id)
-    pricing = resolve_model(model_id)
-    estimated_cost = calculate_cost(pricing, estimated_tokens, 0).get("input_cost_usd", 0.0)
+    thread_id = request.headers.get("x-thread-id") or payload.get("user") or "default"
+    messages = payload.get("messages", [])
+    prompt_text = json.dumps(messages, ensure_ascii=False, separators=(",", ":"))
+    estimated_input_tokens = estimate_text_tokens(prompt_text, model_id)
 
-    # Check for budget breach BEFORE sending request
-    limit = conf.get("daily_budget_limit_usd", 10.00)
-    if state.get("current_spend_usd", 0.0) + estimated_cost > limit:
+    word_count = len(prompt_text.split())
+    is_lightweight = word_count < 80 or estimated_input_tokens < 300
+    provider = requested_pricing.get("provider")
+    economy_model = _economy_model_for(provider)
+    is_routine = bool(
+        is_lightweight
+        and economy_model
+        and economy_model != requested_pricing.get("canonical_model")
+    )
+
+    routed_model = model_id
+    pricing = requested_pricing
+    if is_routine and conf.get("auto_economy_mode", False) and economy_model:
+        routed_model = economy_model
+        try:
+            pricing = resolve_model(routed_model)
+        except UnknownModelPrice as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Auto-economy routing selected a model without verified pricing. "
+                    f"No upstream call was sent. {exc}"
+                ),
+            )
+        estimated_input_tokens = estimate_text_tokens(prompt_text, routed_model)
+
+    limit = float(conf.get("daily_budget_limit_usd", 10.00))
+    current = float(state.get("current_spend_usd", 0.0))
+    remaining = max(0.0, limit - current)
+    input_guard = calculate_cost(pricing, estimated_input_tokens, 0, conservative=True)
+    remaining_after_input = remaining - input_guard["input_cost_usd"]
+    if remaining_after_input <= 0:
         config_manager.set_locked(True)
+        raise HTTPException(status_code=403, detail="Circuit breaker: conservative input reservation alone would exceed the remaining daily budget.")
+
+    requested_output = _requested_output_bound(payload)
+    if requested_output is None:
+        affordable = affordable_output_tokens(pricing, remaining_after_input)
+        configured_default = max(1, int(conf.get("default_max_output_tokens", 4096)))
+        reserved_output_tokens = min(configured_default, affordable)
+        if reserved_output_tokens < 1:
+            config_manager.set_locked(True)
+            raise HTTPException(status_code=403, detail="Circuit breaker: no output budget remains.")
+        payload["max_tokens"] = reserved_output_tokens
+    else:
+        reserved_output_tokens = requested_output
+
+    reserved = calculate_cost(
+        pricing,
+        estimated_input_tokens,
+        reserved_output_tokens,
+        conservative=True,
+    )["total_cost_usd"]
+
+    potential_saving = 0.0
+    if is_routine and economy_model:
+        try:
+            econ_pricing = resolve_model(economy_model)
+            requested_estimate_tokens = estimate_text_tokens(prompt_text, model_id)
+            requested_reserved = calculate_cost(
+                requested_pricing,
+                requested_estimate_tokens,
+                reserved_output_tokens,
+                conservative=True,
+            )["total_cost_usd"]
+            econ_estimate_tokens = estimate_text_tokens(prompt_text, economy_model)
+            econ_reserved = calculate_cost(
+                econ_pricing,
+                econ_estimate_tokens,
+                reserved_output_tokens,
+                conservative=True,
+            )["total_cost_usd"]
+            potential_saving = max(0.0, requested_reserved - econ_reserved)
+        except UnknownModelPrice:
+            potential_saving = 0.0
+
+    accepted, _ = config_manager.try_reserve_spend(
+        reserved,
+        thread_id=thread_id,
+        potential_saving=potential_saving,
+        is_routine=is_routine,
+    )
+    if not accepted:
         raise HTTPException(
             status_code=403,
-            detail=f"🚨 QuietFireAI Circuit Breaker: This request ({estimated_cost:.4f} USD) would exceed your daily budget of ${limit:.2f}. Outgoing calls locked."
+            detail=(
+                f"Circuit breaker: worst-case reservation ${reserved:.6f} for routed model "
+                f"'{routed_model}' would exceed the daily budget of ${limit:.2f}. "
+                "No upstream call was sent."
+            ),
         )
 
-    # Heuristic: Is this a routine/lightweight task?
-    word_count = len(prompt_text.split())
-    is_premium_model = any(m in model_id.lower() for m in ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-pro"])
-    is_lightweight = (word_count < 80 or estimated_tokens < 300)
-
-    CURRENT_ROUTINE_FLAG = is_premium_model and is_lightweight
-    CURRENT_POTENTIAL_SAVING = 0.0
-
-    if CURRENT_ROUTINE_FLAG:
-        econ_model = "o3-mini" if "gpt" in model_id.lower() else "gemini-2.0-flash-lite"
-        econ_p = resolve_model(econ_model)
-        econ_rate = econ_p.get("input_price_per_1m", 0.075)
-        economy_cost = (estimated_tokens / 1e6) * econ_rate
-        CURRENT_POTENTIAL_SAVING = max(0.0, estimated_cost - economy_cost)
-
-        # Opt-In Auto-Economy Pilot (Default: False)
-        if conf.get("auto_economy_mode", False):
-            model_id = econ_model
-
-    # 3. UPSTREAM ROUTING VIA LITELLM
     auth_header = request.headers.get("authorization", "")
-    api_key = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else auth_header
-
-    stream = payload.pop("stream", False)
+    api_key = auth_header.replace("Bearer ", "", 1) if auth_header.startswith("Bearer ") else auth_header
+    stream = bool(payload.pop("stream", False))
     messages = payload.pop("messages", [])
     payload.pop("model", None)
 
+    import time
+    started = time.perf_counter()
     try:
         response = await litellm.acompletion(
-            model=model_id,
+            model=routed_model,
             messages=messages,
             api_key=api_key,
             stream=stream,
-            **payload
+            **payload,
         )
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Upstream Provider Error via LiteLLM: {str(e)}")
+    except Exception as exc:
+        config_manager.reconcile_reserved_spend(reserved, 0.0, thread_id=thread_id)
+        raise HTTPException(status_code=502, detail=f"Upstream Provider Error via LiteLLM: {exc}")
+    finally:
+        LAST_LATENCY_MS = int((time.perf_counter() - started) * 1000)
 
-    if stream:
-        async def generate():
-            try:
-                async for chunk in response:
-                    yield f"data: {chunk.model_dump_json()}\n\n"
-            except Exception as e:
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
-            finally:
-                yield "data: [DONE]\n\n"
-        return StreamingResponse(generate(), media_type="text/event-stream")
-    else:
-        return response.model_dump()
+    if not stream:
+        usage_pair = _usage_from_response(response)
+        if usage_pair:
+            actual = calculate_cost(
+                pricing,
+                usage_pair[0],
+                usage_pair[1],
+                conservative=False,
+            )["total_cost_usd"]
+            config_manager.reconcile_reserved_spend(reserved, actual, thread_id=thread_id)
+        else:
+            config_manager.mark_unreconciled_response(1)
+        return response.model_dump() if hasattr(response, "model_dump") else response
+
+    async def generate():
+        usage_pair = None
+        try:
+            async for chunk in response:
+                candidate = _usage_from_response(chunk)
+                if candidate:
+                    usage_pair = candidate
+                if hasattr(chunk, "model_dump_json"):
+                    body = chunk.model_dump_json()
+                elif isinstance(chunk, dict):
+                    body = json.dumps(chunk)
+                else:
+                    body = json.dumps({"chunk": str(chunk)})
+                yield f"data: {body}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+        finally:
+            if usage_pair:
+                actual = calculate_cost(
+                    pricing,
+                    usage_pair[0],
+                    usage_pair[1],
+                    conservative=False,
+                )["total_cost_usd"]
+                config_manager.reconcile_reserved_spend(reserved, actual, thread_id=thread_id)
+            else:
+                config_manager.mark_unreconciled_stream(1)
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
 
 DASHBOARD_HTML = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TokenTotals by QuietFireAI — FinOps Airbag</title>
-<style>
-:root {
-  --bg: #090a0f;
-  --card: #131620;
-  --border: #23293d;
-  --green: #10b981;
-  --yellow: #f59e0b;
-  --red: #ef4444;
-  --text: #f3f4f6;
-  --subtext: #9ca3af;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-body { background: var(--bg); color: var(--text); padding: 24px; display: flex; justify-content: center; }
-.container { max-width: 900px; width: 100%; display: flex; flex-direction: column; gap: 20px; }
-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
-.brand { display: flex; align-items: center; gap: 12px; }
-.brand h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
-.badge { font-size: 11px; padding: 4px 8px; border-radius: 999px; font-weight: 600; text-transform: uppercase; }
-.badge-green { background: rgba(16, 185, 129, 0.2); color: var(--green); border: 1px solid var(--green); }
-.badge-red { background: rgba(239, 68, 68, 0.2); color: var(--red); border: 1px solid var(--red); }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-.metric-title { font-size: 13px; color: var(--subtext); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-.metric-value { font-size: 28px; font-weight: 700; }
-.progress-bar-bg { background: #1f2538; height: 12px; border-radius: 6px; overflow: hidden; margin: 12px 0 6px 0; }
-.progress-bar-fill { height: 100%; background: var(--green); transition: width 0.4s ease; }
-.btn { padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; border: none; font-size: 14px; transition: 0.2s; }
-.btn-boost { background: var(--green); color: #000; }
-.btn-boost:hover { filter: brightness(1.1); }
-.btn-copy { background: #23293d; color: var(--text); border: 1px solid #374151; font-size: 12px; }
-.btn-copy:hover { background: #374151; }
-pre { background: #0c0e14; padding: 12px; border-radius: 8px; font-size: 13px; color: #a5b4fc; overflow-x: auto; margin-top: 8px; }
-.alert-box { border-left: 4px solid var(--yellow); background: rgba(245, 158, 11, 0.08); padding: 12px 16px; border-radius: 0 8px 8px 0; }
-.receipts-list { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
-.receipt-link { font-size: 13px; color: #60a5fa; text-decoration: none; display: flex; align-items: center; gap: 4px; }
-.receipt-link:hover { text-decoration: underline; }
-</style>
-</head>
-<body>
-<div class="container">
-  <header>
-    <div class="brand">
-      <svg width="28" height="28" viewBox="0 0 64 64"><rect x="12" y="12" width="40" height="12" fill="#10b981"/><rect x="26" y="24" width="12" height="28" fill="#10b981"/></svg>
-      <div>
-        <h1>TokenTotals <span style="font-size:14px; font-weight:normal; color:var(--subtext);">by QuietFireAI</span></h1>
-      </div>
-    </div>
-    <div id="statusBadge" class="badge badge-green">🟢 IN BUDGET</div>
-  </header>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>TokenTotals by QuietFireAI</title>
+<style>:root{--bg:#090a0f;--card:#131620;--border:#23293d;--green:#10b981;--yellow:#f59e0b;--text:#f3f4f6;--sub:#9ca3af}*{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}body{margin:0;background:var(--bg);color:var(--text);padding:24px}.container{max-width:900px;margin:auto;display:grid;gap:18px}.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}.label{font-size:12px;color:var(--sub);text-transform:uppercase}.value{font-size:28px;font-weight:700;margin-top:5px}.badge{font-size:12px;font-weight:700}.btn{border:0;border-radius:6px;padding:9px 14px;font-weight:700;cursor:pointer;background:var(--green)}.muted{color:var(--sub);font-size:12px}a{color:#60a5fa}</style></head>
+<body><div class="container"><div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">TokenTotals <span class="muted">by QuietFireAI</span></h2><span id="status" class="badge">LOADING</span></div></div>
+<div class="card"><div class="label">Estimated / Reserved Spend</div><div class="value"><span id="spend">$0.000000</span> <span class="muted" id="limit">/ $10.00</span></div><div class="muted" id="remaining">Remaining: $10.00</div></div>
+<div class="grid"><div class="card"><div class="label">Active Thread Spend</div><div class="value" id="thread">$0.000000</div></div><div class="card"><div class="label">Requests Today</div><div class="value" id="requests">0</div></div><div class="card"><div class="label">Potential Savings (estimate)</div><div class="value" id="savings">$0.000000</div></div><div class="card"><div class="label">Pricing Receipt Date</div><div class="value" style="font-size:20px" id="pricingDate">—</div></div><div class="card"><div class="label">Unreconciled Responses</div><div class="value" id="unreconciled">0</div><div class="muted">Conservative reservation retained whenever usable final usage is unavailable.</div></div><div class="card"><div class="label">Proxy</div><div class="value" style="font-size:20px" id="proxy">127.0.0.1:8080</div><div class="muted">Local listener; upstream provider traffic still leaves this machine.</div></div></div>
+<div class="card"><div class="label">Budget Control</div><p class="muted">Quick Boost requires an explicit acknowledgement and raises today's limit by $5.</p><button class="btn" onclick="addBoost()">+ $5 Quick Boost</button></div>
+<div class="card"><div class="label">Pricing receipts</div><p><a href="https://developers.openai.com/api/docs/pricing" target="_blank">OpenAI</a> · <a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank">Anthropic</a> · <a href="https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing" target="_blank">Google Cloud</a></p></div></div>
+<script>async function refresh(){try{const r=await fetch('/api/status');const d=await r.json();document.getElementById('spend').innerText='$'+d.current_spend_usd.toFixed(6);document.getElementById('limit').innerText='/ $'+d.daily_budget_limit_usd.toFixed(2);document.getElementById('remaining').innerText='Remaining: $'+d.remaining_budget_usd.toFixed(6);document.getElementById('thread').innerText='$'+d.thread_spend_usd.toFixed(6);document.getElementById('requests').innerText=d.total_requests;document.getElementById('savings').innerText='$'+d.potential_savings_usd.toFixed(6);document.getElementById('pricingDate').innerText=d.pricing_verified_at||'UNKNOWN';document.getElementById('unreconciled').innerText=d.unreconciled_responses;document.getElementById('proxy').innerText='127.0.0.1:'+d.port+' | '+d.last_latency_ms+' ms';document.getElementById('status').innerText=d.is_locked?'🔴 LOCKED':(d.traffic_light==='YELLOW'?'🟡 CAUTION':'🟢 IN BUDGET');}catch(e){}}async function addBoost(){const phrase=prompt("Type BOOST $5 to increase today's limit:");if(phrase!=="BOOST $5")return;const r=await fetch('/api/boost',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({acknowledgement:phrase})});if(!r.ok){alert('Boost rejected');}refresh();}setInterval(refresh,2000);refresh();</script></body></html>"""
 
-  <div class="card">
-    <div style="display:flex; justify-content:space-between; align-items:flex-end;">
-      <div>
-        <div class="metric-title">Today's Total Spend / Hard Ceiling</div>
-        <div style="display:flex; align-items:baseline; gap:8px;">
-          <span class="metric-value" id="spendVal">$0.0000</span>
-          <span style="color:var(--subtext); font-size:18px;" id="limitVal">/ $10.00 Limit</span>
-        </div>
-      </div>
-      <button class="btn btn-boost" onclick="addBoost()">⚡ +$5 Quick Boost</button>
-    </div>
-    <div class="progress-bar-bg">
-      <div id="progressFill" class="progress-bar-fill" style="width: 0%;"></div>
-    </div>
-    <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--subtext);">
-      <span id="remainingVal">Remaining: $10.0000</span>
-      <span id="pctVal">0.0% Used</span>
-    </div>
-  </div>
-
-  <div class="grid">
-    <div class="card">
-      <div class="metric-title">Token Velocity & Session Total</div>
-      <div class="metric-value" id="velocityVal" style="font-size:22px; color:#a78bfa;">~199k <span style="font-size:14px; color:#9ca3af;">tok/turn</span></div>
-      <div style="font-size:12px; color:#9ca3af; margin-top:4px;" id="cumulTokVal">14.5M tokens processed</div>
-    </div>
-    <div class="card">
-      <div class="metric-title">Prompt Cache Savings</div>
-      <div class="metric-value" id="cacheVal" style="font-size:22px; color:#34d399;">~85% <span style="font-size:14px; color:#9ca3af;">Hit</span></div>
-      <div style="font-size:12px; color:#9ca3af; margin-top:4px;">Prompt caching discount active</div>
-    </div>
-    <div class="card">
-      <div class="metric-title">Active Thread / Task Spend</div>
-      <div class="metric-value" id="threadVal" style="color:#60a5fa;">$0.0000</div>
-      <div style="font-size:12px; color:var(--subtext); margin-top:4px;">Resets per chat/task session</div>
-    </div>
-    <div class="card">
-      <div class="metric-title">Potential Savings Opportunity</div>
-      <div class="metric-value" id="savingsVal" style="color:var(--yellow);">$0.0000</div>
-      <div style="font-size:12px; color:var(--subtext); margin-top:4px;" id="savingsNote">0 routine calls on flagship tier</div>
-    </div>
-    <div class="card">
-      <div class="metric-title">Proxy Port & Latency</div>
-      <div class="metric-value" id="latencyVal" style="font-size:22px;">8080 <span style="font-size:14px; color:var(--subtext);">| 0 ms</span></div>
-      <div style="font-size:12px; color:var(--subtext); margin-top:4px;">100% Local Zero-Egress Loopback</div>
-    </div>
-  </div>
-
-  <div class="card alert-box" id="insightCard">
-    <h3 style="font-size:14px; margin-bottom:4px; color:#fbbf24;">💡 Cost Optimization Insight</h3>
-    <p style="font-size:13px; color:#e5e7eb;">
-      Routine tasks (formatting, short checks) sent to flagship models like GPT-4o can be shifted to lighter models like <code>o3-mini</code> or <code>gemini-2.0-flash</code> for an estimated potential savings of up to ~90%.
-    </p>
-  </div>
-
-  <div class="card">
-    <h3 style="font-size:15px; margin-bottom:12px;">🔌 1-Click IDE Configuration</h3>
-    <p style="font-size:13px; color:var(--subtext); margin-bottom:10px;">
-      Point your favorite AI coding tool to TokenTotals' local loopback port to activate the circuit breaker:
-    </p>
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <span style="font-size:13px; font-weight:600;">Base URL: <code>http://127.0.0.1:8080/v1</code></span>
-      <button class="btn btn-copy" onclick="navigator.clipboard.writeText('http://127.0.0.1:8080/v1'); alert('Copied to clipboard!')">📋 Copy URL</button>
-    </div>
-    <pre><code>// Cursor & VS Code Settings:
-"openai.apiBase": "http://127.0.0.1:8080/v1"
-
-// Python / LangChain:
-from openai import OpenAI
-client = OpenAI(base_url="http://127.0.0.1:8080/v1", api_key="YOUR_KEY")</code></pre>
-  </div>
-
-  <div class="card">
-    <h3 style="font-size:14px; margin-bottom:6px;">📊 Model Pricing Chart & Docs</h3>
-    <p style="font-size:12px; color:var(--subtext);">Official vendor pricing is audited live directly from provider documentation:</p>
-    <div class="receipts-list">
-      <a class="receipt-link" href="https://openai.com/api/pricing/" target="_blank">🔗 OpenAI Official Pricing Receipt ↗</a>
-      <a class="receipt-link" href="https://www.anthropic.com/pricing" target="_blank">🔗 Anthropic Claude Pricing Receipt ↗</a>
-      <a class="receipt-link" href="https://ai.google.dev/pricing" target="_blank">🔗 Google Gemini Pricing Receipt ↗</a>
-    </div>
-  </div>
-</div>
-
-<script>
-async function refresh() {
-  try {
-    const res = await fetch('/api/status');
-    const data = await res.json();
-    document.getElementById('spendVal').innerText = '$' + data.current_spend_usd.toFixed(4);
-    document.getElementById('limitVal').innerText = '/ $' + data.daily_budget_limit_usd.toFixed(2) + ' Limit';
-    document.getElementById('remainingVal').innerText = 'Remaining: $' + data.remaining_budget_usd.toFixed(4);
-    document.getElementById('pctVal').innerText = data.budget_used_pct + '% Used';
-    document.getElementById('progressFill').style.width = Math.min(100, data.budget_used_pct) + '%';
-    document.getElementById('threadVal').innerText = '$' + data.thread_spend_usd.toFixed(4);
-    document.getElementById('savingsVal').innerText = '$' + data.potential_savings_usd.toFixed(4);
-    document.getElementById('savingsNote').innerText = data.flagged_routine_calls + ' routine calls flagged';
-    document.getElementById('latencyVal').innerHTML = data.port + ' <span style="font-size:14px; color:var(--subtext);">| ' + data.last_latency_ms + ' ms</span>';
-    
-    const badge = document.getElementById('statusBadge');
-    if (data.is_locked) {
-      badge.className = 'badge badge-red';
-      badge.innerText = '🔴 LIMIT REACHED';
-      document.getElementById('progressFill').style.background = 'var(--red)';
-    } else if (data.traffic_light === 'YELLOW') {
-      badge.className = 'badge';
-      badge.style.background = 'rgba(245, 158, 11, 0.2)';
-      badge.style.color = 'var(--yellow)';
-      badge.style.border = '1px solid var(--yellow)';
-      badge.innerText = '🟡 CAUTION (REVIEW)';
-      document.getElementById('progressFill').style.background = 'var(--yellow)';
-    } else {
-      badge.className = 'badge badge-green';
-      badge.innerText = '🟢 IN BUDGET';
-      document.getElementById('progressFill').style.background = 'var(--green)';
-    }
-  } catch(e) {}
-}
-
-async function addBoost() {
-  await fetch('/api/boost', {method:'POST'});
-  refresh();
-}
-
-setInterval(refresh, 2000);
-refresh();
-</script>
-</body>
-</html>"""
 
 if __name__ == "__main__":
     import uvicorn
     conf = config_manager.get_config()
-    port = conf.get("port", 8080)
-    uvicorn.run(app, host="127.0.0.1", port=port)
+    uvicorn.run(app, host="127.0.0.1", port=int(conf.get("port", 8080)))

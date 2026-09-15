@@ -1,0 +1,102 @@
+name: tests
+
+on:
+  push:
+    branches: [main, sol/forensic-hardening]
+  pull_request:
+  schedule:
+    - cron: '17 09 * * *'
+
+jobs:
+  runtime-smoke-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Create clean runtime environment
+        run: python -m venv .venv
+      - name: Verify supported Python runtime
+        run: .venv/bin/python runtime_compat.py
+      - name: Install constrained runtime dependencies
+        run: .venv/bin/python -m pip install -c constraints-py312.txt -r requirements.txt
+      - name: Verify constrained runtime dependency graph
+        run: .venv/bin/python -m pip check
+      - name: Import production proxy with constrained dependencies
+        run: |
+          .venv/bin/python - <<'PY'
+          import importlib.metadata
+          import litellm
+          import proxy_server
+
+          assert proxy_server.litellm is litellm
+          assert callable(litellm.acompletion)
+          assert getattr(litellm, "__file__", None)
+          print("LiteLLM runtime dependency:", importlib.metadata.version("litellm"))
+          print("proxy_server import: OK")
+          PY
+
+  runtime-smoke-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Create clean runtime environment
+        shell: pwsh
+        run: python -m venv .venv
+      - name: Verify supported Python runtime
+        shell: pwsh
+        run: .\.venv\Scripts\python.exe runtime_compat.py
+      - name: Install constrained runtime dependencies
+        shell: pwsh
+        run: .\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt -r requirements.txt
+      - name: Verify constrained runtime dependency graph
+        shell: pwsh
+        run: .\.venv\Scripts\python.exe -m pip check
+      - name: Import production proxy with constrained dependencies
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe -c "import importlib.metadata, litellm, proxy_server; assert proxy_server.litellm is litellm; assert callable(litellm.acompletion); print('LiteLLM runtime dependency:', importlib.metadata.version('litellm')); print('proxy_server import: OK')"
+
+  build-tool-smoke-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Create clean build environment
+        shell: pwsh
+        run: python -m venv .venv
+      - name: Verify supported Python runtime
+        shell: pwsh
+        run: .\.venv\Scripts\python.exe runtime_compat.py
+      - name: Install constrained runtime and build dependencies
+        shell: pwsh
+        run: .\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt -r requirements.txt pyinstaller
+      - name: Verify constrained build dependency graph
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe -m pip check
+          .\.venv\Scripts\python.exe -c "import PyInstaller; assert PyInstaller.__version__ == '6.22.3'; print('PyInstaller:', PyInstaller.__version__)"
+
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Create clean test environment
+        run: python -m venv .venv
+      - name: Verify supported Python runtime
+        run: .venv/bin/python runtime_compat.py
+      - name: Install constrained test dependencies
+        run: .venv/bin/python -m pip install -c constraints-py312.txt -r requirements-dev.txt
+      - name: Verify constrained test dependency graph
+        run: .venv/bin/python -m pip check
+      - name: Run regression and loopback integration suite
+        run: .venv/bin/python -m pytest -q

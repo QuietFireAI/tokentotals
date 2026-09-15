@@ -1,265 +1,297 @@
-# 🛡️ TokenTotals by QuietFireAI
+# TokenTotals by QuietFireAI
 
-> **The Local, Open-Source Airbag for AI Developers & Autonomous Agents.**  
-> *Real-time cost estimation, budget notification, and advisory alerts, local zero-egress proxying, and real-time cost telemetry for Cursor, Windsurf, VS Code, and Python agent swarms.*
+> A local LLM cost-estimation proxy with conservative pre-flight budget reservations, local spend state, and a Windows tray/dashboard UI.
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Localhost Only](https://img.shields.io/badge/Security-Zero--Egress%20Localhost-brightgreen.svg)]()
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
-
+TokenTotals listens on `127.0.0.1`, forwards supported chat-completion requests through LiteLLM, estimates transaction cost from a verified pricing view, and reserves conservative spend **before** an upstream request is sent. After a response reports usage, the reservation is reconciled to the best supported estimate.
 
 > [!IMPORTANT]
-> **Operational Scope & Liability Disclaimer:** TokenTotals is an independent developer cost calculator, real-time telemetry estimator, and local notification daemon. It calculates estimated spend based on published provider rates and notifies developers when custom threshold limits are met. TokenTotals **does not** guarantee exact third-party vendor billing alignment, nor does it guarantee absolute network-level traffic blocking under all operating system configurations. Users remain solely responsible for monitoring their direct cloud provider accounts.
+> TokenTotals is a developer pacing/observability tool, **not a provider billing portal or network firewall**. Dollar values are independent estimates based on the request/response telemetry available to the user and the provider pricing rules represented in TokenTotals. Provider billing can differ because of model snapshots, token and cache telemetry, context bands, requested versus actual service tier, regional processing, modality, hosted tools, storage/runtime meters, fine-tuning, promotions/effective dates, account-specific pricing, retries/partial streams, missing telemetry, and provider-side pricing changes. Always monitor the provider's own account and billing controls as the authority for actual charges.
 
----
+See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_STANDARD.md) for the governing accuracy and disclosure standard and [`docs/TOKEN_ESTIMATION_CONTRACT.md`](docs/TOKEN_ESTIMATION_CONTRACT.md) for the pre-flight token-estimation boundary.
 
-## 👁️ Three Ways You Stay Protected: The Look, The Hook, & The Dash
+## What is implemented
 
-TokenTotals surfaces real-time cost transparency and budget enforcement everywhere you work:
+- FastAPI proxy on `127.0.0.1`.
+- `/v1/chat/completions` routing through LiteLLM.
+- Checked-in, dated base pricing catalog with official provider receipt URLs.
+- Official-source OpenAI pricing checker for the supported OpenAI models in this revision.
+- Validated OpenAI candidate snapshots that are promoted separately from the last verified runtime snapshot.
+- Non-destructive official-source validation for the dated Anthropic and Google matrix base rates and represented conservative guard rates.
+- A schedule-first daily pricing-integrity workflow that verifies sources, regenerates pricing/documentation surfaces, archives an immutable timestamped daily receipt, runs integrity/regression gates, publishes one atomic commit, and then sends the generated daily report when SMTP secrets are configured.
+- A 24-hour freshness validator/watchdog that proves the most recent successful daily refresh is still current; it does not trigger the refresh.
+- Unknown model pricing **fails closed** instead of using a generic dollar fallback.
+- Conservative pre-flight reservation for estimated input **and bounded output** tokens.
+- Atomic in-process budget check/reservation and post-response reconciliation.
+- Request-scoped thread/routine/savings accounting stays local to each request rather than using shared callback globals.
+- Daily local spend state and active-thread spend state under `~/.tokentotals`.
+- Lock state with desktop tray/modal monitoring on the Windows GUI.
+- Request-supplied `I UNDERSTAND` acknowledgment requirement for the HTTP unlock endpoint; surrounding whitespace and letter case are normalized, but different wording is rejected.
+- Request-supplied `BOOST $5` acknowledgment for HTTP/dashboard budget boosts.
+- HTTP state-changing controls (`/api/unlock` and `/api/boost`) require `Content-Type: application/json`, valid object JSON, and the applicable acknowledgment phrase before state mutation.
+- No permissive CORS middleware; the tested foreign-origin preflight is not granted, and browser-style `text/plain` state-control POSTs are rejected before mutation.
+- Dashboard that displays runtime state only; it does not ship fake token/cache telemetry.
+- SSE-style streaming pass-through. If final usage is unavailable, TokenTotals keeps the conservative reservation and marks the stream unreconciled rather than inventing a final cost.
+- A validated CPython 3.12 dependency contract with a version-constrained runtime/test/build dependency graph.
+- Clean Linux and Windows runtime smoke checks plus a constrained Windows PyInstaller toolchain check.
+- Real Uvicorn/loopback HTTP integration tests and a bounded repeated-concurrency integrity soak.
 
-### 1. 🚦 The Look (Glanceable System Tray Icon)
-* 🟢 **Green "T":** In Budget (Cruising safely).
-* 🟡 **Amber "T":** 75%–99% of daily budget (Heads up, heavy agent usage today).
-* 🔴 **Red "T":** 100% Limit Reached / Budget Threshold Alert Engaged (Desktop modal alert requiring `"I UNDERSTAND"` or `[ +$5 Quick Boost ]`).
+## What is **not** claimed
 
-### 2. 🪝 The Hook (Turn-by-Turn Chat Telemetry Badge)
-Every single developer turn or agent interaction renders a clean, live telemetry badge directly in your working context:
+- Pre-flight token counts are **not represented as provider/model BPE counts**. The current local estimator is a conservative UTF-8 length heuristic.
+- TokenTotals does not claim invoice parity or guaranteed identity with provider billing.
+- The current OpenAI source synchronization is not the same thing as a complete OpenAI billing adapter. Service-tier, cache, context-band, regional, tool, modality, storage, and other billing-event accounting are implemented only when specifically documented and tested.
+- Anthropic and Google do not yet have the dynamic official-source synchronization path implemented for OpenAI; they remain dated verified catalog entries in this revision. Their live source validation checks represented base/standard and conservative guard rates but does not automatically promote new rates into runtime pricing.
+- It does not intercept applications that bypass the configured local proxy.
+- It does not provide a TokenTotals WebSocket proxy endpoint.
+- It does not inject a telemetry badge into every IDE/chat turn.
+- It is not a FedRAMP/FISMA authorization and does not make an environment compliant by itself.
+- The packaged GUI/build path in this repository is currently Windows-oriented. The Python proxy may be portable, but macOS/Linux GUI packaging is not release-tested here.
+- The HTTP acknowledgment phrases are **not authentication secrets**. A malicious local process running with the user's privileges can deliberately call the loopback control endpoint with valid JSON and the published phrase.
+- The dependency constraints provide version reproducibility for the validated CPython 3.12 environments; they are not a cryptographic package-artifact/hash guarantee.
+- The bounded 32-concurrent / 256-request loopback soak is an integrity proof, not a production throughput rating or multi-process guarantee.
+
+See [`INTEGRITY_REPORT.md`](INTEGRITY_REPORT.md) for the forensic findings that led to these corrections.
+
+## Pricing authority
+
+`pricing_engine.py` is the runtime pricing view used by both the proxy and the matrix generator.
+
+The base is [`pricing_catalog.json`](pricing_catalog.json). For OpenAI, a successfully validated and promoted snapshot at `~/.tokentotals/pricing/openai_verified.json` overlays the checked-in OpenAI entries. Candidate, status, and history files stay separate from the promoted runtime snapshot so a failed or suspicious source update cannot silently replace the last verified rates.
+
+`openai_pricing_sync.py` checks the official OpenAI developer documentation for the OpenAI models currently supported by this pricing adapter. A complete candidate must parse and validate before promotion. Incomplete fetches preserve the previous verified snapshot. Large suspicious rate jumps are quarantined, and source-content changes that do not correspond to a recognized pricing/rule change are held for review instead of being treated as harmless.
+
+Pricing freshness is **schedule-first**. The daily integrity workflow runs once per day at `05:05 UTC` plus explicit manual dispatch. It verifies provider evidence regardless of whether yesterday's rates changed. Price/model drift is an audit result discovered during that run, not the trigger for the run. After a successful refresh, the generated pricing status is archived under `docs/pricing_archive/YYYY/MM/` and the 24-hour checker acts only as a completion/freshness watchdog. See [`docs/DAILY_INTEGRITY_REFRESH.md`](docs/DAILY_INTEGRITY_REFRESH.md).
+
+Official pricing receipts used by this revision:
+
+- OpenAI: https://developers.openai.com/api/docs/pricing
+- Anthropic: https://platform.claude.com/docs/en/about-claude/pricing
+- Google Cloud: https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
+
+Anthropic and Google continue to use the checked-in dated catalog until equivalent official-source adapters are separately implemented and tested. `matrix_source_check.py` independently checks their represented base/standard rates and conservative guard rates against those official pages during the scheduled daily integrity run and explicit manual verification runs. It is deliberately non-destructive: drift, a parsing ambiguity, a missing model row, an unsupported guard value, or an expired effective-dated rate fails the check rather than rewriting runtime pricing.
+
+The Google Gemini 3.6/3.7/3.8 Flash promotional rates represented in this revision are effective only through **2026-12-31**. Their catalog records carry that expiration so the validator cannot continue treating the historical promotional number as current after its effective window ends.
+
+The human-readable matrix and the marked README pricing snapshot are generated with:
+
+```bash
+python generate_model_matrix.py
+```
+
+The generator reads the same effective pricing view as the runtime. Regenerating after an OpenAI snapshot promotion therefore uses the promoted OpenAI rates rather than an independent hand-maintained table. CI checks both the committed portable matrix and the README pricing block against the generator/base verified pricing view so stale model/rate tables cannot silently survive below the fold.
+
+Unknown models are rejected until a verified pricing entry is deliberately added. This is intentional: TokenTotals should say **unknown** rather than quietly inventing a plausible dollar rate.
+
+<!-- TOKENTOTALS_VERIFIED_PRICING_START -->
+## Current verified model pricing snapshot
+
+**Verified catalog date:** 2026-09-15
+
+**Official sources last checked:** 2026-09-15T14:42:31Z
+
+**Freshness contract:** a verified pricing receipt is CURRENT for at most 24 hours from `source_checked_at`. Once older than 24 hours, TokenTotals treats the pricing surface as STALE and the integrity gate fails closed until a new verified refresh succeeds.
+
+**Comparison workload:** 10,000 input tokens + 2,000 output tokens.
+
+This block is generated from the same `pricing_engine` view used by the proxy, `MODEL_COMPARISON_MATRIX.md`, and the pricing status documentation. Dollar values are independent approximations from represented provider rules and observed/estimated telemetry, not provider invoices.
+
+| Provider | Verified model | Base input / 1M | Base output / 1M | 10K in + 2K out base estimate | Conservative pre-flight reservation |
+| :--- | :--- | ---: | ---: | ---: | ---: |
+| Anthropic | `claude-fable-5.1` | $10 | $50 | $0.200000 | $0.300000 |
+| Anthropic | `claude-haiku-4.5` | $1 | $5 | $0.020000 | $0.030000 |
+| Anthropic | `claude-opus-5` | $5 | $25 | $0.100000 | $0.150000 |
+| Anthropic | `claude-sonnet-5` | $2 | $10 | $0.040000 | $0.060000 |
+| Google | `gemini-3.1-flash-lite` | $0.25 | $1.5 | $0.005500 | $0.010890 |
+| Google | `gemini-3.1-pro-preview` | $2 | $12 | $0.044000 | $0.136800 |
+| Google | `gemini-3.5-flash` | $1.5 | $9 | $0.033000 | $0.065340 |
+| Google | `gemini-3.5-flash-lite` | $0.3 | $2.5 | $0.008000 | $0.015840 |
+| Google | `gemini-3.6-flash` | $0.75 | $3.75 | $0.015000 | $0.029700 |
+| Google | `gemini-3.7-flash` | $0.75 | $3.75 | $0.015000 | $0.029700 |
+| Google | `gemini-3.8-flash` | $0.75 | $3.75 | $0.015000 | $0.029700 |
+| OpenAI | `gpt-5.6-luna` | $0.2 | $1.2 | $0.004400 | $0.007600 |
+| OpenAI | `gpt-5.6-sol` | $4 | $20 | $0.080000 | $0.140000 |
+| OpenAI | `gpt-5.6-terra` | $2 | $12 | $0.044000 | $0.076000 |
+| OpenAI | `gpt-6-astra` | $10 | $50 | $0.200000 | $0.700000 |
+
+Base-turn approximation:
 
 ```text
-🟢 Status: In Budget | Today: $0.42 / $10.00 | Thread: $0.08
-📊 🤖 Model: Gemini 3.7 Flash (gemini-3.7-flash)
-📊 Turn: ~$0.0006 (🧠 42 think / 💬 610 out) | 💾 Cache Savings: ~95%
-⚡ Velocity: ~262.1k tok/turn (28.8M total) | 📈 Session Total: $22.68 USD (109 turns)
-🪟 Context Window: 42.84% (449.2k / 1M max limit)
-ℹ️ Current Pricing: In $0.15 / Out $0.60 per 1M | Public Sync: 2026-09-09
+base_estimate = (input_tokens / 1,000,000 × base_input_rate)
+              + (output_tokens / 1,000,000 × base_output_rate)
 ```
 
-### 3. 📊 The Dash (Localhost Web Dashboard)
-Visit `http://127.0.0.1:8080/dashboard` in your browser for:
-* Live Spend Fuel Gauge & dollar headroom.
-* Per-thread/task spend tracking.
-* 1-Click configuration copy for Cursor, VS Code, and Python.
-* Verified provider pricing documentation receipts.
+Pre-flight reservation uses the same formula with the catalog's conservative guard rates. The guard is deliberately a high-side pacing amount; it is **not** a prediction that the provider will invoice that amount. After usable provider token telemetry arrives, TokenTotals reconciles the reservation to the most specific supported estimate. Unknown pricing fails closed instead of receiving an invented rate.
 
----
+The compact table shows represented base text-token rates. Context bands, cache read/write rates, service modes, region, tools, modalities, promotions/effective dates, account-specific pricing, and other billable dimensions can change the applicable provider charge. See [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md) for row-by-row guard rates and [docs/PRICING_DAILY_STATUS.md](docs/PRICING_DAILY_STATUS.md) for the latest source-check receipt.
+<!-- TOKENTOTALS_VERIFIED_PRICING_END -->
 
-## 💥 The Problem: The "$400 Morning Surprise"
+## Budget-gate behavior
 
-If you build with AI agents (Cursor Composer, Claude Code, CrewAI, AutoGen, or custom LangChain swarms), you know the nightmare:
-An agent enters a recursive reasoning loop or a retry storm while you are away from your desk. 
+For a supported model TokenTotals:
 
-* **The 24-Hour Reporting Lag:** Cloud providers (OpenAI, Anthropic) delay their billing dashboards by 1 to 24 hours. By the time you get the warning email, your credit card has already been billed hundreds of dollars.
-* **In-Flight Streams Bypass Caps:** Soft provider spend limits rarely terminate an active streaming generation mid-sentence.
-* **Multi-Tool Blindspot:** When running 5 different scripts and tools sharing one API key, there is no single dashboard on your machine tracking your total burn rate.
+1. estimates incoming prompt tokens locally;
+2. resolves a verified pricing record;
+3. chooses/validates a bounded output-token allowance;
+4. computes a conservative high-side reservation for estimated input plus the bounded output ceiling;
+5. atomically checks and commits that reservation against the daily limit **before** the upstream call begins;
+6. sends the request only if the reservation succeeds;
+7. reconciles the reservation to provider-reported token usage when available.
 
----
+If a caller supplies both `max_tokens` and `max_completion_tokens`, TokenTotals reserves against the larger valid ceiling. If a stream ends without usable final usage telemetry, the conservative reservation remains on the books and the stream is marked unreconciled rather than silently releasing budget headroom.
 
-## 🛡️ The Solution: TokenTotals
+This closes the baseline implementation's input-only pre-flight gap and its check-then-send concurrency race within a single TokenTotals process. Simultaneous-request regression tests also verify that the process-local reservation gate admits only one of two reservations that cannot both fit, and that overlapping requests keep their own thread/routine/savings context through reconciliation.
 
-TokenTotals runs as a silent, featherweight daemon in your system tray on `http://127.0.0.1:8080`. 
+### Important process boundary
 
-Point your IDE, agent framework, or scripts to `http://127.0.0.1:8080/v1` instead of calling `api.openai.com` directly. 
+The budget lock in this revision is **process-local**. Do not run multiple TokenTotals proxy processes against the same state file and assume the hard-budget invariant is preserved. Cross-process locking is a separate requirement.
 
-```
-[ Cursor / Windsurf / Python Scripts / Agent Swarms ]
-                       │
-                       ▼ (Calls http://127.0.0.1:8080/v1)
-            ┌─────────────────────┐
-            │  TokenTotals Proxy   │ ──► 1. Pre-flight BPE token count & budget audit
-            │   (Local on your PC) │ ──► 2. Checks Daily Cap ($10.00) & Thread Spend
-            └─────────────────────┘ ──► 3. Calculates Potential Savings vs Flash/Mini
-                       │
-                       ▼ (Forwarded directly if under budget)
-             [ OpenAI / Anthropic / Google Gemini ]
-```
+## HTTP budget controls
 
----
+The two state-changing HTTP controls are deliberately narrower than ordinary proxy requests:
 
-## ✨ Key Features
+- `/api/unlock` requires `application/json`, an object payload, and the `I UNDERSTAND` acknowledgment phrase.
+- `/api/boost` requires `application/json`, an object payload, and the `BOOST $5` acknowledgment phrase.
 
-### 1. 🛑 The Advisory Budget Threshold & Alert
-* The microsecond a request would breach your daily limit (default: \$10.00), TokenTotals triggers an advisory pause and pops an un-ignorable desktop notification alert.
-* An un-ignorable, topmost desktop modal pops up with an audio alert.
-* Requires typing **`"I UNDERSTAND"`** or clicking **`[ +$5 Quick Boost ]`** to unlock.
+The API trims surrounding whitespace and compares acknowledgment letter case insensitively. Missing bodies, malformed JSON, explicit JSON `null`, non-object payloads, and different phrases are rejected before state mutation.
 
-### 2. 🚦 Traffic Light Glanceable Tray Icon
-* 🟢 **Green "T":** Under 75% of daily budget (Cruising safely).
-* 🟡 **Amber "T":** 75%–99% of budget (Heads up, heavy agent usage today).
-* 🔴 **Red "T":** 100% Breached / Locked (Circuit breaker engaged, zero egress).
+The IR-011 revalidation specifically found that the first hardening pass was incomplete: despite removing permissive CORS and requiring the phrase, a cross-origin `text/plain` POST containing JSON text still returned HTTP 200 because `request.json()` parsed it. The final repair added the shared JSON-only state-action gate. Regression tests now require that browser-style simple POST to receive HTTP 415 and that the tested foreign-origin CORS preflight receive no grant.
 
-### 3. 📊 Built-In Web Dashboard
-Left-click the tray icon or visit `http://127.0.0.1:8080/dashboard` in your browser to view:
-* Live Spend Fuel Gauge & remaining dollar headroom.
-* Per-thread/task spend tracking.
-* **Potential Savings Opportunity Meter:** Identifies when flagship models (GPT-4o / o1) were used for routine/short queries that could have used lighter models for ~90% savings.
-* 1-Click configuration copy for all major IDEs.
-* Direct receipts and links to official provider pricing documentation.
+A successful boost increases the configured daily limit by exactly `$5.00` and releases the lock; it does not reset previously tracked spend/accounting. A successful unlock releases the lock without changing the configured budget or accounting.
 
-### 4. 🔒 Localhost-Only Architecture
-* **Zero Telemetry:** No tracking, no user accounts, no external analytics.
-* **Direct Encryption:** HTTPS requests travel directly from `127.0.0.1` to the vendor's API. No middleman servers ever touch your keys.
-* **100% Free & Open Source:** Licensed under **GNU GPLv3**.
+## Python and dependency contract
 
----
+The currently validated source/runtime dependency contract is **CPython 3.12.x**.
 
-## 🚀 Quickstart
+`constraints-py312.txt` pins the validated runtime/test/build dependency versions. Platform-specific packages use environment markers where the validated Linux and Windows graphs differ. Deliberate dependency upgrades should update the constraints and pass the Linux runtime, Windows runtime, Windows build-tool, and regression jobs together.
 
-### 1. Run the Executable (Windows)
-Download the latest `TokenTotals_Windows_v2.8.zip` from Releases, unzip, and run:
-`TokenTotals_QuietFireAI.exe`
+`runtime_compat.py` is the machine-readable compatibility check used by CI. The GitHub Actions workflow exercises the Python-version contract and constrained dependency graph on pushes and pull requests and includes daily drift checking when the relevant scheduled workflows are present on the default branch.
 
-A green "T" will appear in your system tray, and the proxy will start listening on port 8080.
+## Quickstart from source
 
-### 2. Configure Your Tools
+Confirm Python 3.12 first:
 
-#### Cursor / VS Code:
-1. Open Cursor Settings (`Ctrl + ,` or `Cmd + ,`).
-2. Search for `OpenAI Base URL`.
-3. Set the Base URL to:
-   ```
-   http://127.0.0.1:8080/v1
-   ```
-4. Enter your regular OpenAI / Anthropic API key as usual.
-
-#### Python / LangChain:
-```python
-from openai import OpenAI
-
-client = OpenAI(
-    base_url="http://127.0.0.1:8080/v1",
-    api_key="your-api-key-here"
-)
-
-response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[{"role": "user", "content": "Hello world"}]
-)
+```bash
+python --version
+python runtime_compat.py
 ```
 
----
+Then install through the validated constraints:
 
-## ⚙️ Configuration (`~/.tokentotals/config.json`)
+```bash
+python -m venv .venv
+# Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+python -m pip install -c constraints-py312.txt -r requirements.txt
+python -m pip check
+python proxy_server.py
+```
+
+The proxy/dashboard will listen on the configured loopback port (default `8080`):
+
+```text
+http://127.0.0.1:8080/v1
+http://127.0.0.1:8080/dashboard
+```
+
+Configure a compatible client to use the local `/v1` base URL and provide the real provider API key through that client.
+
+## Configuration
+
+`~/.tokentotals/config.json` defaults to:
 
 ```json
 {
-    "daily_budget_limit_usd": 10.0,
-    "port": 8080,
-    "auto_economy_mode": false,
-    "warning_threshold_pct": 75
+  "daily_budget_limit_usd": 10.0,
+  "port": 8080,
+  "auto_economy_mode": false,
+  "warning_threshold_pct": 75,
+  "default_max_output_tokens": 4096
 }
 ```
 
-* `daily_budget_limit_usd`: Your hard spending cap for the calendar day.
-* `port`: Local port to bind the proxy server.
-* `auto_economy_mode`: If set to `true`, automatically remaps routine/simple prompts to `o3-mini` or `gemini-2.0-flash`. (Default: `false` - advisory only).
+`default_max_output_tokens` is used when a request does not provide a maximum output bound. TokenTotals may lower that bound further when the remaining budget cannot safely reserve the configured amount.
 
----
+## Windows tray application
 
+`app_gui.py` starts the proxy, tray monitor, and dashboard integration. The modal lock dialog requires the `I UNDERSTAND` acknowledgment phrase before native unlock. The native `+$5` button is an explicit local user action.
 
+Build on Windows with CPython 3.12:
 
----
-
-## 🤝 Open Source Community: Fork It & Make It Yours!
-
-TokenTotals is released under the **GNU General Public License v3.0 (GPLv3)**. 
-
-We encourage developers, researchers, and community builders to:
-* **Fork the repo** and experiment with your own custom local heuristic rules.
-* **Build custom adapters** for local LLMs (Ollama, LM Studio, vLLM).
-* **Craft your own telemetry dashboards** and share your widgets with the community.
-* **Submit PRs** to expand provider support and add new safety circuit-breaker triggers.
-
-
----
-
-## ⚖️ Operational Scope & Billing Disclaimer
-
-> **IMPORTANT: TokenTotals is an Observability & Pacing Governor, Not an Upstream Account Portal.**
-
-1. **No Account or Credit Line Access:** TokenTotals does **NOT** query, read, or interface with your credit card, bank account, or internal provider billing portals (e.g. OpenAI Billing Dashboard or Anthropic Console). We do not touch your actual account balances or credits.
-2. **Local Contextual Estimation:** All dollar metrics (Today's Spend, Thread Spend, Potential Savings) are **locally computed mathematical estimates** based on the raw token payloads passing through this local proxy, calculated against official published vendor pricing catalogs.
-3. **Pacing & Protection, Not Invoicing:** TokenTotals acts as an on-the-wire airbag and telemetry monitor for your development workflow. It does not replace or modify your official end-of-month provider billing statements.
-
-
----
-
----
-
-
----
-
-## 📊 Standardized Cross-Platform Pricing Comparison (Developer API Stack)
-
-TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet** / **Claude 3.5 Haiku**), **OpenAI** (**o1** / **GPT-4o** / **o3-mini** / **GPT-4o-mini**), and **Google** (**Gemini 2.5 Pro** / **Gemini 2.0 Flash** / **Gemini 2.0 Flash-Lite**):
-
-### Standard Turn Cost (10,000 Input / 2,000 Output Tokens)
-
-| Provider | Model | Tier | Standard Turn Cost | Multiplier vs. Baseline |
-| :--- | :--- | :--- | :--- | :--- |
-| **OpenAI** | OpenAI o1 | Frontier | **$0.2700** | **200.0x** |
-| **Anthropic** | Claude 3.7 Sonnet | Frontier | **$0.0600** | **44.4x** |
-| **OpenAI** | GPT-4o | Workhorse | **$0.0450** | **33.3x** |
-| **Google** | Gemini 2.5 Pro | Frontier | **$0.0325** | **24.1x** |
-| **OpenAI** | o3-mini | Reasoning | **$0.0198** | **14.7x** |
-| **Anthropic** | Claude 3.5 Haiku | Economy | **$0.0160** | **11.9x** |
-| **OpenAI** | GPT-4o-mini | Economy | **$0.0027** | **2.0x** |
-| **Google** | Gemini 2.0 Flash | Workhorse | **$0.0018** | **1.33x** |
-| **Google** | Gemini 2.0 Flash-Lite | Economy | **$0.00135** | **1.0x (Baseline)** |
-
-*For complete details, see [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md).*
-
-
-## 🔍 The Data Was There All Along
-
-Every single API response from OpenAI, Anthropic, and Google already contains everything you need to calculate your exact spend in real time:
-
-```json
-// What the API already returns in EVERY response:
-{
-  "usage": {
-    "prompt_tokens": 34521,        // <-- They KNEW how many tokens you sent
-    "completion_tokens": 1847,     // <-- They KNEW how many they generated
-    "prompt_tokens_details": {
-      "cached_tokens": 32768       // <-- They KNEW you were being cached at 90% discount
-    }
-  }
-}
+```powershell
+.\build.ps1
 ```
 
-The pricing per million tokens is published on their public websites. The math is grade-school multiplication:
+The build script refuses another Python major/minor, installs through `constraints-py312.txt`, runs `pip check`, and uses the constrained PyInstaller toolchain. It no longer depends on a developer-specific Antigravity/Gemini plugin directory and bundles `pricing_catalog.json` with the application.
 
+## Tests
+
+Install development dependencies through the same constraints and run:
+
+```bash
+python -m pip install -c constraints-py312.txt -r requirements-dev.txt
+python -m pip check
+python -m pytest -q
 ```
-(tokens / 1,000,000) x price_per_million = your_cost
-```
 
-**That is all TokenTotals does.** It reads the numbers the providers were already sending you, multiplies by their own published prices, and shows you the running total they chose not to.
+The forensic hardening suite now covers:
 
-> *The frontier AI labs raised $50 billion to build Artificial General Intelligence that can write poetry, pass the bar exam, and design microchips... but somehow, none of them built a gas gauge.*
+- verified input/output cost math;
+- fail-closed unknown model pricing;
+- high-side pre-flight guard rates;
+- atomic reservation/reconciliation;
+- true simultaneous in-process reservation contention;
+- overlapping request-context isolation for thread identity, routine classification, and potential-savings metadata;
+- regression guards preventing the old shared request-scoped globals/callback from returning;
+- HTTP unlock rejection for missing, malformed, null, non-object, text/plain, or wrong acknowledgment input;
+- intentional case/whitespace normalization of the `I UNDERSTAND` phrase;
+- proof that successful unlock changes only the lock flag and preserves accounting plus configured budget;
+- HTTP boost rejection for browser-style text/plain requests, explicit JSON null, empty/wrong confirmation, and ungranted foreign-origin preflight;
+- proof that successful boost changes only the `$5` budget increase and lock release while preserving accounting;
+- prevention of upstream calls after price/budget rejection;
+- bounded output reservation, including conflicting output-bound fields;
+- proof that the full input-plus-output reservation is committed before upstream execution begins;
+- retention of the conservative reservation when a stream ends without final usage telemetry;
+- reservation against the exact model actually selected for auto-economy routing;
+- removal of hard-coded dashboard telemetry and source-backed dashboard dynamic fields;
+- public-claim guard preventing the unsupported turn-by-turn telemetry badge claim from returning;
+- non-stream response pass-through proof that provider assistant content is not silently decorated by TokenTotals;
+- exact current pre-flight UTF-8 heuristic behavior, model-independence, and a claim guard prohibiting BPE/exact/provider-accurate wording;
+- provider-reported token usage superseding an intentionally divergent pre-flight heuristic during supported reconciliation;
+- OpenAI official-source pricing parsing;
+- preservation of the last verified OpenAI snapshot after incomplete/failed checks;
+- runtime consumption of the same promoted OpenAI snapshot;
+- quarantine of suspicious price jumps;
+- same-day retry after failed source checks;
+- review-required handling when source content changes without a recognized pricing/rule change;
+- committed matrix and README pricing-block drift detection against the base verified pricing view;
+- Anthropic/Google live matrix-source parsing anchored to their base/standard pricing sections;
+- live base-rate and guard-rate drift rejection rather than silent catalog acceptance;
+- effective-date expiry enforcement for promotional matrix rates;
+- schedule-first daily refresh with the 24-hour completion watchdog;
+- immutable timestamped daily status archiving and overwrite rejection;
+- construction of the successful daily email receipt from the generated status and exact published SHA;
+- real Uvicorn loopback integration and repeated-concurrency accounting integrity through 32 simultaneous requests × 8 rounds / 256 total requests;
+- clean-install use of the real declared LiteLLM dependency rather than a test-injected stand-in;
+- public-claim guards that prevent a blanket all-provider “audited live” claim and preserve the actual provider synchronization scope;
+- runtime requirement coverage by the Python 3.12 constraints;
+- clean constrained environments on Linux and Windows;
+- Python 3.12 agreement across the compatibility contract, CI, and Windows build path;
+- constrained Windows PyInstaller packaging dependencies.
 
-TokenTotals exists because an independent developer got tired of waiting.
+The current regression/integration suite passed **64 tests / 0 failures** on Ubuntu/Python 3.12.14 on the IR-014 proof revision. The same exact head passed constrained Linux runtime import, constrained Windows runtime import, Windows PyInstaller/build-tool smoke, and `pip check`. Separate live provider-source workflows also validate the represented pricing sources. This is regression/source-validation evidence, not a claim of provider invoice parity, unlimited throughput, multi-process safety, or paid-provider network reliability.
 
----
+See [`docs/DAILY_INTEGRITY_REFRESH.md`](docs/DAILY_INTEGRITY_REFRESH.md) for the scheduled refresh/archive/email contract; [`docs/TOKEN_ESTIMATION_CONTRACT.md`](docs/TOKEN_ESTIMATION_CONTRACT.md) and [`docs/IR-014_TOKEN_ESTIMATION_PRECISION_PROOF.md`](docs/IR-014_TOKEN_ESTIMATION_PRECISION_PROOF.md) for token-estimation integrity; [`docs/IR-022_HTTP_INTEGRATION_LOAD_PROOF.md`](docs/IR-022_HTTP_INTEGRATION_LOAD_PROOF.md) and [`docs/IR-023_SUSTAINED_CONCURRENCY_SOAK_PROOF.md`](docs/IR-023_SUSTAINED_CONCURRENCY_SOAK_PROOF.md) for loopback/load evidence; and [`INTEGRITY_REPORT.md`](INTEGRITY_REPORT.md) for the full forensic ledger.
 
-## 🏛️ Government, Defense & Enterprise
+## Security and privacy boundary
 
-TokenTotals' localhost-only architecture is uniquely suited for environments where cloud-based FinOps tools are prohibited or infeasible:
+The HTTP listener binds to IPv4 loopback when started through the supplied server paths. TokenTotals itself does not send analytics to a QuietFireAI service. **Upstream model requests still leave the machine and go to the selected AI provider**; “local proxy” does not mean the AI request itself is zero-egress.
 
-### Why Government & Defense Need This:
-* **OMB Budget Accountability:** Federal agencies running AI pilots on GPT-5 or Claude for document processing, intelligence analysis, or citizen services face Congressional audit scrutiny on every line item. TokenTotals provides per-task cost attribution without transmitting classified or sensitive data off-machine.
-* **FedRAMP & FISMA Compliance:** Cloud SaaS FinOps tools (Portkey, Helicone, Langfuse) require years of security certification before deployment in federal environments. A local, zero-egress tool that never transmits data off the machine sails through compliance review.
-* **Air-Gapped & Classified Networks (SCIFs):** Defense and intelligence community workloads on air-gapped networks literally *cannot* use cloud dashboards. A local loopback proxy is the only architecture that works.
+API keys are passed to LiteLLM for the upstream request and are not intentionally persisted by TokenTotals. Users should still review LiteLLM/provider behavior and their own operating environment before handling sensitive material.
 
-### Commercial Enterprise Licensing:
-TokenTotals is free and open-source (GPLv3) for individual developers and open-source projects.
+The acknowledgment phrases are explicit-intent controls, not credentials. The browser-origin hardening reduces accidental/remote-web triggering of localhost controls; it does not claim to defend against a malicious process already executing locally with the user's permissions.
 
-For **government contractors, federal system integrators, and enterprise teams** that require proprietary licensing, SLA-backed support, compliance documentation, and audit trail exports:
+## License
 
-📧 **Contact:** quietfireai@gmail.com  
-🔗 **ORCID:** [0009-0000-1375-1725](https://orcid.org/0009-0000-1375-1725)
+GNU General Public License v3.0. See [`LICENSE`](LICENSE).
 
-## 📜 License & Trust
-
-Distributed under the **GNU General Public License v3.0 (GPLv3)**. See `LICENSE` for details.
-
-Built by **QuietFireAI**. Support independent open-source AI safety tools at:  
-☕ [buymeacoffee.com/jeffphillips](https://buymeacoffee.com/jeffphillips)
+Built by QuietFireAI.
