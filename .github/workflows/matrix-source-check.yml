@@ -1,0 +1,25 @@
+name: matrix-source-check
+
+on:
+  push:
+    branches: [sol/forensic-hardening]
+    paths:
+      - 'pricing_catalog.json'
+      - 'MODEL_COMPARISON_MATRIX.md'
+      - 'matrix_source_check.py'
+      - 'tests/test_matrix_source_check.py'
+      - '.github/workflows/matrix-source-check.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '41 9 * * *'
+
+jobs:
+  validate-live-dated-provider-matrix-rates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate Anthropic and Google matrix rates against official sources
+        run: python matrix_source_check.py
