@@ -82,13 +82,13 @@ Google's Gemini 3.6/3.7/3.8 Flash promotional matrix records now carry `effectiv
 
 **Validation:** on the final IR-005 matrix revision, the clean GitHub Actions regression suite passed **29/29**, and the separate `matrix-source-check` workflow successfully fetched and validated the live Anthropic and Google official pricing pages. No pricing file was modified by that live validator.
 
-### IR-006 — Clean install omitted required dependency — CONFIRMED DEFECT
+### IR-006 — Clean install omitted required dependency — CONFIRMED DEFECT / REPAIRED AND REVALIDATED
 
 Baseline `proxy_server.py` imported `litellm`; baseline `requirements.txt` did not install it.
 
-**Repair:** `litellm` is now a runtime requirement. The proxy guardrail tests were also corrected so they no longer inject a fake `litellm` module that could mask a missing dependency. The clean GitHub Actions environment installs `requirements-dev.txt`, which includes `requirements.txt`, imports the real installed LiteLLM package, and verifies that `proxy_server.litellm` is that installed module.
+**Repair:** `litellm` is now a runtime requirement. The proxy guardrail tests were also corrected so they no longer inject a fake `litellm` module that could mask a missing dependency. Clean runtime smoke jobs create fresh virtual environments, install the declared runtime requirements through the validated Python 3.12 constraints, import the real installed LiteLLM package, and verify that `proxy_server.litellm` is that installed module.
 
-**Validation:** clean Ubuntu/Python 3.12 CI installed LiteLLM from the declared requirements and passed the hardened dependency/proxy suite. A future removal of LiteLLM from the declared runtime dependencies should now fail CI rather than being hidden by the test harness.
+**Validation:** clean Ubuntu/Python 3.12 and Windows/Python 3.12 runtime jobs installed the declared requirements, passed `pip check`, imported the production proxy, and verified the real LiteLLM module. The dependency-version reproducibility follow-up is tracked separately as IR-020 and is now repaired/revalidated.
 
 ### IR-007 — Circuit breaker reserved input cost only — CONFIRMED SAFETY DEFECT
 
@@ -189,7 +189,23 @@ A regression test added during the hardening pass forced the auto-economy select
 
 **Repair:** route selection now occurs before the budget calculation. The proxy resolves pricing for the exact model that will be sent upstream, estimates/reserves against that routed model, and uses the same routed pricing for response reconciliation. If auto-economy selects a model with no verified pricing, the request fails closed before upstream egress.
 
-**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **29/29** clean regression suite.
+**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **33/33** clean regression suite.
+
+### IR-020 — Dependency graph was not version-reproducible — CONFIRMED HARDENING DEFECT / REPAIRED AND REVALIDATED
+
+IR-006 repaired the missing runtime dependency, but `requirements.txt` and the Windows packaging path still allowed package versions and transitive dependencies to float across installation dates. PyInstaller was also installed without a version constraint.
+
+**Impact:** two clean installations could satisfy the same top-level requirements while resolving materially different runtime or packaging dependency graphs. Python major/minor mismatch could also present later as a confusing package/runtime failure instead of a clear compatibility error.
+
+**Repair:** `constraints-py312.txt` pins the validated CPython 3.12 runtime/test/build graph, with platform markers where Linux and Windows differ. CI creates fresh virtual environments so unrelated packages preinstalled on hosted runners do not become accidental TokenTotals dependencies. `build.ps1` now refuses Python major/minor versions other than 3.12, installs runtime and PyInstaller dependencies through the same constraints, runs `pip check`, and uses the constrained PyInstaller toolchain.
+
+`runtime_compat.py` defines the validated runtime contract as CPython 3.12.x. The GitHub Actions workflow executes that check in the clean Linux runtime, Windows runtime, Windows build-tool, and regression environments. The workflow is also scheduled daily on the repository default branch so interpreter/dependency drift becomes a failing check rather than a user-discovered runtime surprise.
+
+**Validation:** the final IR-020 revision passed clean constrained runtime/import checks on Ubuntu and Windows, the constrained Windows build-tool check, and **33/33** regression tests. The final Ubuntu regression run reported CPython 3.12.14 and `pip check` reported no broken requirements. An initial workflow revision failed before job creation because of YAML quoting in a Windows inline command; the harness was corrected without changing the lock. A full-file integrity check also caught an over-broad intermediate `proxy_server.py` edit, and that file was restored byte-for-byte to the pre-change hardened blob before final validation.
+
+**Boundary:** this is version reproducibility for the validated CPython 3.12 dependency graph. Package hashes are not pinned, so this is not a cryptographic package-artifact or supply-chain guarantee.
+
+See `docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md` for the detailed proof sheet.
 
 ## Confirmed implemented baseline behavior
 
@@ -206,7 +222,7 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression suite on the hardened branch: **29 passed / 0 failed** on Ubuntu/Python 3.12.
+Current GitHub Actions regression suite on the hardened branch: **33 passed / 0 failed** on Ubuntu/Python 3.12.
 
 Regression coverage includes:
 
@@ -238,25 +254,32 @@ Regression coverage includes:
 26. Anthropic live-rate validation anchors to the actual model-pricing section instead of navigation occurrences;
 27. Google live-rate validation anchors to the Standard section instead of promotional/Priority repeats;
 28. live matrix-source rate drift fails rather than silently accepting a changed number;
-29. effective-dated promotional pricing fails after expiration even if the old historical rate remains on the provider page.
+29. effective-dated promotional pricing fails after expiration even if the old historical rate remains on the provider page;
+30. top-level runtime requirements are covered by the Python 3.12 constraints;
+31. clean constrained Linux and Windows runtime environments remain part of CI;
+32. the Python 3.12 compatibility contract, CI interpreters, and Windows build requirement cannot silently diverge;
+33. the Windows packaging path remains bound to the constrained PyInstaller dependency graph.
 
 IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
 
 IR-005 additionally has a separate `matrix-source-check` workflow. On the 2026-09-15 revalidation pass it fetched the live Anthropic and Google official pricing pages, validated the dated catalog's represented base/standard rates, and completed successfully without changing or promoting pricing data.
 
+IR-020 additionally has clean-environment Linux runtime, Windows runtime, and Windows build-tool jobs using the same CPython 3.12 constraints. The same workflow carries a daily schedule on the default branch to detect future Python-version or dependency-resolution drift.
+
 ## Remaining limitations before calling this production-proven
 
-- The 29-test suite is focused regression coverage, not a full integration or load test.
+- The 33-test suite is focused regression coverage, not a full integration or load test.
 - The live OpenAI, Anthropic, and Google source checks prove the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must be surfaced for review rather than treated as proof that the provider price changed.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
 - Multi-process workers are not supported for the file-lock budget invariant; the current lock is process-local. Run one TokenTotals proxy process unless cross-process locking is added.
 - OpenAI source synchronization does not by itself implement every OpenAI billing dimension in transaction accounting. Tool-call fees, image/audio billing, prompt caching details, service tiers, regional variations, provider promotions, and other applicable meters require explicit accounting support before they can be represented as a high-confidence provider-rule estimate.
 - Anthropic and Google have live source-drift validation for their dated matrix/catalog entries, but they do not yet have the dynamic promoted runtime-pricing adapter implemented for OpenAI.
 - Streaming responses without final usage retain the worst-case reservation and are marked unreconciled rather than guessed.
+- Dependency versions are constrained for the validated CPython 3.12 graph, but package hashes are not pinned; external package repositories remain part of the installation trust chain.
 - Vendor prices and page structures change. Source verification evidence records what was checked; it is not a promise that a provider cannot later change either pricing or documentation format.
 
 ## Integrity conclusion
 
-The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, stale matrix data, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect through an adversarial regression test before release.
+The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, stale matrix data, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect and a dependency-reproducibility gap before release.
 
 The hardening branch removes the known silent fabrication/fallback paths and changes the governing rule to: **unknown or unreconciled data stays unknown/conservative; it is never converted into a plausible-looking number merely to keep the UI green.**
