@@ -3,7 +3,7 @@
 **Author:** QuietFireAI (Jeff Phillips)  
 **License:** GNU General Public License v3.0 (GPLv3)  
 **Date:** September 2026  
-**Document Version:** 2.5-DEFENSIVE-SPEC
+**Document Version:** 2.6-DEFENSIVE-SPEC
 
 ---
 
@@ -20,6 +20,7 @@ The open-source publication documents mechanisms including:
 1. Local pre-flight LLM cost estimation and pacing before an upstream completion call.
 2. A localhost proxy gate tied to persistent local estimated-spend state and a user acknowledgment / local threshold-boost flow.
 3. Provider-specific reconstruction of billing-relevant LLM telemetry with explicit incomplete-estimate behavior when required dimensions are unavailable.
+4. Request-local callback attribution and serialized single-daemon spend-state updates for concurrent post-response accounting.
 
 ---
 
@@ -86,6 +87,12 @@ When this condition is true in the current proxy path:
 
 If TokenTotals cannot obtain a defensible preflight price at all, the current runtime rejects the request with a pricing-unavailable response rather than sending it unmetered.
 
+### 3.3 Current In-Flight Reservation Boundary
+
+The current pacing decision compares a new request against **posted local spend** plus that request's own preflight estimate. It does not yet reserve estimated headroom for every other request that has already passed preflight but whose provider response has not completed.
+
+Therefore, two or more simultaneous requests can each observe the same remaining local headroom and independently pass preflight before any one of them posts its eventual response cost. The current implementation does not claim transactional in-flight budget reservation. That is a separate pacing concern from the post-response concurrency protections described below.
+
 ---
 
 ## 4. Local Lockout & User Recovery Flow
@@ -134,6 +141,20 @@ The Google calculator reconciles raw-Gemini-style usage and LiteLLM-normalized u
 ### 6.4 Fallbacks and Estimate Status
 
 The dedicated provider engine is the primary calculation path for recognized OpenAI, Anthropic, and Google/Gemini models. When a complete local provider calculation is not possible, TokenTotals can use a nonzero LiteLLM response cost or an explicitly labeled known list-equivalent fallback in supported cases. Those fallbacks are estimates and are not represented as provider-authoritative billing.
+
+### 6.5 Concurrent Post-Response Accounting
+
+The normal runtime is a single local TokenTotals daemon process. Within that process, post-response accounting is hardened against overlapping completions as follows:
+
+* each forwarded request receives a server-owned TokenTotals thread identifier carried through LiteLLM request-local callback metadata;
+* the completion callback reads the identifier attached to its own request rather than a shared process-global “current thread” variable;
+* client-supplied `litellm_metadata` is removed before TokenTotals injects its accounting identifier, preventing request input from replacing the server-owned attribution value;
+* config/state read-modify-write transactions are serialized through a process-local re-entrant lock; and
+* same-day spend is accumulated in a per-thread map so out-of-order completions such as `A -> B -> A` retain independent thread totals.
+
+Legacy state containing only an active thread plus `thread_spend_usd` is migrated on the first spend update so the already-recorded same-day active-thread amount is retained.
+
+This design is intentionally scoped to the current one-daemon architecture. It is not represented as a cross-process or distributed transactional store.
 
 ---
 
