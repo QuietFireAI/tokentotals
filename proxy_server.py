@@ -29,6 +29,7 @@ from google_pricing import (
     infer_google_platform,
     looks_like_google_model,
 )
+from runtime_model_catalog import registered_model_entries
 
 
 def estimate_text_tokens(text, model_id):
@@ -289,12 +290,7 @@ litellm.success_callback = [track_cost_callback]
 async def list_models():
     return {
         "object": "list",
-        "data": [
-            {"id": "gpt-4o", "object": "model", "owned_by": "openai"},
-            {"id": "o3-mini", "object": "model", "owned_by": "openai"},
-            {"id": "claude-3-5-sonnet", "object": "model", "owned_by": "anthropic"},
-            {"id": "gemini-2.0-flash", "object": "model", "owned_by": "google"},
-        ],
+        "data": registered_model_entries(),
     }
 
 
@@ -368,7 +364,13 @@ async def proxy_openai(request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
-    model_id = payload.get("model", "gpt-4o")
+    model_id = payload.get("model")
+    if not isinstance(model_id, str) or not model_id.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="TokenTotals requires an explicit non-empty model ID; no default model is inferred.",
+        )
+    model_id = model_id.strip()
     CURRENT_THREAD_ID = request.headers.get("x-thread-id") or payload.get("user") or "default"
 
     # 2. PRE-FLIGHT AUDIT & POTENTIAL SAVINGS CALCULATION
