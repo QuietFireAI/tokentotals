@@ -1,4 +1,4 @@
-﻿import json
+import json
 import threading
 from pathlib import Path
 from datetime import date
@@ -11,6 +11,11 @@ STATE_FILE = APP_DIR / "state.json"
 # read-modify-write operations atomic across callbacks/threads inside that process.
 # It is deliberately not represented as a cross-process file/database lock.
 _DATA_LOCK = threading.RLock()
+
+# Keep substantially more precision internally than the four-decimal human-facing
+# display. Repeated sub-cent turns must not disappear through per-turn display
+# rounding before they are accumulated.
+INTERNAL_MONEY_DECIMALS = 10
 
 # Preflight reservations are deliberately process-local and ephemeral. They exist
 # only while requests are in flight and are never persisted to state.json, so a
@@ -41,6 +46,10 @@ def _fresh_default_state():
     return state
 
 
+def _money(value):
+    return round(float(value or 0.0), INTERNAL_MONEY_DECIMALS)
+
+
 def _inflight_reserved_usd_unlocked():
     total = 0.0
     for reservation in _INFLIGHT_RESERVATIONS.values():
@@ -48,7 +57,7 @@ def _inflight_reserved_usd_unlocked():
             total += float(reservation.get("estimated_cost_usd", 0.0) or 0.0)
         except (AttributeError, TypeError, ValueError):
             continue
-    return round(total, 10)
+    return _money(total)
 
 
 def init_files():
@@ -121,7 +130,7 @@ def get_inflight_reserved_usd():
 
 
 def get_pacing_snapshot():
-    """Return actual spend plus ephemeral in-flight pacing commitments."""
+    """Return posted spend plus ephemeral in-flight pacing commitments."""
     with _DATA_LOCK:
         state = get_state()
         conf = get_config()
@@ -130,10 +139,10 @@ def get_pacing_snapshot():
         limit = float(conf.get('daily_budget_limit_usd', 10.00) or 0.0)
         committed = current + reserved
         return {
-            'current_spend_usd': round(current, 4),
-            'inflight_reserved_usd': round(reserved, 10),
-            'committed_spend_usd': round(committed, 10),
-            'available_budget_usd': round(max(0.0, limit - committed), 10),
+            'current_spend_usd': _money(current),
+            'inflight_reserved_usd': _money(reserved),
+            'committed_spend_usd': _money(committed),
+            'available_budget_usd': _money(max(0.0, limit - committed)),
             'daily_budget_limit_usd': limit,
             'is_locked': bool(state.get('is_locked', False)),
             'reservation_count': len(_INFLIGHT_RESERVATIONS),
@@ -141,7 +150,7 @@ def get_pacing_snapshot():
 
 
 def reserve_preflight_budget(reservation_id, estimated_cost_usd, thread_id=None):
-    """Atomically admit and reserve preflight-estimated headroom for one request.
+    """Atomically admit and reserve preflight-estimated threshold capacity.
 
     The reservation covers only the defensible preflight estimate available before
     execution (currently input-side pricing). It is not a guarantee of the final
@@ -172,38 +181,38 @@ def reserve_preflight_budget(reservation_id, estimated_cost_usd, thread_id=None)
             return {
                 'accepted': False,
                 'reason': 'locked',
-                'current_spend_usd': round(current, 4),
-                'inflight_reserved_usd': round(reserved_before, 10),
+                'current_spend_usd': _money(current),
+                'inflight_reserved_usd': _money(reserved_before),
                 'daily_budget_limit_usd': limit,
             }
 
-        # A request that exceeds the threshold even without other in-flight work
-        # is a true local budget breach and preserves the existing lock behavior.
+        # A request that crosses the configured local threshold even without other
+        # in-flight work preserves the existing lock behavior.
         if current + estimated_cost > limit:
             state['is_locked'] = True
             save_state(state)
             return {
                 'accepted': False,
                 'reason': 'budget_limit',
-                'current_spend_usd': round(current, 4),
-                'inflight_reserved_usd': round(reserved_before, 10),
+                'current_spend_usd': _money(current),
+                'inflight_reserved_usd': _money(reserved_before),
                 'daily_budget_limit_usd': limit,
             }
 
-        # If only concurrent reservations consume the remaining headroom, reject
-        # this request without permanently locking the daemon. Headroom may become
-        # available again as those requests settle or fail.
+        # If only concurrent reservations consume the remaining threshold capacity,
+        # reject this request without permanently locking the daemon. Capacity may
+        # become available again as those requests settle or fail.
         if current + reserved_before + estimated_cost > limit:
             return {
                 'accepted': False,
                 'reason': 'inflight_headroom',
-                'current_spend_usd': round(current, 4),
-                'inflight_reserved_usd': round(reserved_before, 10),
+                'current_spend_usd': _money(current),
+                'inflight_reserved_usd': _money(reserved_before),
                 'daily_budget_limit_usd': limit,
             }
 
         _INFLIGHT_RESERVATIONS[reservation_key] = {
-            'estimated_cost_usd': estimated_cost,
+            'estimated_cost_usd': _money(estimated_cost),
             'thread_id': str(thread_id or 'default'),
         }
         reserved_after = _inflight_reserved_usd_unlocked()
@@ -211,9 +220,9 @@ def reserve_preflight_budget(reservation_id, estimated_cost_usd, thread_id=None)
             'accepted': True,
             'reason': 'reserved',
             'reservation_id': reservation_key,
-            'estimated_cost_usd': estimated_cost,
-            'current_spend_usd': round(current, 4),
-            'inflight_reserved_usd': round(reserved_after, 10),
+            'estimated_cost_usd': _money(estimated_cost),
+            'current_spend_usd': _money(current),
+            'inflight_reserved_usd': _money(reserved_after),
             'daily_budget_limit_usd': limit,
         }
 
@@ -235,7 +244,10 @@ def update_spend(cost_usd, thread_id=None, reservation_id=None):
             return get_state()
 
         state = get_state()
-        state['current_spend_usd'] = round(state.get('current_spend_usd', 0.0) + cost_usd, 4)
+        cost = _money(cost_usd)
+        state['current_spend_usd'] = _money(
+            float(state.get('current_spend_usd', 0.0) or 0.0) + cost
+        )
         state['total_requests'] = state.get('total_requests', 0) + 1
 
         current_thread = str(state.get('active_thread_id') or 'default')
@@ -250,11 +262,10 @@ def update_spend(cost_usd, thread_id=None, reservation_id=None):
         if not thread_totals:
             legacy_thread_spend = state.get('thread_spend_usd', 0.0) or 0.0
             if legacy_thread_spend:
-                thread_totals[current_thread] = round(float(legacy_thread_spend), 4)
+                thread_totals[current_thread] = _money(legacy_thread_spend)
 
-        thread_totals[thread_key] = round(
-            float(thread_totals.get(thread_key, 0.0) or 0.0) + cost_usd,
-            4,
+        thread_totals[thread_key] = _money(
+            float(thread_totals.get(thread_key, 0.0) or 0.0) + cost
         )
         state['thread_spend_by_id'] = thread_totals
         state['active_thread_id'] = thread_key
@@ -266,7 +277,8 @@ def update_spend(cost_usd, thread_id=None, reservation_id=None):
 
         # Persist the actual cost before releasing its reservation. Because both
         # operations occur under the same process-local lock, no other request can
-        # observe a gap where neither actual spend nor reserved headroom is counted.
+        # observe a gap where neither actual spend nor reserved threshold capacity
+        # is counted.
         save_state(state)
         if reservation_key:
             _INFLIGHT_RESERVATIONS.pop(reservation_key, None)
