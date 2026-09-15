@@ -1,4 +1,7 @@
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import pytest
 
 
 def _base_view(monkeypatch):
@@ -62,3 +65,37 @@ def test_readme_pricing_snapshot_matches_generator_and_has_no_stale_era_rows(mon
             assert stale_model not in public_pricing, f"stale comparison row returned: {stale_model}"
     finally:
         pricing_engine.clear_catalog_cache()
+
+
+def _freshness_catalog(checked_at: datetime) -> dict:
+    return {
+        "daily_integrity_refresh": {
+            "status": "verified",
+            "source_checked_at": checked_at.astimezone(timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "providers": {
+                "OpenAI": {"status": "verified"},
+                "Anthropic": {"status": "verified"},
+                "Google": {"status": "verified"},
+            },
+        }
+    }
+
+
+def test_pricing_receipt_is_current_through_exactly_24_hours():
+    from scripts.check_pricing_freshness import check_freshness
+
+    now = datetime(2026, 9, 15, 12, 0, tzinfo=timezone.utc)
+    result = check_freshness(_freshness_catalog(now - timedelta(hours=24)), now=now)
+    assert result["status"] == "CURRENT"
+    assert result["age_seconds"] == 24 * 60 * 60
+
+
+def test_pricing_receipt_fails_closed_after_24_hours():
+    from scripts.check_pricing_freshness import check_freshness
+
+    now = datetime(2026, 9, 15, 12, 0, tzinfo=timezone.utc)
+    stale = _freshness_catalog(now - timedelta(hours=24, seconds=1))
+    with pytest.raises(RuntimeError, match="STALE PRICING RECEIPT"):
+        check_freshness(stale, now=now)
