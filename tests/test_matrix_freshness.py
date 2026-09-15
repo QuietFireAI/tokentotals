@@ -88,8 +88,9 @@ def test_pricing_receipt_is_current_through_exactly_24_hours():
 
     now = datetime(2026, 9, 15, 12, 0, tzinfo=timezone.utc)
     result = check_freshness(_freshness_catalog(now - timedelta(hours=24)), now=now)
-    assert result["status"] == "CURRENT"
+    assert result["status"] == "DAILY_REFRESH_CURRENT"
     assert result["age_seconds"] == 24 * 60 * 60
+    assert result["role"] == "validator/watchdog for the last successfully published daily refresh"
 
 
 def test_pricing_receipt_fails_closed_after_24_hours():
@@ -97,5 +98,20 @@ def test_pricing_receipt_fails_closed_after_24_hours():
 
     now = datetime(2026, 9, 15, 12, 0, tzinfo=timezone.utc)
     stale = _freshness_catalog(now - timedelta(hours=24, seconds=1))
-    with pytest.raises(RuntimeError, match="STALE PRICING RECEIPT"):
+    with pytest.raises(RuntimeError, match="STALE DAILY PRICING REFRESH"):
         check_freshness(stale, now=now)
+
+
+def test_daily_refresh_workflow_is_schedule_driven_at_0005_eastern():
+    """Pricing refresh is clock-driven; source drift is evidence, never the trigger."""
+    workflow = Path(".github/workflows/daily-integrity-refresh.yml").read_text(encoding="utf-8")
+
+    assert "\n  push:" not in workflow
+    assert "workflow_dispatch:" in workflow
+    assert "- cron: '5 4 * * *'" in workflow
+    assert "- cron: '5 5 * * *'" in workflow
+    assert "America/New_York" in workflow
+    assert "00:05" in workflow
+    assert "github.event.schedule" in workflow
+    assert "Perform scheduled daily pricing integrity refresh" in workflow
+    assert "Validate that the last successful daily refresh receipt is current" in workflow
