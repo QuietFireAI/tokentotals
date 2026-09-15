@@ -19,7 +19,6 @@ if hasattr(sys, '_MEIPASS'):
     sys.path.insert(0, sys._MEIPASS)
 
 import config_manager
-import pricing_sync
 from proxy_server import app
 
 GLOBAL_ICON = None
@@ -249,7 +248,6 @@ def on_setup(icon):
     )
 
 def main():
-    pricing_sync.start_daily_sync_daemon()
     threading.Thread(target=run_server, daemon=True).start()
     threading.Thread(target=monitor_state_loop, daemon=True).start()
 
