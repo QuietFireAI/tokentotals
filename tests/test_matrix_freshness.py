@@ -115,6 +115,8 @@ def test_daily_refresh_workflow_is_schedule_driven_once_per_day_utc():
     assert "github.event.schedule" not in workflow
     assert "Perform scheduled daily pricing integrity refresh" in workflow
     assert "Validate that the last successful daily refresh receipt is current" in workflow
-    assert "Publish one atomic daily integrity commit" in workflow
+    assert "Write immutable PASS/FAIL workflow receipt" in workflow
+    assert "Publish daily receipt and successful surfaces atomically when eligible" in workflow
+    assert "Archive failed daily pricing integrity receipt" in workflow
     assert "Email successful daily integrity report" in workflow
     assert "TOKENTOTALS_REPORT_TO: dailyreport@firelandsai.com" in workflow
