@@ -564,7 +564,6 @@ async function refresh() {
     const data = await res.json();
     document.getElementById('spendVal').innerText = '$' + data.current_spend_usd.toFixed(4);
     document.getElementById('limitVal').innerText = '/ $' + data.daily_budget_limit_usd.toFixed(2) + ' Limit';
-    document.getElementById('remainingVal').innerText = 'Remaining: $' + data.remaining_budget_limit_usd;
     document.getElementById('remainingVal').innerText = 'Remaining: $' + data.remaining_budget_usd.toFixed(4);
     document.getElementById('pctVal').innerText = data.budget_used_pct + '% Used';
     document.getElementById('progressFill').style.width = Math.min(100, data.budget_used_pct) + '%';
