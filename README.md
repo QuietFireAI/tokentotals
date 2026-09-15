@@ -202,7 +202,7 @@ TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet**
 | **OpenAI** | OpenAI o3-mini | Workhorse | **$0.0198** | **14.7x** |
 | **Google** | Gemini 3.7 Flash | Workhorse | **$0.0150** | **11.1x** |
 | **Anthropic** | Claude 3.5 Haiku | Economy | **$0.0160** | **11.8x** |
-| **OpenAI** | OpenAI o3-mini | Economy | **$0.0027** | **2.0x** |
+| **OpenAI** | OpenAI GPT-4o-mini | Economy | **$0.0027** | **2.0x** |
 | **Google** | Gemini 2.0 Flash-Lite | Economy | **$0.00135** | **1.0x (Baseline)** |
 
 *For complete details, see [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md).*
