@@ -217,8 +217,17 @@ class InflightBudgetReservationTests(unittest.TestCase):
         self.assertEqual(payload["remaining_budget_usd"], 0.55)
         self.assertEqual(payload["budget_used_pct"], 20.0)
         self.assertEqual(payload["budget_committed_pct"], 45.0)
-        self.assertIn("Available headroom", proxy_server.DASHBOARD_HTML)
-        self.assertIn("in-flight", proxy_server.DASHBOARD_HTML)
+
+        self.assertEqual(payload["posted_estimated_spend_usd"], 0.20)
+        self.assertEqual(payload["inflight_preflight_estimate_usd"], 0.25)
+        self.assertEqual(payload["combined_local_estimate_usd"], 0.45)
+        self.assertEqual(payload["pacing_threshold_usd"], 1.0)
+        self.assertEqual(payload["posted_threshold_pct"], 20.0)
+        self.assertEqual(payload["combined_threshold_pct"], 45.0)
+        self.assertEqual(payload["active_thread_id"], "A")
+        self.assertIn("Combined local estimate", proxy_server.DASHBOARD_HTML)
+        self.assertIn("in-flight preflight estimate", proxy_server.DASHBOARD_HTML)
+        self.assertNotIn("Available headroom", proxy_server.DASHBOARD_HTML)
 
 
 if __name__ == "__main__":
