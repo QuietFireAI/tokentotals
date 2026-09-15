@@ -69,15 +69,53 @@ Anthropic and Google continue to use the checked-in dated catalog until equivale
 
 The Google Gemini 3.6/3.7/3.8 Flash promotional rates represented in this revision are effective only through **2026-12-31**. Their catalog records carry that expiration so the validator cannot continue treating the historical promotional number as current after its effective window ends.
 
-The human-readable matrix is generated with:
+The human-readable matrix and the marked README pricing snapshot are generated with:
 
 ```bash
 python generate_model_matrix.py
 ```
 
-The generator reads the same effective pricing view as the runtime. Regenerating the matrix after an OpenAI snapshot promotion therefore uses the promoted OpenAI rates rather than an independent hand-maintained table. CI also checks that the committed portable matrix matches the checked-in base verified pricing view so catalog/generator changes cannot silently leave the public matrix stale.
+The generator reads the same effective pricing view as the runtime. Regenerating after an OpenAI snapshot promotion therefore uses the promoted OpenAI rates rather than an independent hand-maintained table. CI checks both the committed portable matrix and the README pricing block against the generator/base verified pricing view so stale model/rate tables cannot silently survive below the fold.
 
 Unknown models are rejected until a verified pricing entry is deliberately added. This is intentional: TokenTotals should say **unknown** rather than quietly inventing a plausible dollar rate.
+
+<!-- TOKENTOTALS_VERIFIED_PRICING_START -->
+## Current verified model pricing snapshot
+
+**Verified catalog date:** 2026-09-15  
+**Comparison workload:** 10,000 input tokens + 2,000 output tokens.
+
+This table is generated from the same `pricing_engine` view used by the proxy and `MODEL_COMPARISON_MATRIX.md`; it is not a separately maintained marketing table. Dollar values are independent approximations from represented provider rules and observed/estimated telemetry, not provider invoices.
+
+| Provider | Verified model | Base input / 1M | Base output / 1M | 10K in + 2K out base estimate | Conservative pre-flight reservation |
+| :--- | :--- | ---: | ---: | ---: | ---: |
+| Anthropic | `claude-fable-5.1` | $10 | $50 | $0.200000 | $0.300000 |
+| Anthropic | `claude-haiku-4.5` | $1 | $5 | $0.020000 | $0.030000 |
+| Anthropic | `claude-opus-5` | $5 | $25 | $0.100000 | $0.150000 |
+| Anthropic | `claude-sonnet-5` | $2 | $10 | $0.040000 | $0.060000 |
+| Google | `gemini-3.1-flash-lite` | $0.25 | $1.5 | $0.005500 | $0.008800 |
+| Google | `gemini-3.1-pro-preview` | $2 | $12 | $0.044000 | $0.136800 |
+| Google | `gemini-3.5-flash` | $1.5 | $9 | $0.033000 | $0.065340 |
+| Google | `gemini-3.5-flash-lite` | $0.3 | $2.5 | $0.008000 | $0.011440 |
+| Google | `gemini-3.6-flash` | $0.75 | $3.75 | $0.015000 | $0.029700 |
+| Google | `gemini-3.7-flash` | $0.75 | $3.75 | $0.015000 | $0.029700 |
+| Google | `gemini-3.8-flash` | $0.75 | $3.75 | $0.015000 | $0.029700 |
+| OpenAI | `gpt-5.6-luna` | $0.2 | $1.2 | $0.004400 | $0.007600 |
+| OpenAI | `gpt-5.6-sol` | $4 | $20 | $0.080000 | $0.140000 |
+| OpenAI | `gpt-5.6-terra` | $2 | $12 | $0.044000 | $0.076000 |
+| OpenAI | `gpt-6-astra` | $10 | $50 | $0.200000 | $0.350000 |
+
+Base-turn approximation:
+
+```text
+base_estimate = (input_tokens / 1,000,000 × base_input_rate)
+              + (output_tokens / 1,000,000 × base_output_rate)
+```
+
+Pre-flight reservation uses the same formula with the catalog's conservative guard rates. The guard is deliberately a high-side pacing amount; it is **not** a prediction that the provider will invoice that amount. After usable provider token telemetry arrives, TokenTotals reconciles the reservation to the most specific supported estimate. Unknown pricing fails closed instead of receiving an invented rate.
+
+The compact table shows represented base text-token rates. Context bands, cache read/write rates, service modes, region, tools, modalities, promotions/effective dates, account-specific pricing, and other billable dimensions can change the applicable provider charge. See [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md) for the row-by-row guard rates and qualifiers.
+<!-- TOKENTOTALS_VERIFIED_PRICING_END -->
 
 ## Budget-gate behavior
 
@@ -206,14 +244,16 @@ The forensic hardening suite now covers:
 - proof that the full input-plus-output reservation is committed before upstream execution begins;
 - retention of the conservative reservation when a stream ends without final usage telemetry;
 - reservation against the exact model actually selected for auto-economy routing;
-- removal of hard-coded dashboard telemetry;
+- removal of hard-coded dashboard telemetry and source-backed dashboard dynamic fields;
+- public-claim guard preventing the unsupported turn-by-turn telemetry badge claim from returning;
+- non-stream response pass-through proof that provider assistant content is not silently decorated by TokenTotals;
 - OpenAI official-source pricing parsing;
 - preservation of the last verified OpenAI snapshot after incomplete/failed checks;
 - runtime consumption of the same promoted OpenAI snapshot;
 - quarantine of suspicious price jumps;
 - same-day retry after failed source checks;
 - review-required handling when source content changes without a recognized pricing/rule change;
-- committed matrix drift detection against the base verified pricing view;
+- committed matrix and README pricing-block drift detection against the base verified pricing view;
 - Anthropic/Google live matrix-source parsing anchored to their base/standard pricing sections;
 - live source-rate drift rejection rather than silent catalog acceptance;
 - effective-date expiry enforcement for promotional matrix rates;
@@ -224,9 +264,9 @@ The forensic hardening suite now covers:
 - Python 3.12 agreement across the compatibility contract, CI, and Windows build path;
 - constrained Windows PyInstaller packaging dependencies.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **45 tests / 0 failures** on the corrected IR-011 repair revision. The IR-011 evidence deliberately preserves the initial failing browser-style test: the first hardening pass returned HTTP 200 to a cross-origin text/plain POST carrying the boost phrase. The final JSON-only state-action gate rejects that path before mutation. A later two-test failure was traced to `TestClient(json=None)` not actually sending an application/json null body; the tests were corrected to send explicit JSON `null`, after which the suite passed 45/45. Separate clean-environment jobs continue to exercise the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The non-destructive matrix-source workflow previously passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass. This is regression/source-validation evidence, not a substitute for live-provider integration, broader load, final executable packaging, or security testing.
+The latest focused regression revision passed **48 tests / 0 failures** on Ubuntu/Python 3.12 before this generated-pricing synchronization change. Separate clean-environment jobs continue to exercise the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The non-destructive matrix-source workflow previously passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass. This is regression/source-validation evidence, not a substitute for live-provider integration, broader load, final executable packaging, or security testing.
 
-See [`docs/IR-007_OUTPUT_RESERVATION_PROOF.md`](docs/IR-007_OUTPUT_RESERVATION_PROOF.md) for output-reservation evidence, [`docs/IR-008_CONCURRENT_RESERVATION_PROOF.md`](docs/IR-008_CONCURRENT_RESERVATION_PROOF.md) for in-process contention evidence, [`docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md`](docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md) for request-context isolation evidence, [`docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md`](docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md) for unlock acknowledgment evidence, [`docs/IR-011_BOOST_AND_BROWSER_ORIGIN_PROOF.md`](docs/IR-011_BOOST_AND_BROWSER_ORIGIN_PROOF.md) for budget-control/browser-origin evidence, and [`docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md`](docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md) for dependency-reproducibility and daily Python compatibility evidence.
+See [`docs/IR-007_OUTPUT_RESERVATION_PROOF.md`](docs/IR-007_OUTPUT_RESERVATION_PROOF.md) for output-reservation evidence, [`docs/IR-008_CONCURRENT_RESERVATION_PROOF.md`](docs/IR-008_CONCURRENT_RESERVATION_PROOF.md) for in-process contention evidence, [`docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md`](docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md) for request-context isolation evidence, [`docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md`](docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md) for unlock acknowledgment evidence, [`docs/IR-011_BOOST_AND_BROWSER_ORIGIN_PROOF.md`](docs/IR-011_BOOST_AND_BROWSER_ORIGIN_PROOF.md) for budget-control/browser-origin evidence, [`docs/IR-012_DASHBOARD_TELEMETRY_INTEGRITY_PROOF.md`](docs/IR-012_DASHBOARD_TELEMETRY_INTEGRITY_PROOF.md) for dashboard telemetry-integrity evidence, [`docs/IR-013_TELEMETRY_BADGE_CLAIM_PROOF.md`](docs/IR-013_TELEMETRY_BADGE_CLAIM_PROOF.md) for the in-context badge claim boundary, and [`docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md`](docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md) for dependency-reproducibility and daily Python compatibility evidence.
 
 ## Security and privacy boundary
 
