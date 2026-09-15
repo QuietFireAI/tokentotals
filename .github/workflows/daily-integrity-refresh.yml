@@ -1,0 +1,94 @@
+name: daily-integrity-refresh
+
+on:
+  push:
+    branches: [sol/forensic-hardening]
+    paths:
+      - 'pricing_catalog.json'
+      - 'pricing_engine.py'
+      - 'generate_model_matrix.py'
+      - 'matrix_source_check.py'
+      - 'openai_pricing_sync.py'
+      - 'scripts/daily_integrity_refresh.py'
+      - 'MODEL_COMPARISON_MATRIX.md'
+      - 'README.md'
+      - 'TokenTotals_Security_Whitepaper.md'
+      - 'dashboard.html'
+      - 'tests/test_matrix_freshness.py'
+      - 'tests/test_matrix_source_check.py'
+      - 'tests/test_proxy_guardrails.py'
+      - '.github/workflows/daily-integrity-refresh.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '23 10 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tokentotals-daily-integrity-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh-validate-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Create clean integrity environment
+        run: python -m venv .venv-integrity
+
+      - name: Verify supported Python runtime
+        run: .venv-integrity/bin/python runtime_compat.py
+
+      - name: Install constrained test dependencies
+        run: .venv-integrity/bin/python -m pip install -c constraints-py312.txt -r requirements-dev.txt
+
+      - name: Verify dependency graph
+        run: .venv-integrity/bin/python -m pip check
+
+      - name: Refresh all pricing integrity surfaces from live official sources
+        run: .venv-integrity/bin/python scripts/daily_integrity_refresh.py
+
+      - name: Enforce telemetry-honesty stop-line gates
+        run: >-
+          .venv-integrity/bin/python -m pytest -q
+          tests/test_proxy_guardrails.py::test_dashboard_has_no_fabricated_static_telemetry
+          tests/test_proxy_guardrails.py::test_dashboard_dynamic_metrics_are_backed_by_status_fields
+
+      - name: Run complete forensic regression suite
+        run: .venv-integrity/bin/python -m pytest -q
+
+      - name: Reject unexpected refresh writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          allowed='^(pricing_catalog\.json|MODEL_COMPARISON_MATRIX\.md|README\.md|TokenTotals_Security_Whitepaper\.md|docs/PRICING_DAILY_STATUS\.md)$'
+          unexpected="$(git status --porcelain | sed -E 's/^.. //' | grep -Ev "$allowed" || true)"
+          if [ -n "$unexpected" ]; then
+            echo "Daily refresh modified unexpected files:"
+            echo "$unexpected"
+            exit 1
+          fi
+          git diff --check
+
+      - name: Publish one atomic daily integrity commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pricing_catalog.json MODEL_COMPARISON_MATRIX.md README.md TokenTotals_Security_Whitepaper.md docs/PRICING_DAILY_STATUS.md
+          if git diff --cached --quiet; then
+            echo 'No generated pricing-surface changes to publish.'
+          else
+            git commit -m "Daily pricing integrity refresh $(date -u +%F)"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
