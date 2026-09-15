@@ -14,16 +14,46 @@ from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import litellm
 import config_manager
+from openai_pricing import (
+    calculate_openai_response_cost,
+    estimate_openai_input_cost,
+    looks_like_openai_model,
+)
 
-# Pricing engine integration
+# Legacy pricing integration remains temporarily for non-OpenAI providers.
+# OpenAI calculations are handled by the repo-contained provider registry above.
 sys.path.insert(0, str(Path(r"C:\Users\Command Center\.gemini\config\plugins\token-cost-estimator\scripts")))
 try:
-    from pricing_engine import resolve_model, calculate_cost
+    from pricing_engine import resolve_model as legacy_resolve_model, calculate_cost as legacy_calculate_cost
+except ImportError:
+    def legacy_resolve_model(m):
+        return {"input_price_per_1m": 2.50, "output_price_per_1m": 10.00}
+
+    def legacy_calculate_cost(p, i, o):
+        return {"input_cost_usd": (i / 1e6) * p["input_price_per_1m"]}
+
+try:
     from token_estimator import estimate_text_tokens
 except ImportError:
-    def resolve_model(m): return {"input_price_per_1m": 2.50, "output_price_per_1m": 10.00}
-    def calculate_cost(p, i, o): return {"input_cost_usd": (i/1e6)*p["input_price_per_1m"]}
-    def estimate_text_tokens(t, m): return max(1, len(t) // 4)
+    def estimate_text_tokens(t, m):
+        return max(1, len(t) // 4)
+
+
+def legacy_input_estimate(model_id, estimated_tokens):
+    pricing = legacy_resolve_model(model_id)
+    calc = legacy_calculate_cost(pricing, estimated_tokens, 0)
+    return calc.get("input_cost_usd", calc.get("total_cost_usd", 0.0)) or 0.0
+
+
+def request_service_tier_from_callback(kwargs):
+    tier = kwargs.get("service_tier")
+    if tier:
+        return tier
+    litellm_params = kwargs.get("litellm_params") or {}
+    if isinstance(litellm_params, dict):
+        return litellm_params.get("service_tier")
+    return None
+
 
 app = FastAPI(title="TokenTotals by QuietFireAI")
 
@@ -42,32 +72,44 @@ CURRENT_THREAD_ID = "default"
 
 litellm.suppress_debug_info = True
 
+
 def track_cost_callback(kwargs, completion_response, start_time, end_time):
     global LAST_LATENCY_MS, CURRENT_ROUTINE_FLAG, CURRENT_POTENTIAL_SAVING, CURRENT_THREAD_ID
     try:
         LAST_LATENCY_MS = int((end_time - start_time).total_seconds() * 1000)
-        cost = kwargs.get("response_cost", 0.0)
-        if not cost and completion_response:
-            # Fallback estimation if response_cost not populated
-            usage = getattr(completion_response, "usage", None)
-            if usage:
-                in_tok = getattr(usage, "prompt_tokens", 0)
-                out_tok = getattr(usage, "completion_tokens", 0)
-                model = kwargs.get("model", "gpt-4o")
-                p = resolve_model(model)
-                calc = calculate_cost(p, in_tok, out_tok)
-                cost = calc.get("total_cost_usd", 0.001)
+        request_model = kwargs.get("model", "")
+        cost = None
+
+        if completion_response and looks_like_openai_model(request_model):
+            result = calculate_openai_response_cost(
+                request_model,
+                completion_response,
+                request_service_tier=request_service_tier_from_callback(kwargs),
+            )
+            if result.get("complete") and result.get("total_cost_usd") is not None:
+                cost = result["total_cost_usd"]
+            else:
+                print(
+                    "[TokenTotals Pricing Warning] OpenAI telemetry could not be fully priced "
+                    f"from the verified registry: {result.get('notes', [])}. "
+                    "Falling back to LiteLLM response_cost when available."
+                )
+
+        if cost is None:
+            cost = kwargs.get("response_cost", 0.0) or 0.0
 
         config_manager.update_spend(
-            cost_usd=cost or 0.0,
+            cost_usd=cost,
             thread_id=CURRENT_THREAD_ID,
             potential_saving=CURRENT_POTENTIAL_SAVING,
-            is_routine=CURRENT_ROUTINE_FLAG
+            is_routine=CURRENT_ROUTINE_FLAG,
         )
     except Exception as e:
-        pass
+        print(f"[TokenTotals Pricing Warning] Cost callback failed: {e}")
+
 
 litellm.success_callback = [track_cost_callback]
+
 
 @app.get("/v1/models")
 async def list_models():
@@ -77,9 +119,10 @@ async def list_models():
             {"id": "gpt-4o", "object": "model", "owned_by": "openai"},
             {"id": "o3-mini", "object": "model", "owned_by": "openai"},
             {"id": "claude-3-5-sonnet", "object": "model", "owned_by": "anthropic"},
-            {"id": "gemini-2.0-flash", "object": "model", "owned_by": "google"}
-        ]
+            {"id": "gemini-2.0-flash", "object": "model", "owned_by": "google"},
+        ],
     }
+
 
 @app.get("/api/status")
 async def get_status():
@@ -88,7 +131,7 @@ async def get_status():
     limit = conf.get("daily_budget_limit_usd", 10.00)
     current = state.get("current_spend_usd", 0.00)
     pct = round((current / limit * 100), 1) if limit > 0 else 0
-    
+
     traffic_light = "GREEN"
     if state.get("is_locked"):
         traffic_light = "RED"
@@ -108,18 +151,21 @@ async def get_status():
         "last_latency_ms": LAST_LATENCY_MS,
         "is_locked": state.get("is_locked", False),
         "auto_economy_mode": conf.get("auto_economy_mode", False),
-        "port": conf.get("port", 8080)
+        "port": conf.get("port", 8080),
     }
+
 
 @app.post("/api/boost")
 async def api_quick_boost():
     new_limit = config_manager.quick_boost(5.00)
     return {"message": "Budget boosted by $5.00", "new_limit_usd": new_limit, "is_locked": False}
 
+
 @app.post("/api/unlock")
 async def api_unlock():
     config_manager.unlock_circuit_breaker()
     return {"message": "Circuit breaker unlocked by user acknowledgment.", "is_locked": False}
+
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -128,10 +174,11 @@ async def api_unlock():
 async def serve_dashboard():
     return HTMLResponse(content=DASHBOARD_HTML)
 
+
 @app.post("/v1/chat/completions")
 async def proxy_openai(request: Request):
     global CURRENT_ROUTINE_FLAG, CURRENT_POTENTIAL_SAVING, CURRENT_THREAD_ID
-    
+
     state = config_manager.get_state()
     conf = config_manager.get_config()
 
@@ -139,7 +186,7 @@ async def proxy_openai(request: Request):
     if state.get("is_locked", False):
         raise HTTPException(
             status_code=403,
-            detail="🛑 QuietFireAI Emergency Shutdown: Daily budget cap reached. Outgoing calls are HARD-LOCKED to protect your card. Acknowledge in the desktop popup or dashboard to resume."
+            detail="🛑 QuietFireAI Emergency Shutdown: Daily budget cap reached. Outgoing calls are HARD-LOCKED to protect your card. Acknowledge in the desktop popup or dashboard to resume.",
         )
 
     try:
@@ -151,10 +198,22 @@ async def proxy_openai(request: Request):
     CURRENT_THREAD_ID = request.headers.get("x-thread-id") or payload.get("user") or "default"
 
     # 2. PRE-FLIGHT AUDIT & POTENTIAL SAVINGS CALCULATION
+    # This is deliberately an estimate. Actual post-response OpenAI accounting uses
+    # observed usage telemetry from the provider response when available.
     prompt_text = json.dumps(payload.get("messages", []))
     estimated_tokens = estimate_text_tokens(prompt_text, model_id)
-    pricing = resolve_model(model_id)
-    estimated_cost = calculate_cost(pricing, estimated_tokens, 0).get("input_cost_usd", 0.0)
+
+    if looks_like_openai_model(model_id):
+        openai_estimate = estimate_openai_input_cost(
+            model_id,
+            estimated_tokens,
+            service_tier=payload.get("service_tier"),
+        )
+        estimated_cost = openai_estimate.get("total_cost_usd")
+        if estimated_cost is None:
+            estimated_cost = legacy_input_estimate(model_id, estimated_tokens)
+    else:
+        estimated_cost = legacy_input_estimate(model_id, estimated_tokens)
 
     # Check for budget breach BEFORE sending request
     limit = conf.get("daily_budget_limit_usd", 10.00)
@@ -162,22 +221,33 @@ async def proxy_openai(request: Request):
         config_manager.set_locked(True)
         raise HTTPException(
             status_code=403,
-            detail=f"🚨 QuietFireAI Circuit Breaker: This request ({estimated_cost:.4f} USD) would exceed your daily budget of ${limit:.2f}. Outgoing calls locked."
+            detail=f"🚨 QuietFireAI Circuit Breaker: This request ({estimated_cost:.4f} USD) would exceed your daily budget of ${limit:.2f}. Outgoing calls locked.",
         )
 
     # Heuristic: Is this a routine/lightweight task?
     word_count = len(prompt_text.split())
-    is_premium_model = any(m in model_id.lower() for m in ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-pro"])
-    is_lightweight = (word_count < 80 or estimated_tokens < 300)
+    is_premium_model = any(
+        m in model_id.lower() for m in ["gpt-4o", "claude-3-5-sonnet", "gemini-1.5-pro"]
+    )
+    is_lightweight = word_count < 80 or estimated_tokens < 300
 
     CURRENT_ROUTINE_FLAG = is_premium_model and is_lightweight
     CURRENT_POTENTIAL_SAVING = 0.0
 
     if CURRENT_ROUTINE_FLAG:
         econ_model = "o3-mini" if "gpt" in model_id.lower() else "gemini-2.0-flash-lite"
-        econ_p = resolve_model(econ_model)
-        econ_rate = econ_p.get("input_price_per_1m", 0.075)
-        economy_cost = (estimated_tokens / 1e6) * econ_rate
+        if looks_like_openai_model(econ_model):
+            economy_result = estimate_openai_input_cost(
+                econ_model,
+                estimated_tokens,
+                service_tier=payload.get("service_tier"),
+            )
+            economy_cost = economy_result.get("total_cost_usd")
+            if economy_cost is None:
+                economy_cost = legacy_input_estimate(econ_model, estimated_tokens)
+        else:
+            economy_cost = legacy_input_estimate(econ_model, estimated_tokens)
+
         CURRENT_POTENTIAL_SAVING = max(0.0, estimated_cost - economy_cost)
 
         # Opt-In Auto-Economy Pilot (Default: False)
@@ -198,7 +268,7 @@ async def proxy_openai(request: Request):
             messages=messages,
             api_key=api_key,
             stream=stream,
-            **payload
+            **payload,
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Upstream Provider Error via LiteLLM: {str(e)}")
@@ -212,9 +282,11 @@ async def proxy_openai(request: Request):
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
             finally:
                 yield "data: [DONE]\n\n"
+
         return StreamingResponse(generate(), media_type="text/event-stream")
     else:
         return response.model_dump()
+
 
 DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -346,7 +418,7 @@ client = OpenAI(base_url="http://127.0.0.1:8080/v1", api_key="YOUR_KEY")</code><
 
   <div class="card">
     <h3 style="font-size:14px; margin-bottom:6px;">📊 Model Pricing Chart & Docs</h3>
-    <p style="font-size:12px; color:var(--subtext);">Official vendor pricing is audited live directly from provider documentation:</p>
+    <p style="font-size:12px; color:var(--subtext);">Pricing references are versioned from provider documentation. Calculations use available model and usage telemetry and are not represented as billing-exact.</p>
     <div class="receipts-list">
       <a class="receipt-link" href="https://openai.com/api/pricing/" target="_blank">🔗 OpenAI Official Pricing Receipt ↗</a>
       <a class="receipt-link" href="https://www.anthropic.com/pricing" target="_blank">🔗 Anthropic Claude Pricing Receipt ↗</a>
@@ -369,7 +441,7 @@ async function refresh() {
     document.getElementById('savingsVal').innerText = '$' + data.potential_savings_usd.toFixed(4);
     document.getElementById('savingsNote').innerText = data.flagged_routine_calls + ' routine calls flagged';
     document.getElementById('latencyVal').innerHTML = data.port + ' <span style="font-size:14px; color:var(--subtext);">| ' + data.last_latency_ms + ' ms</span>';
-    
+
     const badge = document.getElementById('statusBadge');
     if (data.is_locked) {
       badge.className = 'badge badge-red';
