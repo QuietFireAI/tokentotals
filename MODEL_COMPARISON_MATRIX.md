@@ -1,9 +1,11 @@
 # TokenTotals Verified Developer API Pricing Matrix
 
-**Receipt verification date:** 2026-09-14
+**Checked-in catalog verification date:** 2026-09-14
 
-This file is generated from `pricing_catalog.json`. Do not hand-edit prices here.
-Unknown models are rejected by the runtime until a verified catalog entry is added.
+This file is generated from TokenTotals' effective verified pricing view. Do not hand-edit prices here.
+The view combines the checked-in catalog with any promoted provider snapshot consumed by `pricing_engine`.
+OpenAI is currently the first dynamic official-source provider; Anthropic and Google remain dated catalog entries.
+Unknown models are rejected by the runtime until a verified pricing entry is added.
 
 ## Official receipts
 
@@ -14,9 +16,9 @@ Unknown models are rejected by the runtime until a verified catalog entry is add
 ## Standard token rates and turn comparison
 
 Turn example: 10,000 input tokens + 2,000 output tokens.
-Rates are USD per 1M tokens. Provider discounts, caching, batch/flex/fast modes, tools,
-regional uplifts, and promotional expiration can change actual invoices; the runtime's
-pre-flight guard uses conservative guard rates from the catalog where applicable.
+Rates are USD per 1M tokens. These are independent estimates, not provider invoices.
+Caching, context bands, service tiers, tools, regional processing, promotions, account-specific
+pricing, and other applicable billing dimensions can change the provider's final charge.
 
 | Provider | Model | Input / 1M | Output / 1M | Example Turn |
 | :--- | :--- | ---: | ---: | ---: |
