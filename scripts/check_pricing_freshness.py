@@ -1,4 +1,10 @@
-"""Fail closed when TokenTotals' last verified pricing receipt is older than 24 hours."""
+"""Validate the last successfully published TokenTotals daily pricing receipt.
+
+This checker is a watchdog, not a refresh trigger. The scheduled daily integrity workflow
+performs the provider verification, regeneration, tests, and atomic publish. This module
+only proves that the last published VERIFIED receipt is still within the 24-hour freshness
+window and includes all required provider verification statuses.
+"""
 from __future__ import annotations
 
 import json
@@ -12,51 +18,54 @@ MAX_AGE = timedelta(hours=24)
 
 def _parse_utc_timestamp(value: str) -> datetime:
     if not isinstance(value, str) or not value.strip():
-        raise RuntimeError("pricing freshness receipt has no source_checked_at timestamp")
+        raise RuntimeError("daily pricing refresh receipt has no source_checked_at timestamp")
     normalized = value.strip().replace("Z", "+00:00")
     try:
         parsed = datetime.fromisoformat(normalized)
     except ValueError as exc:
-        raise RuntimeError(f"invalid pricing freshness timestamp: {value!r}") from exc
+        raise RuntimeError(f"invalid daily pricing refresh timestamp: {value!r}") from exc
     if parsed.tzinfo is None:
-        raise RuntimeError("pricing freshness timestamp must include a timezone")
+        raise RuntimeError("daily pricing refresh timestamp must include a timezone")
     return parsed.astimezone(timezone.utc)
 
 
 def check_freshness(catalog: dict, *, now: datetime | None = None) -> dict:
+    """Prove that the most recently published daily refresh receipt is still current."""
     receipt = catalog.get("daily_integrity_refresh") or {}
     if receipt.get("status") != "verified":
-        raise RuntimeError("pricing freshness receipt is not VERIFIED")
+        raise RuntimeError("daily pricing refresh receipt is not VERIFIED")
 
     providers = receipt.get("providers") or {}
     required = {"OpenAI", "Anthropic", "Google"}
     missing = sorted(required - set(providers))
     if missing:
-        raise RuntimeError(f"pricing freshness receipt is missing providers: {missing}")
+        raise RuntimeError(f"daily pricing refresh receipt is missing providers: {missing}")
     not_verified = sorted(
         provider for provider in required if providers[provider].get("status") != "verified"
     )
     if not_verified:
-        raise RuntimeError(f"pricing providers are not verified: {not_verified}")
+        raise RuntimeError(f"daily pricing refresh providers are not verified: {not_verified}")
 
     checked_at = _parse_utc_timestamp(receipt.get("source_checked_at"))
     current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     age = current - checked_at
     if age < timedelta(0):
         raise RuntimeError(
-            f"pricing freshness receipt is future-dated by {-age}; refusing invalid freshness proof"
+            f"daily pricing refresh receipt is future-dated by {-age}; refusing invalid completion proof"
         )
     if age > MAX_AGE:
         raise RuntimeError(
-            f"STALE PRICING RECEIPT: last verified source check is {age} old; maximum allowed age is {MAX_AGE}"
+            f"STALE DAILY PRICING REFRESH: last successfully published verified receipt is {age} old; "
+            f"maximum allowed age is {MAX_AGE}"
         )
 
     return {
-        "status": "CURRENT",
+        "status": "DAILY_REFRESH_CURRENT",
         "source_checked_at": checked_at.isoformat().replace("+00:00", "Z"),
         "age_seconds": int(age.total_seconds()),
         "max_age_seconds": int(MAX_AGE.total_seconds()),
         "providers": sorted(required),
+        "role": "validator/watchdog for the last successfully published daily refresh",
     }
 
 
