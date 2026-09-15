@@ -23,16 +23,17 @@ TokenTotals surfaces real-time cost transparency and budget enforcement everywhe
 * 🔴 **Red "T":** 100% Limit Reached / Budget Threshold Alert Engaged (Desktop modal alert requiring `"I UNDERSTAND"` or `[ +$5 Quick Boost ]`).
 
 ### 2. 🪝 The Hook (Turn-by-Turn Chat Telemetry Badge)
-Every single developer turn or agent interaction renders a clean, live telemetry badge directly in your working context:
+A client integration can render TokenTotals telemetry in its own working context. An illustrative shape is:
 
 ```text
-🟢 Status: In Budget | Today: $0.42 / $10.00 | Thread: $0.08
-📊 🤖 Model: Gemini 3.7 Flash (gemini-3.7-flash)
-📊 Turn: ~$0.0006 (🧠 42 think / 💬 610 out) | 💾 Cache Savings: ~95%
-⚡ Velocity: ~262.1k tok/turn (28.8M total) | 📈 Session Total: $22.68 USD (109 turns)
-🪟 Context Window: 42.84% (449.2k / 1M max limit)
-ℹ️ Current Pricing: In $0.15 / Out $0.60 per 1M | Public Sync: 2026-09-09
+🟢 Status: In Budget | Today: ~$0.42 / $10.00 | Thread: ~$0.08
+🤖 Requested Model: <provider-model-id>
+📊 Turn Estimate: ~$0.0006 | Estimate Status: complete / incomplete
+💾 Observed Cache / Thinking / Tool Details: <when exposed by provider telemetry>
+ℹ️ Pricing Basis: TokenTotals provider registry verified <date>
 ```
+
+The values above are illustrative UI copy, not a live pricing snapshot. Runtime calculations use the versioned provider registries and the telemetry actually available for each request.
 
 ### 3. 📊 The Dash (Localhost Web Dashboard)
 Visit `http://127.0.0.1:8080/dashboard` in your browser for:
@@ -48,9 +49,9 @@ Visit `http://127.0.0.1:8080/dashboard` in your browser for:
 If you build with AI agents (Cursor Composer, Claude Code, CrewAI, AutoGen, or custom LangChain swarms), you know the nightmare:
 An agent enters a recursive reasoning loop or a retry storm while you are away from your desk. 
 
-* **The 24-Hour Reporting Lag:** Cloud providers (OpenAI, Anthropic) delay their billing dashboards by 1 to 24 hours. By the time you get the warning email, your credit card has already been billed hundreds of dollars.
-* **In-Flight Streams Bypass Caps:** Soft provider spend limits rarely terminate an active streaming generation mid-sentence.
-* **Multi-Tool Blindspot:** When running 5 different scripts and tools sharing one API key, there is no single dashboard on your machine tracking your total burn rate.
+* **The 24-Hour Reporting Lag:** Cloud providers can report account usage on a different cadence than a local request stream. A local pacing meter gives you an additional near-real-time signal while work is running.
+* **In-Flight Streams Bypass Caps:** Provider-side controls and active request behavior can differ; TokenTotals applies its own preflight pacing check before forwarding a request.
+* **Multi-Tool Blindspot:** When running multiple scripts and tools sharing API credentials, a local proxy can provide one local estimated-spend view for traffic routed through it.
 
 ---
 
@@ -58,7 +59,7 @@ An agent enters a recursive reasoning loop or a retry storm while you are away f
 
 TokenTotals runs as a silent, featherweight daemon in your system tray on `http://127.0.0.1:8080`. 
 
-Point your IDE, agent framework, or scripts to `http://127.0.0.1:8080/v1` instead of calling `api.openai.com` directly. 
+Point your IDE, agent framework, or scripts to `http://127.0.0.1:8080/v1` instead of calling the model endpoint directly. 
 
 ```
 [ Cursor / Windsurf / Python Scripts / Agent Swarms ]
@@ -69,8 +70,8 @@ Point your IDE, agent framework, or scripts to `http://127.0.0.1:8080/v1` instea
             │   (Local on your PC) │ ──► 2. Checks Daily Cap ($10.00) & Thread Spend
             └─────────────────────┘ ──► 3. Preserves the explicitly requested model/provider
                        │
-                       ▼ (Forwarded directly if under budget)
-             [ OpenAI / Anthropic / Google Gemini ]
+                       ▼ (Forwarded if the local pacing gate allows it)
+             [ OpenAI / Anthropic / Google Gemini / other LiteLLM-supported providers ]
 ```
 
 TokenTotals intentionally does **not** silently replace the model or provider requested by the client. Pricing data alone cannot establish equivalent capabilities, tool or modality support, credentials, context limits, provider policy, or output behavior. Model selection remains with the user or calling application.
@@ -80,14 +81,14 @@ TokenTotals intentionally does **not** silently replace the model or provider re
 ## ✨ Key Features
 
 ### 1. 🛑 The Advisory Budget Threshold & Alert
-* The microsecond a request would breach your daily limit (default: \$10.00), TokenTotals triggers an advisory pause and pops an un-ignorable desktop notification alert.
-* An un-ignorable, topmost desktop modal pops up with an audio alert.
-* Requires typing **`"I UNDERSTAND"`** or clicking **`[ +$5 Quick Boost ]`** to unlock.
+* Before a request is sent, TokenTotals calculates a best-effort input-side preflight estimate and compares it with the configured local daily threshold.
+* If the request would exceed that local threshold, TokenTotals rejects it before the upstream completion call and marks the local state locked.
+* A topmost desktop modal can require **`"I UNDERSTAND"`** or **`[ +$5 Quick Boost ]`** to resume.
 
 ### 2. 🚦 Traffic Light Glanceable Tray Icon
-* 🟢 **Green "T":** Under 75% of daily budget (Cruising safely).
-* 🟡 **Amber "T":** 75%–99% of budget (Heads up, heavy agent usage today).
-* 🔴 **Red "T":** 100% Breached / Locked (Circuit breaker engaged, zero egress).
+* 🟢 **Green "T":** Under 75% of daily budget.
+* 🟡 **Amber "T":** 75%–99% of budget.
+* 🔴 **Red "T":** Local estimated-spend threshold reached / locked.
 
 ### 3. 📊 Built-In Web Dashboard
 Left-click the tray icon or visit `http://127.0.0.1:8080/dashboard` in your browser to view:
@@ -97,8 +98,8 @@ Left-click the tray icon or visit `http://127.0.0.1:8080/dashboard` in your brow
 * Direct receipts and links to provider-published pricing documentation.
 
 ### 4. 🔒 Localhost-Only Architecture
-* **Zero Telemetry:** No tracking, no user accounts, no external analytics.
-* **Direct Encryption:** HTTPS requests travel directly from `127.0.0.1` to the vendor's API. No middleman servers ever touch your keys.
+* **No TokenTotals SaaS Telemetry:** No TokenTotals user account or secondary analytics service is required by the local runtime.
+* **Local Proxy Boundary:** The application listens on loopback and forwards permitted requests to the selected upstream provider through LiteLLM.
 * **100% Free & Open Source:** Licensed under **GNU GPLv3**.
 
 ---
@@ -106,23 +107,22 @@ Left-click the tray icon or visit `http://127.0.0.1:8080/dashboard` in your brow
 ## 🚀 Quickstart
 
 ### 1. Run the Executable (Windows)
-Download the latest `TokenTotals_Windows_v2.8.zip` from Releases, unzip, and run:
-`TokenTotals_QuietFireAI.exe`
+Download the latest TokenTotals Windows release, unzip it, and run the TokenTotals executable.
 
-A green "T" will appear in your system tray, and the proxy will start listening on port 8080.
+A green "T" will appear in your system tray, and the proxy will start listening on the configured local port.
 
 ### 2. Configure Your Tools
 
 #### Cursor / VS Code:
-1. Open Cursor Settings (`Ctrl + ,` or `Cmd + ,`).
-2. Search for `OpenAI Base URL`.
+1. Open your client settings.
+2. Locate its OpenAI-compatible Base URL setting.
 3. Set the Base URL to:
    ```
    http://127.0.0.1:8080/v1
    ```
-4. Enter your regular OpenAI / Anthropic API key as usual.
+4. Configure the appropriate provider/API credentials required by the client and upstream model.
 
-#### Python / LangChain:
+#### Python / OpenAI-compatible client:
 ```python
 from openai import OpenAI
 
@@ -136,6 +136,8 @@ response = client.chat.completions.create(
     messages=[{"role": "user", "content": "Hello world"}]
 )
 ```
+
+The `model` field is required. TokenTotals does not infer a default model.
 
 ---
 
@@ -157,7 +159,21 @@ Older local config files may still contain an `auto_economy_mode` key from earli
 
 ---
 
+## 💵 Pricing Architecture: Versioned Provider Rules, Not a Second Billing Portal
 
+TokenTotals keeps provider-specific machine-readable pricing rules under [`pricing/`](pricing/). Those registries—not a hand-maintained comparison table in this README—are the repo-contained pricing source used by the dedicated OpenAI, Anthropic, and Google/Gemini calculators.
+
+Current registry files:
+
+* [`pricing/openai_registry.json`](pricing/openai_registry.json)
+* [`pricing/anthropic_registry.json`](pricing/anthropic_registry.json)
+* [`pricing/google_registry.json`](pricing/google_registry.json)
+
+Each registry records its verification date, provider documentation sources, modeled scope, model aliases/rates, and relevant exceptions. The calculators combine those rules with observable response telemetry. If a billing-relevant dimension cannot be resolved, TokenTotals prefers an explicitly incomplete estimate over fabricated precision.
+
+For a provider outside the dedicated engines, preflight may use an **exact model key** from the pinned LiteLLM catalog as a disclosed secondary estimate. If no defensible preflight price exists, the request is rejected rather than assigned a universal fallback rate.
+
+See [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md) for a human-readable comparison of the **billing mechanics** TokenTotals models across providers. It intentionally does not duplicate another static model-price leaderboard.
 
 ---
 
@@ -166,11 +182,10 @@ Older local config files may still contain an `auto_economy_mode` key from earli
 TokenTotals is released under the **GNU General Public License v3.0 (GPLv3)**. 
 
 We encourage developers, researchers, and community builders to:
-* **Fork the repo** and experiment with your own custom local heuristic rules.
+* **Fork the repo** and experiment with your own custom local rules.
 * **Build custom adapters** for local LLMs (Ollama, LM Studio, vLLM).
 * **Craft your own telemetry dashboards** and share your widgets with the community.
 * **Submit PRs** to expand provider support and add new safety circuit-breaker triggers.
-
 
 ---
 
@@ -178,45 +193,18 @@ We encourage developers, researchers, and community builders to:
 
 > **IMPORTANT: TokenTotals is an Observability & Pacing Governor, Not an Upstream Account Portal or Billing Mirror.**
 
-1. **No Account or Credit Line Access:** TokenTotals does **NOT** query, read, or interface with your credit card, bank account, or internal provider billing portals (e.g. OpenAI Billing Dashboard or Anthropic Console). We do not touch your actual account balances or credits.
+1. **No Account or Credit Line Access:** TokenTotals does **NOT** query, read, or interface with your credit card, bank account, or internal provider billing portal. It does not know the authoritative remaining provider credit/balance from a proxied request.
 2. **Local Best-Effort Estimation:** Dollar metrics such as Today's Spend and Thread Spend are locally computed estimates based on billing-relevant telemetry available to the proxy, combined with versioned provider-published pricing references and known provider-specific rules. They can differ from final invoices because providers may apply cached/cache-write pricing, processing tiers, long-context rules, hosted-tool charges, batch modes, regional or account-specific pricing, negotiated discounts, credits, taxes, delayed or omitted telemetry, and pricing changes.
 3. **Pacing & Protection, Not Invoicing:** TokenTotals is designed as a local airbag and telemetry monitor for development workflows. It does not replace, modify, or claim to reproduce provider billing statements. The provider's final invoice and account records remain authoritative.
 4. **Model Integrity:** TokenTotals does not infer that a cheaper model is an equivalent substitute for the model a client requested. Automatic model/provider downgrade routing was retired; model choice remains explicit.
 
-
 ---
-
----
-
-
----
-
-## 📊 Standardized Cross-Platform Pricing Comparison (Developer API Stack)
-
-TokenTotals includes dated, standardized comparison examples across **Anthropic**, **OpenAI**, and **Google**. These examples are useful for relative cost comparison; they are not runtime billing mirrors and are not permanent price guarantees.
-
-### Example Turn Cost (10,000 Input / 2,000 Output Tokens)
-
-| Provider | Model | Tier | Example Turn Estimate | Multiplier vs. Baseline |
-| :--- | :--- | :--- | :--- | :--- |
-| **OpenAI** | OpenAI o1 | Frontier | **$0.2700** | **200.0x** |
-| **Anthropic** | Claude 3.7 Sonnet | Frontier | **$0.0600** | **44.4x** |
-| **OpenAI** | GPT-4o | Workhorse | **$0.0450** | **33.3x** |
-| **Google** | Gemini 2.5 Pro | Frontier | **$0.0325** | **24.1x** |
-| **OpenAI** | o3-mini | Reasoning | **$0.0198** | **14.7x** |
-| **Anthropic** | Claude 3.5 Haiku | Economy | **$0.0160** | **11.9x** |
-| **OpenAI** | GPT-4o-mini | Economy | **$0.0027** | **2.0x** |
-| **Google** | Gemini 2.0 Flash | Workhorse | **$0.0018** | **1.33x** |
-| **Google** | Gemini 2.0 Flash-Lite | Economy | **$0.00135** | **1.0x (Baseline)** |
-
-*For assumptions and the dated snapshot boundary, see [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md).*
-
 
 ## 🔍 Use the Billing Data That Is Actually Available
 
 LLM APIs often return important billing inputs such as token counts, cache usage, model identity, and sometimes processing metadata. Those fields are extremely useful—but they are **not necessarily the complete provider invoice model**.
 
-A simplified response may look like:
+A simplified normalized response may look like:
 
 ```json
 {
@@ -230,10 +218,12 @@ A simplified response may look like:
 }
 ```
 
-Where the required inputs are known, the arithmetic is deterministic:
+Provider-native telemetry can contain additional categories that must be interpreted separately. For example, Google/Gemini may expose cache, thinking, tool-use prompt, total-token, and modality-specific detail; Anthropic exposes cache read/write categories and can have geography/tier/tool particulars; OpenAI has its own cache, tier, context, modality, and hosted-tool rules.
+
+Where a required billing component and its rate are known, the arithmetic is straightforward:
 
 ```
-(tokens / 1,000,000) x applicable_rate = estimated_component_cost
+(billable_units / 1,000,000) x applicable_rate = estimated_component_cost
 ```
 
 But modern AI pricing increasingly resembles cloud infrastructure pricing rather than a single gas-pump rate. The applicable cost may depend on multiple categories and modifiers: uncached input, cached input, cache writes, output/reasoning tokens, service or processing tier, long-context thresholds, hosted tools, batch processing, regional or account pricing, negotiated contracts, credits, taxes, and provider-side adjustments.
@@ -242,7 +232,7 @@ But modern AI pricing increasingly resembles cloud infrastructure pricing rather
 
 Think of it more like an AWS-style near-real-time cost meter than a clone of the provider's accounts-receivable system. The estimate can become very close when the telemetry and rules are complete; the provider's invoice remains the final authority.
 
-> *The frontier AI labs raised billions to build systems that can write poetry, pass professional exams, and design software. Developers still deserve a better fuel gauge while those systems are running.*
+> *Developers deserve a better local fuel gauge while AI systems are running.*
 
 TokenTotals exists to provide that local fuel gauge.
 
@@ -250,17 +240,15 @@ TokenTotals exists to provide that local fuel gauge.
 
 ## 🏛️ Government, Defense & Enterprise
 
-TokenTotals' localhost-only architecture is designed for environments where cloud-based FinOps tools may be prohibited or infeasible:
+TokenTotals' localhost-only architecture can be useful in environments where adding a separate cloud-hosted FinOps/observability service is undesirable or infeasible. Any deployment must still perform its own security, compliance, authorization, and accreditation review.
 
-### Why Government & Defense May Need This:
-* **Budget Accountability:** Agencies running AI pilots can benefit from local per-task cost estimates and attribution without sending additional telemetry to a separate FinOps service.
-* **Compliance-Sensitive Environments:** A local architecture can reduce the amount of operational telemetry sent to additional third-party observability services, although each deployment must still complete its own security, compliance, authorization, and accreditation review.
-* **Restricted Networks:** Where a permitted model endpoint is reachable but external observability SaaS is not, a local loopback proxy can provide an additional local monitoring layer.
+Potential use cases include:
+* **Budget Accountability:** Local per-task cost estimates and attribution for AI development/pilot workflows routed through the proxy.
+* **Compliance-Sensitive Environments:** Avoiding an additional TokenTotals-operated telemetry SaaS while still using the selected upstream model provider.
+* **Restricted Observability Topologies:** A local monitoring layer where the authorized provider endpoint is reachable but an additional observability SaaS is not approved.
 
-### Commercial Enterprise Licensing:
-TokenTotals is free and open-source (GPLv3) for individual developers and open-source projects.
-
-For **government contractors, federal system integrators, and enterprise teams** that require proprietary licensing, SLA-backed support, compliance documentation, and audit trail exports:
+### Commercial Enterprise Licensing
+TokenTotals is free and open-source under GPLv3. Organizations requiring different licensing, support, or documentation can contact QuietFireAI.
 
 📧 **Contact:** quietfireai@gmail.com  
 🔗 **ORCID:** [0009-0000-1375-1725](https://orcid.org/0009-0000-1375-1725)
