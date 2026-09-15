@@ -24,7 +24,7 @@ The Windows Tk lock dialog did separately require the phrase `I UNDERSTAND`, so 
 
 ## Repair
 
-The hardened endpoint now parses the request body before any unlock state transition and passes the `acknowledgement` field through `_require_ack()`.
+The hardened endpoint validates request-supplied acknowledgment before any unlock state transition.
 
 The accepted phrase is:
 
@@ -34,7 +34,7 @@ I UNDERSTAND
 
 The validator intentionally trims surrounding whitespace and compares letter case insensitively. For example, `"  i understand  "` is accepted. Different wording such as `YES`, `I AGREE`, or `I UNDERSTAND THIS` is rejected.
 
-This normalization is deliberate usability behavior; the safety invariant is that the caller must submit the acknowledgment phrase before the HTTP path can clear the lock.
+This normalization is deliberate usability behavior; the invariant is that the caller must submit the acknowledgment phrase before the HTTP path can clear the lock.
 
 Only after validation succeeds does the endpoint call `config_manager.unlock_circuit_breaker()`.
 
@@ -54,13 +54,13 @@ It does **not**:
 
 Therefore acknowledgment releases the lock; it is not an accounting reset or budget increase. Subsequent requests remain subject to the same recorded spend and configured budget gate.
 
-## Adversarial revalidation
+## IR-010 adversarial revalidation
 
-The 2026-09-15 IR-010 pass added three focused regression tests.
+The original 2026-09-15 IR-010 pass added three focused regression tests.
 
 ### 1. Invalid/missing acknowledgment remains locked
 
-The test explicitly re-locks state before each attempt and submits:
+At the IR-010 revision, the test explicitly re-locked state before each attempt and submitted:
 
 - a POST with no body;
 - malformed JSON;
@@ -68,7 +68,7 @@ The test explicitly re-locks state before each attempt and submits:
 - `{"acknowledgement": "YES"}`;
 - `{"acknowledgement": "I UNDERSTAND THIS"}`.
 
-Every attempt must return HTTP 400 and `is_locked` must remain `True`.
+Every attempt was rejected and `is_locked` remained `True`.
 
 ### 2. Normalization is intentional
 
@@ -93,11 +93,32 @@ Before unlock, the test seeds non-default values for:
 - unreconciled stream count;
 - lock state.
 
-After a valid acknowledgment, the complete post-state must equal the pre-state except for `is_locked: False`, and the configuration must be byte-for-byte equivalent as parsed data.
+After a valid acknowledgment, the complete post-state must equal the pre-state except for `is_locked: False`, and the configuration must be equivalent as parsed data.
+
+## Subsequent IR-011 transport hardening
+
+IR-011 later demonstrated that phrase validation plus removal of permissive CORS was not sufficient for localhost state-changing HTTP controls: a browser-style cross-origin request declared as `Content-Type: text/plain` could still contain JSON text that `request.json()` parsed.
+
+The final IR-011 repair therefore introduced a shared state-action transport gate used by both `/api/boost` and `/api/unlock`. The current unlock endpoint requires, in order:
+
+1. `Content-Type: application/json`;
+2. syntactically valid JSON;
+3. a JSON object rather than `null`, a scalar, or an array;
+4. the `I UNDERSTAND` acknowledgment phrase.
+
+The current unlock regression now also proves:
+
+- a missing media type/body is rejected before acknowledgment processing;
+- malformed JSON is rejected;
+- explicit JSON `null` is rejected as a non-object payload;
+- a browser-style `text/plain` request carrying the correct phrase is rejected with HTTP 415 and cannot unlock;
+- valid phrase normalization and the unlock-only state mutation invariant still hold.
+
+This strengthens the transport boundary without changing the IR-010 finding or its core acknowledgment invariant.
 
 ## Revalidation evidence
 
-On the IR-010 adversarial-test revision:
+On the original IR-010 adversarial-test revision:
 
 - clean regression suite: **41 passed / 0 failed**;
 - CPython 3.12 compatibility check: **PASS**;
@@ -106,8 +127,10 @@ On the IR-010 adversarial-test revision:
 - intentional phrase normalization: **PASS**;
 - unlock-only state mutation invariant: **PASS**.
 
+After the shared IR-011 transport hardening, the expanded branch suite passed **45/45** on the corrected repair revision.
+
 ## Verdict
 
 **IR-010 — PASS: REPAIRED AND REVALIDATED.**
 
-The baseline HTTP unlock was unconditional despite claiming user acknowledgment. The hardened endpoint now requires request-supplied acknowledgment before the state transition, and regression tests prove invalid input cannot unlock and valid acknowledgment does not reset accounting or change the budget.
+The baseline HTTP unlock was unconditional despite claiming user acknowledgment. The hardened endpoint now requires request-supplied acknowledgment before the state transition, and the later shared transport gate additionally requires a valid JSON object request before acknowledgment is evaluated. Invalid input cannot unlock, and valid acknowledgment does not reset accounting or change the budget.
