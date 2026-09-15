@@ -3,75 +3,98 @@
 **Author:** QuietFireAI (Jeff Phillips)  
 **License:** GNU General Public License v3.0 (GPLv3)  
 **Date:** September 2026  
-**Document Version:** 2.4-DEFENSIVE-SPEC
+**Document Version:** 2.5-DEFENSIVE-SPEC
 
 ---
 
 ## 1. Abstract & Prior Art Disclosure
 
-This document serves as both the architectural security specification for **TokenTotals** and an official **Defensive Publication** establishing prior art in the public domain under 35 U.S.C. § 102. 
+This document describes the current TokenTotals architecture and also preserves its defensive-publication intent.
 
-TokenTotals introduces a local, zero-egress Layer-7 HTTP/WebSocket loopback proxy daemon operating on `127.0.0.1`. It intercepts Large Language Model (LLM) API transactions, parses abstract syntax representations of prompt payloads, calculates pre-flight cryptographic/BPE token counts, compares estimated financial transaction impact against a persistent local state store, and enforces a local budget advisory gate and notification modal with active modal human acknowledgment.
+TokenTotals is a local Layer-7 loopback proxy that listens on `127.0.0.1`. Client applications explicitly route supported LLM API requests through the local proxy. Before forwarding a request, TokenTotals estimates its input-side cost using model-aware token counting/estimation plus provider-specific pricing rules, compares that estimate with local accumulated estimated spend and the configured local threshold, and can reject the request before the upstream completion call.
 
-By publishing this specification under the GPLv3 open-source license, QuietFireAI dedicates these mechanisms to the public domain, barring any entity from asserting patent claims over:
-1. Local pre-flight Layer-7 LLM cost simulation prior to TCP/TLS socket upstream handshakes.
-2. Local loopback proxy enforcement paired with OS-level blocking modal confirmation ("I UNDERSTAND" pattern).
+After successful provider responses, TokenTotals uses observed usage telemetry where available to produce a best-effort local cost estimate. OpenAI, Anthropic, and Google/Gemini have repo-contained provider-specific pricing registries/calculators. TokenTotals does not claim that these estimates reproduce the provider's final invoice.
+
+The open-source publication documents mechanisms including:
+
+1. Local pre-flight LLM cost estimation and pacing before an upstream completion call.
+2. A localhost proxy gate tied to persistent local estimated-spend state and a user acknowledgment / local threshold-boost flow.
+3. Provider-specific reconstruction of billing-relevant LLM telemetry with explicit incomplete-estimate behavior when required dimensions are unavailable.
 
 ---
-
 
 ### 1.1 Non-Invasive Observability & Liability Disclaimer
-It is critical to distinguish TokenTotals from upstream accounting systems. TokenTotals is an independent real-time developer cost calculator, telemetry estimation engine, and local notification daemon. TokenTotals does not communicate with provider billing endpoints, query user credit balances, or guarantee absolute network-level traffic blocking. All figures represent estimated calculations derived from local token frequencies multiplied by published vendor rate schedules. TokenTotals provides advisory notifications to inform developer decision-making without guaranteeing vendor billing synchronization. TokenTotals does not communicate with provider billing endpoints, nor does it query user credit balances. TokenTotals operates purely as a stateless, passive-to-active Layer-7 telemetry and pacing governor on localhost. All financial figures represent contextual estimates derived from BPE token frequency multiplied by published vendor rate schedules. It governs transaction execution velocity without modifying or querying provider account states.
 
-## 2. Threat Model & Zero-Egress Architecture
+TokenTotals is not an upstream accounting system. It does not query authoritative provider account balances, credit lines, negotiated contracts, or final invoices. It calculates local estimates from observable request/response telemetry, versioned provider-published pricing rules, and explicitly disclosed fallback data where applicable.
 
-### 2.1 The Autonomous Agent Egress Risk
-Modern generative AI agentic systems (e.g., Cursor, Windsurf, AutoGen, CrewAI) execute recursive decision loops. Under failure modes (e.g., parsing errors, hallucinated retry policies), agents generate continuous request bursts that deplete user credit balances without real-time observability.
-
-### 2.2 The Zero-Egress Guarantee
-Existing FinOps proxies (Portkey, Helicone, Langfuse) operate as SaaS gateways, requiring developers to transmit plaintext API keys, proprietary source code, and user prompts across third-party networks. 
-
-TokenTotals rejects this topology.
-* **Network Boundary:** The daemon binds strictly to IPv4 loopback `127.0.0.1`. It refuses non-loopback binds (`0.0.0.0`).
-* **Cryptographic Egress:** Upstream TLS connections originate directly from the host system's network stack to provider endpoints (`api.openai.com`, `api.anthropic.com`).
-* **Key Isolation:** API keys pass through volatile process memory only long enough to construct HTTP `Authorization` headers. No keys are ever written to disk, logged, or forwarded to secondary endpoints.
+The provider's final account records remain authoritative. TokenTotals also does not guarantee absolute operating-system/network blocking outside requests actually routed through the TokenTotals proxy.
 
 ---
 
-## 3. Mathematical Pre-Flight Circuit Breaker Formulation
+## 2. Threat Model & Local Loopback Architecture
 
-Traditional rate limiters throttle post-hoc (after an HTTP transaction concludes). TokenTotals implements a deterministic pre-flight gate.
+### 2.1 The Autonomous-Agent Spend Risk
 
-### 3.1 Pre-Flight Cost Estimation
-Given an incoming request payload $R$ containing an array of message objects $M = \{m_1, m_2, \dots, m_k\}$ targeted at model $m$:
+Generative-AI tools can execute recursive agent loops, retries, parallel calls, or unexpectedly large requests. A local pacing layer can provide an additional near-real-time estimated-spend signal for traffic routed through it rather than relying only on later provider account reporting.
 
-$$\text{Tokens}_{\text{in}} = \text{BPE}(M, \text{Encoding}(m))$$
+### 2.2 Local Control Plane / No Secondary TokenTotals Telemetry Service
 
-The estimated pre-flight cost $C_{\text{est}}$ is computed against the local real-time pricing matrix $P$:
+TokenTotals' control plane is local:
 
-$$C_{\text{est}} = \frac{\text{Tokens}_{\text{in}}}{1,000,000} \times P_{\text{in}}(m)$$
+* **Loopback Boundary:** The application server binds to `127.0.0.1` in the shipped runtime path.
+* **Local State:** Configuration and estimated-spend state are stored locally under `~/.tokentotals/`.
+* **No TokenTotals SaaS Account:** The local runtime does not require a TokenTotals-operated remote telemetry/analytics account.
+* **Upstream Egress Still Exists:** When the pacing gate permits a request, the host necessarily sends that request to the selected upstream model provider through LiteLLM. “Localhost” therefore does not mean “no network egress to the provider.”
+* **Credential Path:** Provider credentials supplied by the client are passed into the upstream LiteLLM call. TokenTotals does not intentionally persist those API keys in its config/state files.
 
-### 3.2 The Invariant Budget Enforcement Rule
-Let $S_{\text{today}}$ be the accumulated daily spend stored in `~/.tokentotals/state.json`, and let $L_{\text{daily}}$ be the user-defined budget ceiling:
-
-$$\text{If } (S_{\text{today}} + C_{\text{est}}) > L_{\text{daily}} \implies \text{HALT}(R)$$
-
-Upon evaluating true:
-1. The incoming socket is immediately severed with an HTTP `403 Forbidden` response.
-2. No upstream TCP handshake is established.
-3. `state.json` updates `is_locked = true`.
-4. The OS-level Reactive Modal Alert is spawned.
+This distinction is important: TokenTotals avoids adding a separate TokenTotals-operated observability gateway, but it does not eliminate the network relationship between the client and the selected AI provider.
 
 ---
 
-## 4. The OS-Level Dead Man's Switch (Lockout Modal)
+## 3. Pre-Flight Circuit-Breaker Formulation
 
-When `is_locked = true`, the daemon transitions from passive proxying to active lockdown.
+TokenTotals applies a local preflight pacing decision before invoking the upstream completion function.
 
-1. **Window Placement:** A dedicated Win32/Tkinter window is initialized with `-topmost` priority, positioning it above all IDEs, terminals, and browsers.
-2. **Auditory Cue:** Triggers the host operating system's exclamation audio interrupt (`winsound.MessageBeep(winsound.MB_ICONHAND)`).
-3. **Cryptic Barrier Elimination:** To prevent accidental dismissal or bypass by script automation, the modal requires physical string matching against the passphrase `"I UNDERSTAND"`.
-4. **Graceful Recovery:** Users may select `[ +$5 Quick Boost ]`, which atomically increments $L_{\text{daily}}$ by \$5.00, resets `is_locked = false`, and restores loopback traffic without terminating active IDE sessions.
+### 3.1 Pre-Flight Input Estimate
+
+For request payload $R$ containing messages $M$ targeted at explicit model $m$, TokenTotals first obtains a model-aware input-token estimate where possible and falls back to a local heuristic if the tokenizer cannot provide one:
+
+$$\widehat{T}_{\text{in}} = \text{TokenEstimate}(M, m)$$
+
+The preflight dollar estimate is then calculated from the pricing path applicable to that model and request context:
+
+$$C_{\text{pre}} = \text{InputPricingEstimate}(m, \widehat{T}_{\text{in}}, R)$$
+
+For models recognized by the dedicated OpenAI, Anthropic, or Google/Gemini engines, that estimate uses the corresponding repo-contained registry/rules. If a dedicated provider engine cannot produce a defensible preflight estimate, TokenTotals does not silently substitute a generic cross-provider rate.
+
+For other providers, TokenTotals may use an exact-model input rate from the pinned LiteLLM catalog as a disclosed secondary preflight source. If no defensible preflight price exists, the request is rejected rather than assigned an invented universal price.
+
+This preflight value is a pacing estimate, not a promise of the final full-turn or invoice amount. Output, tools, cache behavior, actual service tier, and other response-dependent dimensions may only be known after execution.
+
+### 3.2 Local Pacing Rule
+
+Let $S_{\text{today}}$ be TokenTotals' locally accumulated estimated spend and $L_{\text{daily}}$ the configured local daily threshold:
+
+$$\text{If } (S_{\text{today}} + C_{\text{pre}}) > L_{\text{daily}} \implies \text{REJECT}(R)$$
+
+When this condition is true in the current proxy path:
+
+1. TokenTotals marks its local state locked.
+2. The request receives an HTTP `403` response from the local proxy.
+3. The upstream completion function is not invoked for that rejected request.
+4. The desktop UI can surface the locked state and user acknowledgment/boost controls.
+
+If TokenTotals cannot obtain a defensible preflight price at all, the current runtime rejects the request with a pricing-unavailable response rather than sending it unmetered.
+
+---
+
+## 4. Local Lockout & User Recovery Flow
+
+When local state is locked, subsequent routed completion requests are rejected by the proxy until the local state is unlocked.
+
+The desktop application can surface a topmost Tkinter modal with an operating-system audio cue. The user can acknowledge the warning with the `"I UNDERSTAND"` phrase or use the local quick-boost control to raise the configured TokenTotals daily threshold and clear the local lock.
+
+This mechanism changes TokenTotals' local pacing state. It does not modify the provider's own billing limit, account balance, or provider-side quota.
 
 ---
 
@@ -79,7 +102,7 @@ When `is_locked = true`, the daemon transitions from passive proxying to active 
 
 TokenTotals preserves the model identifier explicitly selected by the client. It does not automatically downgrade, remap, or substitute a different model or provider based solely on prompt length or comparative list pricing.
 
-This boundary is intentional. A lower token price does not establish functional equivalence. Safe substitution would require additional information that a pricing meter alone cannot prove, including:
+This boundary is intentional. A lower token price does not establish functional equivalence. Safe substitution would require information that a pricing meter alone cannot prove, including:
 
 * provider credentials and authorization;
 * supported tools and modalities;
@@ -88,20 +111,48 @@ This boundary is intentional. A lower token price does not establish functional 
 * provider-specific policy and data-handling constraints; and
 * application-specific quality or capability requirements.
 
-Earlier experimental builds included a heuristic counterfactual downgrade/potential-savings feature. That behavior was retired from the runtime rather than updated with newer model names because the heuristic could not defensibly prove equivalent execution or full-turn savings. Model selection remains the responsibility of the user or calling application.
+Earlier experimental builds included a heuristic counterfactual downgrade/potential-savings feature. That behavior was retired rather than updated with newer model names because the heuristic could not defensibly prove equivalent execution or full-turn savings. Model selection remains the responsibility of the user or calling application.
 
 ---
 
+## 6. Provider-Specific Post-Response Accounting
 
-### 5.1 Real-Time Telemetry & Context Invariance Specification
-The system produces deterministic, KaTeX-safe telemetry payloads capturing both micro (turn-level) and macro (session-level) FinOps dynamics:
-* **Pre-Flight Status:** In Budget (Green), Caution (Yellow), Limit Reached (Red).
-* **Cognitive Decomposition:** Separation of latent chain-of-thought (thinking tokens) from materialized output tokens.
-* **Cache Amortization:** Real-time ratio of cached prompt tokens against upstream baseline rates.
-* **Context Velocity:** Token accumulation velocity per interaction turn ($V_{\text{tok}} = \Delta T / \Delta n$).
+The post-response meter is intentionally provider-specific rather than one universal input/output formula.
 
-QuietFireAI encourages open-source contributors to fork, extend, and adapt these specifications under the GNU GPLv3 license.
+### 6.1 OpenAI
 
-## 6. Conclusion
+The OpenAI calculator uses the versioned OpenAI registry and observed normalized response telemetry. Depending on model/rule availability, relevant dimensions include uncached/cached input, output/reasoning behavior, service tier, long-context rules, cache-write behavior, and known hosted-feature uncertainty. It declines an all-in claim when known billable dimensions cannot be resolved.
 
-TokenTotals demonstrates that developer trust, privacy, and budget safety in generative AI are best achieved at the local system boundary. By providing complete transparency, open-source auditing under GPLv3, and zero telemetry egress, TokenTotals provides an immutable airbag for modern AI engineering.
+### 6.2 Anthropic / Claude API
+
+The Anthropic calculator distinguishes base input, cache creation/read categories, output, applicable inference geography, batch/fast/service-tier particulars, and supported server-tool charges. Ambiguous cache or tier/geography information can make an estimate incomplete rather than forcing a guessed total.
+
+### 6.3 Google / Gemini Developer API
+
+The Google calculator reconciles raw-Gemini-style usage and LiteLLM-normalized usage where possible. It accounts for provider-specific categories such as cached content, thinking tokens, tool-use prompt tokens, modality-specific rates, context thresholds, processing modes, and supported grounding/tool rules. Normalization residuals are treated as a warning that a provider category may have been dropped, not as permission to assume zero cost.
+
+### 6.4 Fallbacks and Estimate Status
+
+The dedicated provider engine is the primary calculation path for recognized OpenAI, Anthropic, and Google/Gemini models. When a complete local provider calculation is not possible, TokenTotals can use a nonzero LiteLLM response cost or an explicitly labeled known list-equivalent fallback in supported cases. Those fallbacks are estimates and are not represented as provider-authoritative billing.
+
+---
+
+## 7. Pricing Provenance
+
+Machine-readable provider pricing rules are stored under:
+
+* `pricing/openai_registry.json`
+* `pricing/anthropic_registry.json`
+* `pricing/google_registry.json`
+
+Each registry records a verification date, source documentation, modeled scope, model/rate information, and relevant provider-specific notes. The human-readable `MODEL_COMPARISON_MATRIX.md` documents mechanics and provenance rather than maintaining a second competing table of rates.
+
+Pricing can change. A repository snapshot is therefore evidence of what was modeled and verified at that point in time, not permanent pricing truth.
+
+---
+
+## 8. Conclusion
+
+TokenTotals is a local observability and pacing layer for LLM development traffic routed through it. Its design goal is to make cost estimation more transparent and conservative without pretending to be the provider's accounts-receivable system or silently changing the user's requested model.
+
+The strongest invariant is simple: where TokenTotals has enough information, it applies the modeled provider rules; where it does not, it should expose or act on that uncertainty rather than fabricate precision.
