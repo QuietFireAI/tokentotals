@@ -73,6 +73,56 @@ class OpenAIPricingTests(unittest.TestCase):
         self.assertFalse(result["complete"])
         self.assertIsNone(result["total_cost_usd"])
 
+    def test_auto_tier_without_resolved_response_tier_refuses_total(self):
+        response = SimpleNamespace(
+            model="gpt-5.6-sol",
+            usage=SimpleNamespace(input_tokens=1_000, output_tokens=1_000),
+            service_tier=None,
+        )
+        result = pricing.calculate_openai_response_cost(
+            "gpt-5.6-sol", response, request_service_tier="auto"
+        )
+        self.assertFalse(result["complete"])
+        self.assertIsNone(result["total_cost_usd"])
+
+    def test_explicit_default_tier_can_price_without_response_tier(self):
+        response = SimpleNamespace(
+            model="gpt-5.6-sol",
+            usage=SimpleNamespace(input_tokens=1_000, output_tokens=1_000),
+            service_tier=None,
+        )
+        result = pricing.calculate_openai_response_cost(
+            "gpt-5.6-sol", response, request_service_tier="default"
+        )
+        self.assertTrue(result["complete"])
+        self.assertAlmostEqual(result["total_cost_usd"], 0.024)
+
+    def test_hosted_tool_activity_refuses_token_only_total(self):
+        response = SimpleNamespace(
+            model="gpt-6-astra",
+            service_tier="default",
+            usage=SimpleNamespace(input_tokens=1_000, output_tokens=1_000),
+            output=[SimpleNamespace(type="web_search_call")],
+        )
+        result = pricing.calculate_openai_response_cost("gpt-6-astra", response)
+        self.assertFalse(result["complete"])
+        self.assertIsNone(result["total_cost_usd"])
+        self.assertEqual(result["hosted_tool_activity"], ["web_search_call"])
+
+    def test_request_feature_hint_refuses_all_in_total(self):
+        response = SimpleNamespace(
+            model="gpt-6-astra",
+            service_tier="default",
+            usage=SimpleNamespace(input_tokens=1_000, output_tokens=1_000),
+            output=[],
+        )
+        result = pricing.calculate_openai_response_cost(
+            "gpt-6-astra", response, request_feature_hints=["file_search"]
+        )
+        self.assertFalse(result["complete"])
+        self.assertIsNone(result["total_cost_usd"])
+        self.assertEqual(result["hosted_tool_activity"], ["file_search"])
+
 
 if __name__ == "__main__":
     unittest.main()
