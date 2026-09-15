@@ -21,3 +21,11 @@ def require_supported_python() -> None:
             f"validated Python is {supported}.x; detected Python {detected}. "
             "Use CPython 3.12 and install dependencies through constraints-py312.txt."
         )
+
+
+if __name__ == "__main__":
+    require_supported_python()
+    print(
+        "TokenTotals Python compatibility: OK — "
+        f"CPython {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    )
