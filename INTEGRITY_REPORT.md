@@ -44,7 +44,7 @@ The fallback `calculate_cost()` returned only `input_cost_usd`, while other code
 
 **Repair:** unknown models now fail closed with HTTP 422. There is no generic dollar fallback.
 
-### IR-003 — Pricing “sync” was disconnected from runtime meter — CONFIRMED DEFECT
+### IR-003 — Pricing “sync” was disconnected from runtime meter — CONFIRMED DEFECT / REPAIRED AND REVALIDATED
 
 Baseline `pricing_sync.py` downloaded LiteLLM's community model-price registry into `~/.tokentotals/model_prices.json`. Baseline `proxy_server.py` did not use that file for its pre-flight pricing calculation; it used the private plugin/fallback path instead.
 
@@ -56,7 +56,7 @@ Failed or incomplete source checks preserve the previous verified snapshot. Susp
 
 The matrix generator reads `pricing_engine` as well, so regenerated OpenAI matrix rows and runtime calculations use the same effective verified pricing view. Anthropic and Google remain on dated checked-in verified entries until equivalent provider adapters are separately implemented and tested.
 
-**Validation:** regression tests prove candidate parsing, failed-check preservation, runtime consumption of the promoted snapshot, suspicious-jump quarantine, same-day retry after failure, and review-required handling for source-only changes.
+**Validation:** fixture-based regression tests prove candidate parsing, failed-check preservation, runtime consumption of the promoted snapshot, suspicious-jump quarantine, same-day retry after failure, and review-required handling for source-only changes. A separate non-destructive GitHub Actions source check then fetched the live OpenAI documentation on 2026-09-15, parsed and validated the supported Astra/Sol/Terra/Luna source pages into a temporary candidate, and completed successfully without writing the runtime verified snapshot. Its audit output reported the current parsed base rates, cache-read/cache-write rates, conservative guard rates, source URLs, and source hashes. The ordinary regression workflow on the same branch revision also passed 21/21 tests.
 
 ### IR-004 — “Official provider pricing audited live” — UNSUPPORTED CLAIM
 
@@ -212,10 +212,12 @@ Regression coverage includes:
 20. committed base pricing matrix must match the generator/base verified pricing view;
 21. proxy imports the real installed LiteLLM runtime dependency in the clean CI environment.
 
+IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
+
 ## Remaining limitations before calling this production-proven
 
 - The 21-test suite is focused regression coverage, not a full integration or load test.
-- The IR-003 CI tests use controlled source fixtures to test parser and promotion behavior; deployment still depends on the availability and continued documented structure of the official provider pages.
+- The live OpenAI source check proves the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must preserve the last verified snapshot rather than promote uncertain data.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
 - Multi-process workers are not supported for the file-lock budget invariant; the current lock is process-local. Run one TokenTotals proxy process unless cross-process locking is added.
 - OpenAI source synchronization does not by itself implement every OpenAI billing dimension in transaction accounting. Tool-call fees, image/audio billing, prompt caching details, service tiers, regional variations, provider promotions, and other applicable meters require explicit accounting support before they can be represented as a high-confidence provider-rule estimate.
