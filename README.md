@@ -101,7 +101,29 @@ Left-click the tray icon or visit `http://127.0.0.1:8080/dashboard` in your brow
 * 1-Click configuration copy for all major IDEs.
 * Direct receipts and links to provider-published pricing documentation.
 
-### 4. 🔒 Localhost-Only Architecture
+### 4. 🧾 Append-Only Local Turn Telemetry Ledger
+Completed TokenTotals-routed turns are written to a local runtime append-only JSONL ledger at `~/.tokentotals/turns.jsonl`.
+
+The ledger is deliberately **telemetry-only**. Its writer accepts a whitelisted schema rather than arbitrary request/callback objects. It does not persist prompt text, response text, API keys, or hidden reasoning content.
+
+Where the selected provider exposes or TokenTotals can defensibly derive the field, a turn can preserve:
+
+* requested, canonical, and provider-observed model identifiers as separate values;
+* provider and pricing-registry verification date;
+* input, uncached input, cached input, cache-write/create, output, reasoning/thinking, and tool-input token categories;
+* modality token detail and supported server-tool counters when exposed;
+* provider-reported total tokens, TokenTotals reconstructed total, and any unclassified/residual tokens required to reconcile the two;
+* latency, requested/observed service-tier information where available;
+* estimated cost components, total turn estimate, estimate completeness, and the basis used (`provider_registry_complete`, LiteLLM fallback, known list-equivalent, or unavailable); and
+* cumulative local/thread estimated spend after settlement.
+
+**Missing is not zero.** A zero token count means zero was actually observed or defensibly derived. If the provider did not expose a category, the ledger keeps that category unavailable rather than manufacturing `0`.
+
+**One thread can contain multiple models.** Historical summaries are derived from the ledger and preserve separate turn/token/estimated-cost totals per model/provider without resetting the thread when the caller changes models mid-conversation.
+
+The ledger's runtime write path is append-only, but it is an ordinary file owned by the local user; it is not represented as immutable or tamper-evident storage.
+
+### 5. 🔒 Localhost-Only Architecture
 * **No TokenTotals SaaS Telemetry:** No TokenTotals user account or secondary analytics service is required by the local runtime.
 * **Local Proxy Boundary:** The application listens on loopback and forwards permitted requests to the selected upstream provider through LiteLLM.
 * **100% Free & Open Source:** Licensed under **GNU GPLv3**.
