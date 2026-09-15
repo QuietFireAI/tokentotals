@@ -130,14 +130,30 @@ The current chat proxy supports HTTP `/v1/chat/completions` and SSE-style stream
 
 Loopback binding, local state, source availability, and absence of a QuietFireAI telemetry service can be useful architectural properties in some controlled environments. They do not by themselves establish FedRAMP authorization, FISMA compliance, ATO suitability, classification handling approval, or permission for deployment. Those determinations belong to the relevant organization and security/compliance authority.
 
-## 10. Verification
+## 10. Runtime and dependency reproducibility
 
-The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation including conflicting output ceilings, reservation against the exact model selected for automatic routing, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, Anthropic/Google base/standard source parsing and effective-date expiry enforcement, clean-install use of the declared LiteLLM runtime dependency, and public-claim guards that preserve the actual provider synchronization scope.
+The validated source/runtime contract for this revision is **CPython 3.12.x**.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **29 tests with 0 failures** on the forensic-hardening branch after the IR-005 matrix source-drift and effective-date guards were added. The separate non-destructive matrix-source workflow also passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass.
+`constraints-py312.txt` pins the validated dependency versions used by runtime, tests, and the Windows build path. Platform-specific dependencies use environment markers where the measured Linux and Windows graphs differ. `build.ps1` refuses another Python major/minor, installs through the constraints, runs `pip check`, and uses the constrained PyInstaller toolchain.
 
-This is regression/source-validation evidence. It is not a substitute for live-provider integration tests, concurrency/load tests, packaging tests, dependency review, or security assessment.
+The CI workflow creates fresh virtual environments for Linux runtime, Windows runtime, Windows build tools, and the regression suite. This avoids treating unrelated packages preinstalled in a hosted runner as TokenTotals dependencies.
 
-## 11. Forensic record
+`runtime_compat.py` is the executable compatibility contract. It reports a clear failure when the running Python major/minor differs from the validated 3.12 contract. The GitHub Actions workflow executes this check on pushes and pull requests and includes a daily schedule on the default branch, providing an ongoing Python-version/dependency-drift watch.
 
-See `INTEGRITY_REPORT.md` for the separate baseline integrity findings, including confirmed machine-specific paths, silent pricing fallbacks, disconnected price synchronization, stale matrix data, input-only pre-flight accounting, API bypasses, concurrency hazards, static dashboard telemetry, routed-model reservation ordering, and documentation claims that exceeded implementation.
+The constraints provide **version reproducibility for the validated CPython 3.12 dependency graph**. They are not a cryptographic package-artifact or supply-chain guarantee; package hashes are not pinned in this revision.
+
+## 11. Verification
+
+The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation including conflicting output ceilings, reservation against the exact model selected for automatic routing, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, Anthropic/Google base/standard source parsing and effective-date expiry enforcement, clean-install use of the declared LiteLLM runtime dependency, public-claim guards that preserve the actual provider synchronization scope, dependency-constraint coverage, clean constrained Linux/Windows environments, Python-version contract consistency, and constrained Windows packaging dependencies.
+
+GitHub Actions on Ubuntu/Python 3.12 passed **33 tests with 0 failures** on the final IR-020 reproducibility revision. Separate clean-environment jobs also passed the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The daily Python compatibility check is part of the same workflow and becomes scheduled automatically when the workflow resides on the repository default branch.
+
+The separate non-destructive matrix-source workflow also passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass.
+
+This is regression/source-validation evidence. It is not a substitute for live-provider integration tests, concurrency/load tests, final executable packaging tests, cryptographic dependency verification, or security assessment.
+
+## 12. Forensic record
+
+See `INTEGRITY_REPORT.md` for the separate baseline integrity findings and hardening findings, including confirmed machine-specific paths, silent pricing fallbacks, disconnected price synchronization, stale matrix data, input-only pre-flight accounting, API bypasses, concurrency hazards, static dashboard telemetry, routed-model reservation ordering, dependency reproducibility, and documentation claims that exceeded implementation.
+
+See `docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md` for the measured dependency and Python compatibility evidence.
