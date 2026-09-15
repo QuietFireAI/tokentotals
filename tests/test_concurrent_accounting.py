@@ -30,7 +30,16 @@ class ConcurrentAccountingTests(unittest.TestCase):
         )
         self.paths.start()
         self.addCleanup(self.paths.stop)
+        with config_manager._DATA_LOCK:
+            config_manager._INFLIGHT_RESERVATIONS.clear()
+            config_manager._SETTLED_RESERVATION_IDS.clear()
+        self.addCleanup(self._clear_ephemeral_reservations)
         config_manager.init_files()
+
+    def _clear_ephemeral_reservations(self):
+        with config_manager._DATA_LOCK:
+            config_manager._INFLIGHT_RESERVATIONS.clear()
+            config_manager._SETTLED_RESERVATION_IDS.clear()
 
     def test_interleaved_a_b_a_preserves_each_thread_total(self):
         config_manager.update_spend(0.10, thread_id="A")
@@ -85,8 +94,8 @@ class ConcurrentAccountingTests(unittest.TestCase):
     def test_callbacks_use_their_own_request_local_thread_metadata(self):
         recorded = []
 
-        def record_spend(cost_usd, thread_id=None):
-            recorded.append((cost_usd, thread_id))
+        def record_spend(cost_usd, thread_id=None, reservation_id=None):
+            recorded.append((cost_usd, thread_id, reservation_id))
 
         start = datetime.now()
         with patch.object(proxy_server.config_manager, "update_spend", side_effect=record_spend):
@@ -130,7 +139,11 @@ class ConcurrentAccountingTests(unittest.TestCase):
 
         self.assertEqual(
             recorded,
-            [(0.11, "thread-A"), (0.22, "thread-B"), (0.33, "thread-A")],
+            [
+                (0.11, "thread-A", None),
+                (0.22, "thread-B", None),
+                (0.33, "thread-A", None),
+            ],
         )
 
     def test_client_metadata_cannot_spoof_server_thread_attribution(self):
@@ -151,19 +164,24 @@ class ConcurrentAccountingTests(unittest.TestCase):
                     "messages": [{"role": "user", "content": "hello"}],
                     "litellm_metadata": {
                         proxy_server.THREAD_METADATA_KEY: "spoofed-thread",
+                        proxy_server.RESERVATION_METADATA_KEY: "spoofed-reservation",
                         "other": "client-data",
                     },
                 },
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            captured["litellm_metadata"],
-            {proxy_server.THREAD_METADATA_KEY: "trusted-thread"},
-        )
+        metadata = captured["litellm_metadata"]
+        self.assertEqual(metadata[proxy_server.THREAD_METADATA_KEY], "trusted-thread")
+        self.assertTrue(metadata[proxy_server.RESERVATION_METADATA_KEY])
+        self.assertNotEqual(metadata[proxy_server.THREAD_METADATA_KEY], "spoofed-thread")
         self.assertNotEqual(
-            captured["litellm_metadata"][proxy_server.THREAD_METADATA_KEY],
-            "spoofed-thread",
+            metadata[proxy_server.RESERVATION_METADATA_KEY],
+            "spoofed-reservation",
+        )
+        self.assertNotIn("other", metadata)
+        config_manager.release_preflight_reservation(
+            metadata[proxy_server.RESERVATION_METADATA_KEY]
         )
 
     def test_public_docs_state_concurrency_guarantee_and_inflight_boundary(self):
@@ -175,9 +193,11 @@ class ConcurrentAccountingTests(unittest.TestCase):
             lower = document.lower()
             self.assertIn("request-local", lower)
             self.assertIn("in-flight", lower)
+            self.assertIn("reserve", lower)
+            self.assertIn("input", lower)
             self.assertTrue(
-                "does not yet reserve" in lower or "not yet an in-flight reservation" in lower,
-                "public docs must disclose that simultaneous preflight headroom is not reserved yet",
+                "output" in lower or "full-turn" in lower,
+                "public docs must distinguish preflight input reservation from final turn cost",
             )
 
 
