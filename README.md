@@ -150,7 +150,8 @@ The forensic hardening suite now covers:
 - atomic reservation/reconciliation;
 - unlock and boost acknowledgements;
 - prevention of upstream calls after price/budget rejection;
-- bounded output reservation;
+- bounded output reservation, including conflicting output-bound fields;
+- reservation against the exact model actually selected for auto-economy routing;
 - removal of hard-coded dashboard telemetry;
 - OpenAI official-source pricing parsing;
 - preservation of the last verified OpenAI snapshot after incomplete/failed checks;
@@ -159,9 +160,10 @@ The forensic hardening suite now covers:
 - same-day retry after failed source checks;
 - review-required handling when source content changes without a recognized pricing/rule change;
 - committed matrix drift detection against the base verified pricing view;
-- clean-install use of the real declared LiteLLM dependency rather than a test-injected stand-in.
+- clean-install use of the real declared LiteLLM dependency rather than a test-injected stand-in;
+- public-claim guards that prevent a blanket all-provider “audited live” claim and preserve the actual provider synchronization scope.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **21 tests / 0 failures** after the IR-006 dependency-proof test was hardened. This is regression evidence, not a substitute for live-provider integration, load, packaging, or security testing.
+GitHub Actions on Ubuntu/Python 3.12 passed **25 tests / 0 failures** on the forensic-hardening branch after the routed-model reservation and public-claim integrity checks were added. This is regression evidence, not a substitute for live-provider integration, load, packaging, or security testing.
 
 ## Security and privacy boundary
 
