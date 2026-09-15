@@ -109,7 +109,7 @@ def show_lockout_popup():
 
     ack_label = tk.Label(
         root,
-        text="To acknowledge this emergency cutoff, type 'I UNDERSTAND' below:",
+        text="To acknowledge this emergency cutoff, enter the phrase 'I UNDERSTAND' below:",
         font=("Segoe UI", 10, "bold"),
         fg="#fbbf24",
         bg="#0c0e14"
@@ -130,7 +130,7 @@ def show_lockout_popup():
             root.destroy()
             open_dashboard(None, None)
         else:
-            messagebox.showwarning("Confirmation Required", "Please type exactly 'I UNDERSTAND' to confirm acknowledgment.", parent=root)
+            messagebox.showwarning("Confirmation Required", "Please enter the acknowledgment phrase 'I UNDERSTAND'.", parent=root)
 
     def do_boost():
         config_manager.quick_boost(5.00)
