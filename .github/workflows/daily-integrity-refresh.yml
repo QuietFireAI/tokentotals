@@ -4,16 +4,12 @@ on:
   push:
     branches: [sol/forensic-hardening]
     paths:
-      - 'pricing_catalog.json'
       - 'pricing_engine.py'
       - 'generate_model_matrix.py'
       - 'matrix_source_check.py'
       - 'openai_pricing_sync.py'
       - 'scripts/daily_integrity_refresh.py'
       - 'scripts/check_pricing_freshness.py'
-      - 'MODEL_COMPARISON_MATRIX.md'
-      - 'README.md'
-      - 'TokenTotals_Security_Whitepaper.md'
       - 'dashboard.html'
       - 'tests/test_matrix_freshness.py'
       - 'tests/test_matrix_source_check.py'
@@ -32,6 +28,7 @@ concurrency:
 
 jobs:
   refresh-validate-and-publish:
+    if: github.event_name != 'push' || github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
