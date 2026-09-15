@@ -106,11 +106,17 @@ Tracked state includes estimated/reserved daily spend, active-thread spend, requ
 
 When the local state is locked, new chat-completion requests receive HTTP 403 before TokenTotals performs an upstream LiteLLM call.
 
-The HTTP unlock endpoint requires the literal acknowledgment text:
+The baseline HTTP unlock path was unconditional: it did not read or require request-supplied acknowledgment before clearing the lock, even though its response described the action as user-acknowledged.
+
+The hardened HTTP unlock endpoint now requires the acknowledgment phrase:
 
 ```text
 I UNDERSTAND
 ```
+
+The validator trims surrounding whitespace and compares letter case insensitively; different wording is rejected. This is an explicit acknowledgment gate, not an authentication mechanism.
+
+A valid unlock changes only `is_locked` to `False`. It does not reset tracked spend, request counts, savings, thread accounting, unreconciled-stream state, or the configured daily budget.
 
 The dashboard `+$5` boost endpoint requires:
 
@@ -118,7 +124,7 @@ The dashboard `+$5` boost endpoint requires:
 BOOST $5
 ```
 
-The Windows Tk lock dialog separately validates `I UNDERSTAND` before native unlock. Native tray/GUI boost controls are explicit local user actions.
+The Windows Tk lock dialog separately validates the `I UNDERSTAND` phrase before native unlock. Native tray/GUI boost controls are explicit local user actions.
 
 TokenTotals removed the baseline permissive CORS middleware so an arbitrary browser origin is not deliberately granted API access.
 
@@ -152,9 +158,9 @@ The constraints provide **version reproducibility for the validated CPython 3.12
 
 ## 11. Verification
 
-The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, simultaneous in-process reservation contention, request-context isolation under overlapping HTTP calls, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation including conflicting output ceilings, direct proof that input-plus-output spend is committed before upstream execution, retention of a conservative reservation for streams without final usage, reservation against the model actually selected for automatic routing, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, Anthropic/Google base/standard source parsing and effective-date expiry enforcement, clean-install use of the declared LiteLLM runtime dependency, public-claim guards that preserve the actual provider synchronization scope, dependency-constraint coverage, clean constrained Linux/Windows environments, Python-version contract consistency, and constrained Windows packaging dependencies.
+The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, simultaneous in-process reservation contention, request-context isolation under overlapping HTTP calls, HTTP unlock rejection for absent/malformed/wrong acknowledgments, intentional unlock-phrase normalization, unlock-only state mutation, boost acknowledgment enforcement, no-upstream rejection paths, bounded output reservation including conflicting output ceilings, direct proof that input-plus-output spend is committed before upstream execution, retention of a conservative reservation for streams without final usage, reservation against the model actually selected for automatic routing, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, Anthropic/Google base/standard source parsing and effective-date expiry enforcement, clean-install use of the declared LiteLLM runtime dependency, public-claim guards that preserve the actual provider synchronization scope, dependency-constraint coverage, clean constrained Linux/Windows environments, Python-version contract consistency, and constrained Windows packaging dependencies.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **38 tests with 0 failures** on the IR-009 overlap revalidation revision. The two IR-009 tests prove the baseline request-scoped globals/callback cannot silently return and that two simultaneous requests preserve their own thread identity and routine/savings context through reservation and reconciliation. No production proxy logic was changed during the IR-009 revalidation because the existing hardened request-local implementation already satisfied those invariants.
+GitHub Actions on Ubuntu/Python 3.12 passed **41 tests with 0 failures** on the IR-010 unlock-integrity revalidation revision. The IR-010 tests prove that missing/malformed/wrong request input cannot clear the lock, case/outer-whitespace normalization of `I UNDERSTAND` is intentional, and a successful unlock changes only the lock flag while preserving accounting and the configured budget.
 
 Separate clean-environment jobs continue to exercise the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The daily Python compatibility check remains part of the same workflow and becomes scheduled automatically when the workflow resides on the repository default branch.
 
@@ -166,4 +172,4 @@ This is regression/source-validation evidence. It is not a substitute for live-p
 
 See `INTEGRITY_REPORT.md` for the separate baseline integrity findings and hardening findings, including confirmed machine-specific paths, silent pricing fallbacks, disconnected price synchronization, stale matrix data, input-only pre-flight accounting, API bypasses, concurrency hazards, static dashboard telemetry, routed-model reservation ordering, dependency reproducibility, and documentation claims that exceeded implementation.
 
-See `docs/IR-007_OUTPUT_RESERVATION_PROOF.md` for output-reservation lifecycle evidence, `docs/IR-008_CONCURRENT_RESERVATION_PROOF.md` for in-process contention evidence, `docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md` for overlapping request-context evidence, and `docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md` for the measured dependency and Python compatibility evidence.
+See `docs/IR-007_OUTPUT_RESERVATION_PROOF.md` for output-reservation lifecycle evidence, `docs/IR-008_CONCURRENT_RESERVATION_PROOF.md` for in-process contention evidence, `docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md` for overlapping request-context evidence, `docs/IR-010_UNLOCK_ACKNOWLEDGEMENT_PROOF.md` for unlock acknowledgment evidence, and `docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md` for the measured dependency and Python compatibility evidence.
