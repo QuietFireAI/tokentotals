@@ -101,7 +101,6 @@ def test_valid_sync_promotes_and_runtime_reads_same_snapshot(tmp_path, monkeypat
     import openai_pricing_sync
     import pricing_engine
     importlib.reload(openai_pricing_sync)
-    importlib.reload(pricing_engine)
 
     result = openai_pricing_sync.sync_openai_pricing(_fixture_fetch)
     assert result["result"] == "promoted"
@@ -120,7 +119,6 @@ def test_suspicious_jump_is_quarantined_and_previous_runtime_survives(tmp_path, 
     import openai_pricing_sync
     import pricing_engine
     importlib.reload(openai_pricing_sync)
-    importlib.reload(pricing_engine)
 
     assert openai_pricing_sync.sync_openai_pricing(_fixture_fetch)["result"] == "promoted"
     previous = json.loads(openai_pricing_sync.VERIFIED_PATH.read_text())
