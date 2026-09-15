@@ -312,6 +312,20 @@ The first test proves a real loopback `/v1/chat/completions` round trip returns 
 
 See `docs/IR-022_HTTP_INTEGRATION_LOAD_PROOF.md` for the dedicated proof sheet.
 
+### IR-023 — Sustained repeated-concurrency behavior lacked direct proof — EVIDENCE GAP / REVALIDATED
+
+IR-022 proved a single real loopback round trip and one 24-request overlapping burst, but it did not show whether repeated concurrent reservation/reconciliation cycles would accumulate state drift over time.
+
+**Validation approach:** the existing real-Uvicorn harness was extended rather than replaced with a synthetic benchmark. `tests/test_http_integration_load.py` now executes **8 successive rounds of 32 simultaneous loopback HTTP requests — 256 total requests** — against the production FastAPI application. Provider egress remains mocked so the test isolates TokenTotals' own HTTP, reservation, reconciliation, and state behavior without spending provider money.
+
+After every one of the eight rounds, the test requires the cumulative upstream count, `total_requests`, and `current_spend_usd` to equal the exact expected values. It also requires `unreconciled_streams == 0`, `is_locked == False`, and `/api/status` to report the same request count and spend as persisted state. Checking every round prevents an early lost update from being hidden by a plausible final value.
+
+**Result:** no production-code change was required. GitHub Actions proof run `34985140692` on commit `0c37ea2533e63788d085c427b3d1bae4739a7941` passed **56/56** tests on Ubuntu / CPython 3.12.14, plus Linux runtime smoke, Windows runtime smoke, Windows constrained PyInstaller/build-tool smoke, and `pip check`. The full regression/integration suite completed in 10.48 seconds on the hosted runner.
+
+**Boundary:** this is a bounded integrity soak, not a production-capacity benchmark. It proves the tested single-process envelope of 32 simultaneous requests repeated for 8 rounds / 256 total requests. Higher concurrency, longer hours/days soak duration, multi-process behavior, paid-provider/network behavior, and maximum production throughput remain uncharacterized.
+
+See `docs/IR-023_SUSTAINED_CONCURRENCY_SOAK_PROOF.md` for the dedicated proof sheet.
+
 ## Confirmed implemented baseline behavior
 
 The forensic review also found real code, not just claims:
@@ -327,7 +341,7 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression/integration suite on the hardened branch: **55 passed / 0 failed** on Ubuntu/Python 3.12.
+Current GitHub Actions regression/integration suite on the hardened branch: **56 passed / 0 failed** on Ubuntu/Python 3.12.
 
 Regression/integration coverage includes:
 
@@ -385,7 +399,8 @@ Regression/integration coverage includes:
 52. a verified pricing receipt at exactly 24 hours old remains current;
 53. a pricing receipt older than 24 hours fails the freshness gate instead of being treated as current;
 54. a real Uvicorn/loopback HTTP chat-completion round trip reconciles state and exposes the same reconciled spend through `/api/status`;
-55. a 24-request overlapping loopback HTTP burst preserves every request and reconciled spend update without creating an unreconciled stream or accidental lock.
+55. a 24-request overlapping loopback HTTP burst preserves every request and reconciled spend update without creating an unreconciled stream or accidental lock;
+56. eight successive 32-request loopback bursts (256 requests total) preserve exact cumulative request/spend accounting at every round with no unreconciled streams or accidental lock.
 
 IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
 
@@ -397,9 +412,11 @@ The daily pricing-integrity path additionally enforces a **24-hour maximum age**
 
 IR-022 additionally runs the production FastAPI app behind a real Uvicorn `127.0.0.1` listener and exercises both a single TCP round trip and a 24-request overlapping local burst. Provider egress is mocked in that proof so no paid-provider claim is inferred from the local integration result.
 
+IR-023 extends that same real-loopback harness through eight repeated 32-request bursts. It is an integrity soak for cumulative accounting correctness, not a throughput rating.
+
 ## Remaining limitations before calling this production-proven
 
-- Real loopback HTTP integration and a controlled 24-request overlapping burst are now proven, but sustained soak/stress testing, higher concurrency envelopes, and production capacity limits remain uncharacterized.
+- Real loopback HTTP integration and a bounded sustained-concurrency envelope are now proven through **32 simultaneous requests repeated for 8 rounds / 256 total requests**. Higher concurrency, hours/days soak duration, multi-process behavior, and production capacity limits remain uncharacterized.
 - The HTTP acknowledgment phrases are intent gates, not authentication secrets. A malicious local process running with the user's privileges can deliberately call loopback control endpoints with valid JSON and the published phrase.
 - The live OpenAI, Anthropic, and Google source checks prove the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must be surfaced for review rather than treated as proof that the provider price changed.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
@@ -412,6 +429,6 @@ IR-022 additionally runs the production FastAPI app behind a real Uvicorn `127.0
 
 ## Integrity conclusion
 
-The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, stale matrix data, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect, a dependency-reproducibility gap, an incomplete first browser-origin defense on the budget-control endpoint, and understated/misaligned Google Flash-Lite conservative guard rates before release. It also closed the prior local integration/load evidence gap with real loopback Uvicorn tests without requiring a production-code change.
+The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, stale matrix data, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect, a dependency-reproducibility gap, an incomplete first browser-origin defense on the budget-control endpoint, and understated/misaligned Google Flash-Lite conservative guard rates before release. It also closed the prior local integration/load and bounded sustained-concurrency evidence gaps with real loopback Uvicorn tests without requiring production-code changes.
 
 The hardening branch removes the known silent fabrication/fallback paths and changes the governing rule to: **unknown or unreconciled data stays unknown/conservative; it is never converted into a plausible-looking number merely to keep the UI green.**
