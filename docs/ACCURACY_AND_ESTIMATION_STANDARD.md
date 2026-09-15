@@ -10,7 +10,7 @@ When TokenTotals describes its accuracy, the statement must preserve all three i
 
 > **TokenTotals produces the most accurate independent cost estimate it can from the request/response telemetry available to the user and the provider's published pricing rules. Actual provider billing can differ when a pricing dimension is unavailable, ambiguous, account-specific, promotional, region-specific, time-dependent, or changed by the provider. TokenTotals therefore reports the calculation basis and confidence level instead of presenting an estimate as a provider invoice.**
 
-Do not shorten this into claims such as `exact billing`, `exact spend`, `identical to invoice`, or `100% billing accuracy` unless a future provider-supported reconciliation mechanism actually proves those claims.
+Do not make claims of invoice parity, guaranteed billing identity, or 100% billing accuracy unless a future provider-supported reconciliation mechanism independently establishes and continuously verifies such a capability.
 
 ## Particulars that can affect accuracy
 
@@ -152,11 +152,11 @@ A provider-rule estimate is still an independent estimate, not a provider invoic
 
 ## Fallback rule
 
-Missing data must never be converted silently into an apparently exact number.
+Missing data must never be converted silently into an apparently authoritative precise number.
 
 For budget protection, TokenTotals may use a conservative fallback:
 
-1. exact model known, pricing dimension unknown -> highest verified applicable rate for that model and unit;
+1. model known, pricing dimension unknown -> highest verified applicable rate for that model and unit;
 2. provider known, model unknown -> highest verified comparable provider rate for that modality/unit;
 3. provider/model unknown but comparable supported meter exists -> highest verified comparable supported rate;
 4. no defensible comparable rate -> `UNKNOWN`; strict mode blocks egress, conservative mode may reserve only if a documented worst-case basis exists.
