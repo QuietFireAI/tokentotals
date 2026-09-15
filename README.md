@@ -31,7 +31,7 @@ Every single developer turn or agent interaction renders a clean, live telemetry
 📊 Turn: ~$0.0006 (🧠 42 think / 💬 610 out) | 💾 Cache Savings: ~95%
 ⚡ Velocity: ~262.1k tok/turn (28.8M total) | 📈 Session Total: $22.68 USD (109 turns)
 🪟 Context Window: 42.84% (449.2k / 1M max limit)
-ℹ️ Pricing Verification: In $0.15 / Out $0.60 per 1M | Public Sync: 2026-09-09
+ℹ️ Current Pricing: In $0.15 / Out $0.60 per 1M | Public Sync: 2026-09-09
 ```
 
 ### 3. 📊 The Dash (Localhost Web Dashboard)
