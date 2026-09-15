@@ -26,6 +26,9 @@ See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_ST
 - Explicit `BOOST $5` acknowledgement for dashboard budget boosts.
 - Dashboard that displays runtime state only; it does not ship fake token/cache telemetry.
 - SSE-style streaming pass-through. If final usage is unavailable, TokenTotals keeps the conservative reservation and marks the stream unreconciled rather than inventing a final cost.
+- A validated CPython 3.12 dependency contract with a version-constrained runtime/test/build dependency graph.
+- Clean Linux and Windows runtime smoke checks plus a constrained Windows PyInstaller toolchain check.
+- A daily GitHub Actions compatibility watch for Python-version and dependency-resolution drift once this workflow is on the repository default branch.
 
 ## What is **not** claimed
 
@@ -38,6 +41,7 @@ See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_ST
 - It does not inject a telemetry badge into every IDE/chat turn.
 - It is not a FedRAMP/FISMA authorization and does not make an environment compliant by itself.
 - The packaged GUI/build path in this repository is currently Windows-oriented. The Python proxy may be portable, but macOS/Linux GUI packaging is not release-tested here.
+- The dependency constraints provide version reproducibility for the validated CPython 3.12 environments; they are not a cryptographic package-artifact/hash guarantee.
 
 See [`INTEGRITY_REPORT.md`](INTEGRITY_REPORT.md) for the forensic findings that led to these corrections.
 
@@ -89,13 +93,31 @@ This closes the baseline implementation's input-only pre-flight gap and its chec
 
 The budget lock in this revision is **process-local**. Do not run multiple TokenTotals proxy processes against the same state file and assume the hard-budget invariant is preserved. Cross-process locking is a separate requirement.
 
+## Python and dependency contract
+
+The currently validated source/runtime dependency contract is **CPython 3.12.x**.
+
+`constraints-py312.txt` pins the validated runtime/test/build dependency versions. Platform-specific packages use environment markers where the validated Linux and Windows graphs differ. Deliberate dependency upgrades should update the constraints and pass the Linux runtime, Windows runtime, Windows build-tool, and regression jobs together.
+
+`runtime_compat.py` is the machine-readable compatibility check used by CI. The GitHub Actions workflow exercises the Python-version contract and constrained dependency graph on pushes and pull requests, and is scheduled daily on the default branch to catch future interpreter/dependency drift.
+
 ## Quickstart from source
+
+Confirm Python 3.12 first:
+
+```bash
+python --version
+python runtime_compat.py
+```
+
+Then install through the validated constraints:
 
 ```bash
 python -m venv .venv
 # Windows PowerShell:
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install -c constraints-py312.txt -r requirements.txt
+python -m pip check
 python proxy_server.py
 ```
 
@@ -128,20 +150,21 @@ Configure a compatible client to use the local `/v1` base URL and provide the re
 
 `app_gui.py` starts the proxy, tray monitor, and dashboard integration. The modal lock dialog requires typing `I UNDERSTAND` before native unlock. The native `+$5` button is an explicit local user action.
 
-Build on Windows:
+Build on Windows with CPython 3.12:
 
 ```powershell
 .\build.ps1
 ```
 
-The build script no longer depends on a developer-specific Antigravity/Gemini plugin directory and bundles `pricing_catalog.json` with the application.
+The build script refuses another Python major/minor, installs through `constraints-py312.txt`, runs `pip check`, and uses the constrained PyInstaller toolchain. It no longer depends on a developer-specific Antigravity/Gemini plugin directory and bundles `pricing_catalog.json` with the application.
 
 ## Tests
 
-Install development dependencies and run:
+Install development dependencies through the same constraints and run:
 
 ```bash
-python -m pip install -r requirements-dev.txt
+python -m pip install -c constraints-py312.txt -r requirements-dev.txt
+python -m pip check
 python -m pytest -q
 ```
 
@@ -167,9 +190,15 @@ The forensic hardening suite now covers:
 - live source-rate drift rejection rather than silent catalog acceptance;
 - effective-date expiry enforcement for promotional matrix rates;
 - clean-install use of the real declared LiteLLM dependency rather than a test-injected stand-in;
-- public-claim guards that prevent a blanket all-provider “audited live” claim and preserve the actual provider synchronization scope.
+- public-claim guards that prevent a blanket all-provider “audited live” claim and preserve the actual provider synchronization scope;
+- runtime requirement coverage by the Python 3.12 constraints;
+- clean constrained environments on Linux and Windows;
+- Python 3.12 agreement across the compatibility contract, CI, and Windows build path;
+- constrained Windows PyInstaller packaging dependencies.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **29 tests / 0 failures** on the forensic-hardening branch after the IR-005 matrix source-drift and effective-date guards were added. The separate non-destructive matrix-source workflow also passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass. This is regression/source-validation evidence, not a substitute for live-provider integration, load, packaging, or security testing.
+GitHub Actions on Ubuntu/Python 3.12 passed **33 tests / 0 failures** on the final IR-020 reproducibility revision. Separate clean-environment jobs also passed the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The non-destructive matrix-source workflow previously passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass. This is regression/source-validation evidence, not a substitute for live-provider integration, load, final executable packaging, or security testing.
+
+See [`docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md`](docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md) for the dependency-reproducibility and daily Python compatibility evidence.
 
 ## Security and privacy boundary
 
