@@ -1,3 +1,5 @@
+import threading
+
 import config_manager
 
 
@@ -20,6 +22,44 @@ def test_reservation_is_atomic_and_fails_closed(monkeypatch, tmp_path):
     assert ok is False
     assert state["is_locked"] is True
     assert config_manager.get_state()["current_spend_usd"] == 0.08
+
+
+def test_simultaneous_reservations_cannot_both_cross_budget(monkeypatch, tmp_path):
+    _isolate(monkeypatch, tmp_path, budget=0.10)
+
+    barrier = threading.Barrier(3)
+    results = []
+    errors = []
+
+    def reserve(thread_id):
+        try:
+            barrier.wait(timeout=5)
+            accepted, state = config_manager.try_reserve_spend(0.06, thread_id=thread_id)
+            results.append((thread_id, accepted, float(state["current_spend_usd"]), bool(state["is_locked"])))
+        except Exception as exc:
+            errors.append(exc)
+
+    workers = [
+        threading.Thread(target=reserve, args=("a",), daemon=True),
+        threading.Thread(target=reserve, args=("b",), daemon=True),
+    ]
+    for worker in workers:
+        worker.start()
+
+    # Release both workers from the same barrier so they contend for the same gate.
+    barrier.wait(timeout=5)
+    for worker in workers:
+        worker.join(timeout=5)
+
+    assert errors == []
+    assert all(not worker.is_alive() for worker in workers)
+    assert len(results) == 2
+    assert sorted(accepted for _, accepted, _, _ in results) == [False, True]
+
+    final_state = config_manager.get_state()
+    assert final_state["current_spend_usd"] == 0.06
+    assert final_state["total_requests"] == 1
+    assert final_state["is_locked"] is True
 
 
 def test_reconcile_releases_unused_reservation(monkeypatch, tmp_path):
