@@ -13,7 +13,7 @@ def generate_ics(start_date_str="2026-09-22", output_path="TokenTotals_30Day_Lau
         {
             "day_offset": 0,
             "title": "🛡️ TokenTotals Launch: Staging & 60s Demo Recording",
-            "desc": "Phase 1: Verify GitHub repo (github.com/QuietFireAI/tokentotals). Record 60-second screen capture of Cursor hitting limit, audio chime, and topmost 'I UNDERSTAND' lockout modal.",
+            "desc": "Phase 1: Verify GitHub repo (github.com/QuietFireAI/tokentotals). Record 60-second screen capture of Cursor hitting the configured local pacing threshold, audio chime, and topmost 'I UNDERSTAND' local lockout modal.",
             "duration_hours": 2,
             "time": "10:00"
         },
@@ -27,28 +27,28 @@ def generate_ics(start_date_str="2026-09-22", output_path="TokenTotals_30Day_Lau
         {
             "day_offset": 4,
             "title": "💬 TokenTotals: Reddit Community Drop",
-            "desc": "Phase 2: Post tailored angles across subreddits:\n- r/Cursor & r/Windsurf (Set a hard $5/day ceiling)\n- r/LocalLLaMA (Zero-egress loopback proxy & cache savings)\n- r/OpenAI (Why billing dashboards lag by 24h).",
+            "desc": "Phase 2: Post tailored angles across subreddits:\n- r/Cursor & r/Windsurf (Local pacing threshold + turn telemetry)\n- r/LocalLLaMA (Local loopback control plane; permitted provider calls still egress upstream)\n- r/OpenAI (Why local turn-level cost telemetry matters between provider billing updates).",
             "duration_hours": 2,
             "time": "11:00"
         },
         {
             "day_offset": 5,
             "title": "🐦 TokenTotals: X/Twitter Launch Thread",
-            "desc": "Phase 2: Publish viral 4-tweet thread with the 60s demo video, GitHub repo link, ORCID attribution, and Buy Me a Coffee link.",
+            "desc": "Phase 2: Publish 4-tweet thread with the 60s demo video, GitHub repo link, ORCID attribution, and Buy Me a Coffee link.",
             "duration_hours": 1,
             "time": "12:00"
         },
         {
             "day_offset": 7,
             "title": "✍️ TokenTotals: HackerNoon & Medium Article Drop",
-            "desc": "Phase 3: Publish deep dive: 'The $400 Morning Surprise: Why Cloud AI Billing Fails Autonomous Agents (and How We Built a Localhost Airbag)' on HackerNoon and Medium.",
+            "desc": "Phase 3: Publish deep dive: 'The $400 Morning Surprise: Why Autonomous AI Workflows Need Local Cost Telemetry and Pacing' on HackerNoon and Medium.",
             "duration_hours": 2,
             "time": "09:00"
         },
         {
             "day_offset": 10,
             "title": "📰 TokenTotals: 404 Media & Tech Press Pitch",
-            "desc": "Phase 3: Send personalized pitches to independent tech journalists (404 Media, Ars Technica) highlighting an indie engineer solving corporate AI billing platform neglect.",
+            "desc": "Phase 3: Send personalized pitches to independent tech journalists (404 Media, Ars Technica) highlighting an indie engineer building transparent local AI cost telemetry and pacing tooling.",
             "duration_hours": 2,
             "time": "14:00"
         },
@@ -69,14 +69,14 @@ def generate_ics(start_date_str="2026-09-22", output_path="TokenTotals_30Day_Lau
         {
             "day_offset": 22,
             "title": "📣 TokenTotals: Regional Press & QuietFire Bridge",
-            "desc": "Phase 5: Distribute regional press release highlighting local software innovation. Publish announcement on how TokenTotals integrates as default L7 governor for TelsonBase and DispatcherAgents.",
+            "desc": "Phase 5: Distribute regional press release highlighting local software innovation. Publish announcement on how TokenTotals integrates as the local cost-telemetry and pacing layer for TelsonBase and DispatcherAgents.",
             "duration_hours": 2,
             "time": "10:00"
         },
         {
             "day_offset": 29,
             "title": "📈 TokenTotals: 30-Day Retrospective & Community Review",
-            "desc": "Phase 5: Audit GitHub stars, forks, and issues. Review community pull requests (Mac/Linux support, Ollama fallback), and plan v2.6 roadmap.",
+            "desc": "Phase 5: Audit GitHub stars, forks, and issues. Review community pull requests and plan the next roadmap from verified runtime behavior and community feedback.",
             "duration_hours": 2,
             "time": "15:00"
         }
