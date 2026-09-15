@@ -19,9 +19,15 @@ from openai_pricing import (
     estimate_openai_input_cost,
     looks_like_openai_model,
 )
+from anthropic_pricing import (
+    calculate_anthropic_response_cost,
+    looks_like_anthropic_model,
+    resolve_anthropic_model,
+)
 
-# Legacy pricing integration remains temporarily for non-OpenAI providers.
-# OpenAI calculations are handled by the repo-contained provider registry above.
+# Legacy pricing integration remains temporarily only for providers without a
+# repo-contained provider-specific calculator. OpenAI and Anthropic no longer
+# depend on the machine-specific pricing plugin for their primary live path.
 sys.path.insert(0, str(Path(r"C:\Users\Command Center\.gemini\config\plugins\token-cost-estimator\scripts")))
 try:
     from pricing_engine import resolve_model as legacy_resolve_model, calculate_cost as legacy_calculate_cost
@@ -45,14 +51,57 @@ def legacy_input_estimate(model_id, estimated_tokens):
     return calc.get("input_cost_usd", calc.get("total_cost_usd", 0.0)) or 0.0
 
 
-def request_service_tier_from_callback(kwargs):
-    tier = kwargs.get("service_tier")
-    if tier:
-        return tier
-    litellm_params = kwargs.get("litellm_params") or {}
-    if isinstance(litellm_params, dict):
-        return litellm_params.get("service_tier")
+def callback_param(kwargs, key):
+    value = kwargs.get(key)
+    if value is not None:
+        return value
+    for container_name in ("litellm_params", "optional_params"):
+        container = kwargs.get(container_name) or {}
+        if isinstance(container, dict) and container.get(key) is not None:
+            return container.get(key)
     return None
+
+
+def request_service_tier_from_callback(kwargs):
+    return callback_param(kwargs, "service_tier")
+
+
+def anthropic_preflight_input_estimate(model_id, estimated_tokens, payload):
+    """Best-effort preflight input estimate; actual spend uses response telemetry."""
+    record = resolve_anthropic_model(model_id)
+    if not record:
+        return None
+
+    speed = str(payload.get("speed") or "standard").lower()
+    if speed == "fast":
+        rates = record.get("fast_rates")
+        if not rates:
+            return None
+    elif speed == "standard":
+        rates = record.get("rates") or {}
+    else:
+        return None
+
+    base_rate = rates.get("base_input")
+    if base_rate is None:
+        return None
+
+    geo_multiplier = 1.0
+    if record.get("supports_inference_geo"):
+        geo = payload.get("inference_geo")
+        if geo is not None:
+            geo_name = str(geo).lower()
+            if geo_name == "us":
+                geo_multiplier = float(record.get("inference_geo_us_multiplier") or 1.1)
+            elif geo_name != "global":
+                return None
+        else:
+            # Workspace defaults can choose US-only inference. For the circuit
+            # breaker, use the highest known first-party geography multiplier so
+            # an unresolved default does not silently under-estimate input spend.
+            geo_multiplier = max(1.0, float(record.get("inference_geo_us_multiplier") or 1.0))
+
+    return (max(0, estimated_tokens) / 1_000_000.0) * float(base_rate) * geo_multiplier
 
 
 app = FastAPI(title="TokenTotals by QuietFireAI")
@@ -91,6 +140,25 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
             else:
                 print(
                     "[TokenTotals Pricing Warning] OpenAI telemetry could not be fully priced "
+                    f"from the verified registry: {result.get('notes', [])}. "
+                    "Falling back to LiteLLM response_cost when available."
+                )
+
+        elif completion_response and looks_like_anthropic_model(request_model):
+            result = calculate_anthropic_response_cost(
+                request_model,
+                completion_response,
+                processing_mode="standard",
+                inference_geo_hint=callback_param(kwargs, "inference_geo"),
+                service_tier_hint=request_service_tier_from_callback(kwargs),
+                speed_hint=callback_param(kwargs, "speed"),
+                platform="claude_api",
+            )
+            if result.get("complete") and result.get("total_cost_usd") is not None:
+                cost = result["total_cost_usd"]
+            else:
+                print(
+                    "[TokenTotals Pricing Warning] Anthropic telemetry could not be fully priced "
                     f"from the verified registry: {result.get('notes', [])}. "
                     "Falling back to LiteLLM response_cost when available."
                 )
@@ -198,8 +266,9 @@ async def proxy_openai(request: Request):
     CURRENT_THREAD_ID = request.headers.get("x-thread-id") or payload.get("user") or "default"
 
     # 2. PRE-FLIGHT AUDIT & POTENTIAL SAVINGS CALCULATION
-    # This is deliberately an estimate. Actual post-response OpenAI accounting uses
-    # observed usage telemetry from the provider response when available.
+    # This is deliberately an estimate. Actual post-response provider accounting
+    # uses observed usage telemetry whenever the dedicated provider engine can
+    # fully reconstruct the applicable public pricing mechanics.
     prompt_text = json.dumps(payload.get("messages", []))
     estimated_tokens = estimate_text_tokens(prompt_text, model_id)
 
@@ -210,6 +279,10 @@ async def proxy_openai(request: Request):
             service_tier=payload.get("service_tier"),
         )
         estimated_cost = openai_estimate.get("total_cost_usd")
+        if estimated_cost is None:
+            estimated_cost = legacy_input_estimate(model_id, estimated_tokens)
+    elif looks_like_anthropic_model(model_id):
+        estimated_cost = anthropic_preflight_input_estimate(model_id, estimated_tokens, payload)
         if estimated_cost is None:
             estimated_cost = legacy_input_estimate(model_id, estimated_tokens)
     else:
