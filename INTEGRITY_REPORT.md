@@ -56,13 +56,15 @@ Failed or incomplete source checks preserve the previous verified snapshot. Susp
 
 The matrix generator reads `pricing_engine` as well, so regenerated OpenAI matrix rows and runtime calculations use the same effective verified pricing view. Anthropic and Google remain on dated checked-in verified entries until equivalent provider adapters are separately implemented and tested.
 
-**Validation:** fixture-based regression tests prove candidate parsing, failed-check preservation, runtime consumption of the promoted snapshot, suspicious-jump quarantine, same-day retry after failure, and review-required handling for source-only changes. A separate non-destructive GitHub Actions source check then fetched the live OpenAI documentation on 2026-09-15, parsed and validated the supported Astra/Sol/Terra/Luna source pages into a temporary candidate, and completed successfully without writing the runtime verified snapshot. Its audit output reported the current parsed base rates, cache-read/cache-write rates, conservative guard rates, source URLs, and source hashes. The ordinary regression workflow on the same branch revision also passed 21/21 tests.
+**Validation:** fixture-based regression tests prove candidate parsing, failed-check preservation, runtime consumption of the promoted snapshot, suspicious-jump quarantine, same-day retry after failure, and review-required handling for source-only changes. A separate non-destructive GitHub Actions source check then fetched the live OpenAI documentation on 2026-09-15, parsed and validated the supported Astra/Sol/Terra/Luna source pages into a temporary candidate, and completed successfully without writing the runtime verified snapshot. Its audit output reported the current parsed base rates, cache-read/cache-write rates, conservative guard rates, source URLs, and source hashes. The ordinary regression workflow on that branch revision also passed 21/21 tests.
 
-### IR-004 — “Official provider pricing audited live” — UNSUPPORTED CLAIM
+### IR-004 — “Official provider pricing audited live” — UNSUPPORTED CLAIM / REPAIRED AND REVALIDATED
 
 The baseline dashboard said official vendor pricing was “audited live directly from provider documentation.” The code downloaded the LiteLLM GitHub registry, not the three provider documentation pages.
 
 **Repair:** wording changed to dated provider receipts. OpenAI now has a separately validated official-source checker; Anthropic and Google remain explicitly described as dated verified catalog entries until their own adapters are implemented. The dashboard no longer makes the old blanket live-audit claim.
+
+**Validation:** a dedicated public-claim integrity test scans the README, technical/security whitepaper, and dashboard source. It fails if the old blanket live-audit wording (or close variants) returns, and it separately requires the documentation to preserve the actual scope: OpenAI has the current official-source synchronization path; Anthropic and Google remain dated catalog entries. That guard passed in the 25-test GitHub Actions run on the repaired branch.
 
 ### IR-005 — Published model matrix was stale — STALE DATA
 
@@ -171,6 +173,16 @@ Baseline README advertised Windows/macOS/Linux. `app_gui.py` imports Windows-spe
 
 **Repair requirement:** advertise the packaged GUI as Windows unless macOS/Linux paths are implemented and tested. The Python proxy may be portable separately.
 
+### IR-019 — Auto-economy reservation could price one model and route another — CONFIRMED SAFETY DEFECT / REPAIRED AND REVALIDATED
+
+A regression test added during the hardening pass forced the auto-economy selector to choose a deliberately more expensive model. The proxy returned HTTP 200 even though the routed model's conservative reservation exceeded the configured budget. Inspection showed why: the proxy calculated and committed the budget reservation using the originally requested model, then changed `routed_model` afterward.
+
+**Impact:** any automatic routing decision that selected a more expensive model than the request-side pricing assumption could under-reserve before upstream egress and violate the budget-gate invariant.
+
+**Repair:** route selection now occurs before the budget calculation. The proxy resolves pricing for the exact model that will be sent upstream, estimates/reserves against that routed model, and uses the same routed pricing for response reconciliation. If auto-economy selects a model with no verified pricing, the request fails closed before upstream egress.
+
+**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes, and the full clean GitHub Actions suite passes 25/25.
+
 ## Confirmed implemented baseline behavior
 
 The forensic review also found real code, not just claims:
@@ -186,7 +198,7 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression suite on the hardened branch: **21 passed / 0 failed** on Ubuntu/Python 3.12 after the IR-006 clean-dependency proof was hardened.
+Current GitHub Actions regression suite on the hardened branch: **25 passed / 0 failed** on Ubuntu/Python 3.12.
 
 Regression coverage includes:
 
@@ -210,13 +222,17 @@ Regression coverage includes:
 18. suspicious pricing changes are quarantined and failed checks remain retryable;
 19. source-content-only changes require review instead of being silently ignored;
 20. committed base pricing matrix must match the generator/base verified pricing view;
-21. proxy imports the real installed LiteLLM runtime dependency in the clean CI environment.
+21. proxy imports the real installed LiteLLM runtime dependency in the clean CI environment;
+22. conflicting output-bound fields reserve against the largest supplied ceiling;
+23. auto-economy reservations follow the exact model actually routed upstream;
+24. blanket “all providers audited live” pricing claims cannot return to public claim surfaces;
+25. public documentation must preserve the actual provider synchronization scope.
 
 IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
 
 ## Remaining limitations before calling this production-proven
 
-- The 21-test suite is focused regression coverage, not a full integration or load test.
+- The 25-test suite is focused regression coverage, not a full integration or load test.
 - The live OpenAI source check proves the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must preserve the last verified snapshot rather than promote uncertain data.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
 - Multi-process workers are not supported for the file-lock budget invariant; the current lock is process-local. Run one TokenTotals proxy process unless cross-process locking is added.
@@ -227,6 +243,6 @@ IR-003 additionally has a separate live-source validation workflow. On 2026-09-1
 
 ## Integrity conclusion
 
-The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places.
+The baseline repository was **not an empty shell**. Its proxy, local state, GUI lock dialog, and routing path were substantive. However, it contained several material integrity failures: machine-specific dependencies, silent invented pricing, disconnected sync logic, an input-only safety check, API bypasses, race-prone accounting, and hard-coded dashboard telemetry presented as live-looking metrics. Documentation also exceeded implementation in several places. The hardening pass additionally caught a routed-model reservation ordering defect through an adversarial regression test before release.
 
 The hardening branch removes the known silent fabrication/fallback paths and changes the governing rule to: **unknown or unreconciled data stays unknown/conservative; it is never converted into a plausible-looking number merely to keep the UI green.**
