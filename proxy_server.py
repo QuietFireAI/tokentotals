@@ -193,7 +193,7 @@ async def proxy_openai(request: Request):
     if not model_id:
         raise HTTPException(status_code=400, detail="A model is required")
     try:
-        pricing = resolve_model(model_id)
+        requested_pricing = resolve_model(model_id)
     except UnknownModelPrice as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
@@ -201,6 +201,32 @@ async def proxy_openai(request: Request):
     messages = payload.get("messages", [])
     prompt_text = json.dumps(messages, ensure_ascii=False, separators=(",", ":"))
     estimated_input_tokens = estimate_text_tokens(prompt_text, model_id)
+
+    word_count = len(prompt_text.split())
+    is_lightweight = word_count < 80 or estimated_input_tokens < 300
+    provider = requested_pricing.get("provider")
+    economy_model = _economy_model_for(provider)
+    is_routine = bool(
+        is_lightweight
+        and economy_model
+        and economy_model != requested_pricing.get("canonical_model")
+    )
+
+    routed_model = model_id
+    pricing = requested_pricing
+    if is_routine and conf.get("auto_economy_mode", False) and economy_model:
+        routed_model = economy_model
+        try:
+            pricing = resolve_model(routed_model)
+        except UnknownModelPrice as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Auto-economy routing selected a model without verified pricing. "
+                    f"No upstream call was sent. {exc}"
+                ),
+            )
+        estimated_input_tokens = estimate_text_tokens(prompt_text, routed_model)
 
     limit = float(conf.get("daily_budget_limit_usd", 10.00))
     current = float(state.get("current_spend_usd", 0.0))
@@ -223,29 +249,50 @@ async def proxy_openai(request: Request):
     else:
         reserved_output_tokens = requested_output
 
-    reserved = calculate_cost(pricing, estimated_input_tokens, reserved_output_tokens, conservative=True)["total_cost_usd"]
-    word_count = len(prompt_text.split())
-    is_lightweight = word_count < 80 or estimated_input_tokens < 300
-    provider = pricing.get("provider")
-    economy_model = _economy_model_for(provider)
-    is_routine = bool(is_lightweight and economy_model and economy_model != pricing.get("canonical_model"))
+    reserved = calculate_cost(
+        pricing,
+        estimated_input_tokens,
+        reserved_output_tokens,
+        conservative=True,
+    )["total_cost_usd"]
+
     potential_saving = 0.0
-    if is_routine:
+    if is_routine and economy_model:
         try:
             econ_pricing = resolve_model(economy_model)
-            econ_reserved = calculate_cost(econ_pricing, estimated_input_tokens, reserved_output_tokens, conservative=True)["total_cost_usd"]
-            potential_saving = max(0.0, reserved - econ_reserved)
+            requested_estimate_tokens = estimate_text_tokens(prompt_text, model_id)
+            requested_reserved = calculate_cost(
+                requested_pricing,
+                requested_estimate_tokens,
+                reserved_output_tokens,
+                conservative=True,
+            )["total_cost_usd"]
+            econ_estimate_tokens = estimate_text_tokens(prompt_text, economy_model)
+            econ_reserved = calculate_cost(
+                econ_pricing,
+                econ_estimate_tokens,
+                reserved_output_tokens,
+                conservative=True,
+            )["total_cost_usd"]
+            potential_saving = max(0.0, requested_reserved - econ_reserved)
         except UnknownModelPrice:
             potential_saving = 0.0
 
-    accepted, _ = config_manager.try_reserve_spend(reserved, thread_id=thread_id, potential_saving=potential_saving, is_routine=is_routine)
+    accepted, _ = config_manager.try_reserve_spend(
+        reserved,
+        thread_id=thread_id,
+        potential_saving=potential_saving,
+        is_routine=is_routine,
+    )
     if not accepted:
-        raise HTTPException(status_code=403, detail=f"Circuit breaker: worst-case reservation ${reserved:.6f} would exceed the daily budget of ${limit:.2f}. No upstream call was sent.")
-
-    routed_model = model_id
-    if is_routine and conf.get("auto_economy_mode", False) and economy_model:
-        routed_model = economy_model
-        pricing = resolve_model(routed_model)
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Circuit breaker: worst-case reservation ${reserved:.6f} for routed model "
+                f"'{routed_model}' would exceed the daily budget of ${limit:.2f}. "
+                "No upstream call was sent."
+            ),
+        )
 
     auth_header = request.headers.get("authorization", "")
     api_key = auth_header.replace("Bearer ", "", 1) if auth_header.startswith("Bearer ") else auth_header
@@ -256,7 +303,13 @@ async def proxy_openai(request: Request):
     import time
     started = time.perf_counter()
     try:
-        response = await litellm.acompletion(model=routed_model, messages=messages, api_key=api_key, stream=stream, **payload)
+        response = await litellm.acompletion(
+            model=routed_model,
+            messages=messages,
+            api_key=api_key,
+            stream=stream,
+            **payload,
+        )
     except Exception as exc:
         config_manager.reconcile_reserved_spend(reserved, 0.0, thread_id=thread_id)
         raise HTTPException(status_code=502, detail=f"Upstream Provider Error via LiteLLM: {exc}")
@@ -266,7 +319,12 @@ async def proxy_openai(request: Request):
     if not stream:
         usage_pair = _usage_from_response(response)
         if usage_pair:
-            actual = calculate_cost(pricing, usage_pair[0], usage_pair[1], conservative=False)["total_cost_usd"]
+            actual = calculate_cost(
+                pricing,
+                usage_pair[0],
+                usage_pair[1],
+                conservative=False,
+            )["total_cost_usd"]
             config_manager.reconcile_reserved_spend(reserved, actual, thread_id=thread_id)
         return response.model_dump() if hasattr(response, "model_dump") else response
 
@@ -288,7 +346,12 @@ async def proxy_openai(request: Request):
             yield f"data: {json.dumps({'error': str(exc)})}\n\n"
         finally:
             if usage_pair:
-                actual = calculate_cost(pricing, usage_pair[0], usage_pair[1], conservative=False)["total_cost_usd"]
+                actual = calculate_cost(
+                    pricing,
+                    usage_pair[0],
+                    usage_pair[1],
+                    conservative=False,
+                )["total_cost_usd"]
                 config_manager.reconcile_reserved_spend(reserved, actual, thread_id=thread_id)
             else:
                 config_manager.mark_unreconciled_stream(1)
