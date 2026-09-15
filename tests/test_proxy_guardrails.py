@@ -221,6 +221,45 @@ def test_missing_max_tokens_gets_bounded_and_reconciled(client, monkeypatch):
     assert state["current_spend_usd"] < 0.001
 
 
+def test_non_stream_response_content_is_not_decorated_with_tokentotals_badge(client, monkeypatch):
+    class ProviderContentResponse:
+        def __init__(self):
+            self.usage = types.SimpleNamespace(prompt_tokens=10, completion_tokens=5)
+
+        def model_dump(self):
+            return {
+                "id": "provider-response",
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "provider answer stays untouched",
+                        }
+                    }
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+            }
+
+    async def fake_completion(**kwargs):
+        return ProviderContentResponse()
+
+    monkeypatch.setattr(proxy_server.litellm, "acompletion", fake_completion)
+    response = client.post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer test"},
+        json={
+            "model": "gpt-5.6-luna",
+            "messages": [{"role": "user", "content": "hello"}],
+            "max_tokens": 20,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["choices"][0]["message"]["content"] == "provider answer stays untouched"
+    assert "TokenTotals" not in json.dumps(payload)
+
+
 def test_dashboard_has_no_fabricated_static_telemetry(client):
     html = client.get("/dashboard").text
 
