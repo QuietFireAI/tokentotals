@@ -58,7 +58,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          allowed='^(pricing_catalog\.json|MODEL_COMPARISON_MATRIX\.md|README\.md|TokenTotals_Security_Whitepaper\.md|docs/PRICING_DAILY_STATUS\.md)$'
+          allowed='^(pricing_catalog\.json|MODEL_COMPARISON_MATRIX\.md|README\.md|TokenTotals_Security_Whitepaper\.md|docs/PRICING_DAILY_STATUS\.md|docs/pricing_archive/[0-9]{4}/[0-9]{2}/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}Z\.md)$'
           unexpected="$(git status --porcelain | sed -E 's/^.. //' | grep -Ev "$allowed" || true)"
           if [ -n "$unexpected" ]; then
             echo "Daily refresh modified unexpected files:"
@@ -74,7 +74,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add pricing_catalog.json MODEL_COMPARISON_MATRIX.md README.md TokenTotals_Security_Whitepaper.md docs/PRICING_DAILY_STATUS.md
+          git add pricing_catalog.json MODEL_COMPARISON_MATRIX.md README.md TokenTotals_Security_Whitepaper.md docs/PRICING_DAILY_STATUS.md docs/pricing_archive/
           if git diff --cached --quiet; then
             echo 'No generated pricing-surface changes to publish.'
           else
