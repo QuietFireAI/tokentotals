@@ -23,6 +23,7 @@ import pricing_engine
 
 CATALOG_PATH = ROOT / "pricing_catalog.json"
 MAX_SAFE_RATE_FACTOR = 5.0
+RATE_ABS_TOLERANCE = 1e-12
 
 RATE_FIELDS = (
     "input_price_per_1m",
@@ -52,6 +53,27 @@ def _utcnow() -> str:
 
 def _load_catalog() -> dict:
     return json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+
+
+def _normalize_rate(value: object) -> object:
+    """Keep JSON pricing stable when binary floats produce display-noise changes."""
+    if isinstance(value, (int, float)):
+        return round(float(value), 12)
+    return value
+
+
+def _rates_equal(old: object, new: object) -> bool:
+    if isinstance(old, (int, float)) and isinstance(new, (int, float)):
+        return math.isclose(
+            float(old), float(new), rel_tol=0.0, abs_tol=RATE_ABS_TOLERANCE
+        )
+    return old == new
+
+
+def _semantic_equal(field: str, old: object, new: object) -> bool:
+    if field in RATE_FIELDS:
+        return _rates_equal(old, new)
+    return old == new
 
 
 def _rate_factor(old: object, new: object) -> float:
@@ -93,16 +115,24 @@ def _refresh_openai(catalog: dict) -> tuple[dict, list[dict]]:
                 raise RuntimeError(
                     f"OpenAI {model_id} {field} changed by {factor:.2f}x; refusing automatic daily promotion"
                 )
+
         for field in OPENAI_SEMANTIC_FIELDS:
             old = current.get(field)
             new = live.get(field)
-            if old != new:
+            if not _semantic_equal(field, old, new):
                 semantic_changes.append(
-                    {"model": model_id, "field": field, "old": old, "new": new}
+                    {
+                        "model": model_id,
+                        "field": field,
+                        "old": _normalize_rate(old) if field in RATE_FIELDS else old,
+                        "new": _normalize_rate(new) if field in RATE_FIELDS else new,
+                    }
                 )
+
         for field in OPENAI_COPY_FIELDS:
             if field in live:
-                current[field] = live[field]
+                value = live[field]
+                current[field] = _normalize_rate(value) if field in RATE_FIELDS else value
         current["provider"] = "OpenAI"
         current["source"] = "openai"
 
