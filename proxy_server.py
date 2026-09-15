@@ -2,6 +2,7 @@ import json
 import time
 import sys
 import os
+import uuid
 
 if sys.stdout is None:
     sys.stdout = open(os.devnull, "w")
@@ -188,12 +189,13 @@ app.add_middleware(
 
 LAST_LATENCY_MS = 0
 THREAD_METADATA_KEY = "tokentotals_thread_id"
+RESERVATION_METADATA_KEY = "tokentotals_reservation_id"
 
 litellm.suppress_debug_info = True
 
 
-def callback_thread_id(kwargs):
-    """Read TokenTotals' request-local thread ID from LiteLLM callback metadata."""
+def callback_metadata_value(kwargs, key, default=None):
+    """Read server-owned TokenTotals metadata from LiteLLM callback containers."""
     containers = []
     for container_name in ("litellm_params", "optional_params"):
         container = kwargs.get(container_name)
@@ -206,10 +208,20 @@ def callback_thread_id(kwargs):
             metadata = container.get(metadata_name)
             if not isinstance(metadata, dict):
                 continue
-            value = metadata.get(THREAD_METADATA_KEY)
+            value = metadata.get(key)
             if value is not None and str(value).strip():
                 return str(value).strip()
-    return "default"
+    return default
+
+
+def callback_thread_id(kwargs):
+    """Read TokenTotals' request-local thread ID from LiteLLM callback metadata."""
+    return callback_metadata_value(kwargs, THREAD_METADATA_KEY, "default")
+
+
+def callback_reservation_id(kwargs):
+    """Read TokenTotals' request-local preflight reservation ID."""
+    return callback_metadata_value(kwargs, RESERVATION_METADATA_KEY)
 
 
 def track_cost_callback(kwargs, completion_response, start_time, end_time):
@@ -218,6 +230,7 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
         LAST_LATENCY_MS = int((end_time - start_time).total_seconds() * 1000)
         request_model = kwargs.get("model", "")
         thread_id = callback_thread_id(kwargs)
+        reservation_id = callback_reservation_id(kwargs)
         cost = None
         provider_result = None
 
@@ -295,6 +308,7 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
         config_manager.update_spend(
             cost_usd=cost,
             thread_id=thread_id,
+            reservation_id=reservation_id,
         )
     except Exception as e:
         print(f"[TokenTotals Pricing Warning] Cost callback failed: {e}")
@@ -315,9 +329,11 @@ async def list_models():
 async def get_status():
     conf = config_manager.get_config()
     state = config_manager.get_state()
+    pacing = config_manager.get_pacing_snapshot()
     limit = conf.get("daily_budget_limit_usd", 10.00)
     current = state.get("current_spend_usd", 0.00)
-    pct = round((current / limit * 100), 1) if limit > 0 else 0
+    committed = pacing.get("committed_spend_usd", current)
+    pct = round((committed / limit * 100), 1) if limit > 0 else 0
 
     traffic_light = "GREEN"
     if state.get("is_locked"):
@@ -329,9 +345,12 @@ async def get_status():
         "status": "LOCKED" if state.get("is_locked") else "ACTIVE",
         "traffic_light": traffic_light,
         "current_spend_usd": current,
+        "inflight_reserved_usd": pacing.get("inflight_reserved_usd", 0.0),
+        "committed_spend_usd": committed,
         "daily_budget_limit_usd": limit,
-        "remaining_budget_usd": max(0.0, round(limit - current, 4)),
-        "budget_used_pct": pct,
+        "remaining_budget_usd": pacing.get("available_budget_usd", max(0.0, round(limit - current, 4))),
+        "budget_used_pct": round((current / limit * 100), 1) if limit > 0 else 0,
+        "budget_committed_pct": pct,
         "thread_spend_usd": state.get("thread_spend_usd", 0.00),
         "last_latency_ms": LAST_LATENCY_MS,
         "is_locked": state.get("is_locked", False),
@@ -362,7 +381,6 @@ async def serve_dashboard():
 @app.post("/v1/chat/completions")
 async def proxy_openai(request: Request):
     state = config_manager.get_state()
-    conf = config_manager.get_config()
 
     # 1. HARD DEAD MAN'S SWITCH CHECK
     if state.get("is_locked", False):
@@ -404,13 +422,38 @@ async def proxy_openai(request: Request):
             ),
         )
 
-    # Check for budget breach BEFORE sending request
-    limit = conf.get("daily_budget_limit_usd", 10.00)
-    if state.get("current_spend_usd", 0.0) + estimated_cost > limit:
-        config_manager.set_locked(True)
+    # Atomically reserve the known preflight estimate before the provider call.
+    # This prevents concurrent requests from independently spending the same local
+    # headroom. It does not claim to predict response-dependent output/tool cost.
+    reservation_id = uuid.uuid4().hex
+    reservation = config_manager.reserve_preflight_budget(
+        reservation_id,
+        estimated_cost,
+        thread_id=thread_id,
+    )
+    if not reservation.get("accepted"):
+        reason = reservation.get("reason")
+        limit = reservation.get("daily_budget_limit_usd", 0.0)
+        if reason == "inflight_headroom":
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "TokenTotals Pacing Hold: available local headroom is temporarily "
+                    "reserved by other in-flight requests. This request was not sent "
+                    "upstream; retry after those requests settle."
+                ),
+            )
+        if reason == "locked":
+            raise HTTPException(
+                status_code=403,
+                detail="🛑 QuietFireAI Emergency Shutdown: local pacing is locked.",
+            )
         raise HTTPException(
             status_code=403,
-            detail=f"🚨 QuietFireAI Circuit Breaker: This request ({estimated_cost:.4f} USD) would exceed your daily budget of ${limit:.2f}. Outgoing calls locked.",
+            detail=(
+                f"🚨 QuietFireAI Circuit Breaker: This request ({estimated_cost:.4f} USD) "
+                f"would exceed your daily budget of ${limit:.2f}. Outgoing calls locked."
+            ),
         )
 
     # TokenTotals does not silently substitute models or providers. Pricing data
@@ -425,7 +468,7 @@ async def proxy_openai(request: Request):
     messages = payload.pop("messages", [])
     payload.pop("model", None)
     # litellm_metadata is reserved for TokenTotals' request-local callback
-    # attribution. Do not let client input replace this server-owned metadata.
+    # attribution and pacing reconciliation. Do not let client input replace it.
     payload.pop("litellm_metadata", None)
 
     try:
@@ -434,10 +477,14 @@ async def proxy_openai(request: Request):
             messages=messages,
             api_key=api_key,
             stream=stream,
-            litellm_metadata={THREAD_METADATA_KEY: thread_id},
+            litellm_metadata={
+                THREAD_METADATA_KEY: thread_id,
+                RESERVATION_METADATA_KEY: reservation_id,
+            },
             **payload,
         )
     except Exception as e:
+        config_manager.release_preflight_reservation(reservation_id)
         raise HTTPException(status_code=502, detail=f"Upstream Provider Error via LiteLLM: {str(e)}")
 
     if stream:
@@ -448,6 +495,10 @@ async def proxy_openai(request: Request):
             except Exception as e:
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
             finally:
+                # Normally the LiteLLM success callback settles the reservation.
+                # If a stream aborts before that callback occurs, do not strand
+                # ephemeral pacing headroom indefinitely.
+                config_manager.release_preflight_reservation(reservation_id)
                 yield "data: [DONE]\n\n"
 
         return StreamingResponse(generate(), media_type="text/event-stream")
@@ -475,27 +526,27 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 body { background: var(--bg); color: var(--text); padding: 24px; display: flex; justify-content: center; }
 .container { max-width: 900px; width: 100%; display: flex; flex-direction: column; gap: 20px; }
-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
-.brand { display: flex; align-items: center; gap: 12px; }
-.brand h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
-.badge { font-size: 11px; padding: 4px 8px; border-radius: 999px; font-weight: 600; text-transform: uppercase; }
-.badge-green { background: rgba(16, 185, 129, 0.2); color: var(--green); border: 1px solid var(--green); }
-.badge-red { background: rgba(239, 68, 68, 0.2); color: var(--red); border: 1px solid var(--red); }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-.metric-title { font-size: 13px; color: var(--subtext); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-.metric-value { font-size: 28px; font-weight: 700; }
-.progress-bar-bg { background: #1f2538; height: 12px; border-radius: 6px; overflow: hidden; margin: 12px 0 6px 0; }
-.progress-bar-fill { height: 100%; background: var(--green); transition: width 0.4s ease; }
-.btn { padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; border: none; font-size: 14px; transition: 0.2s; }
-.btn-boost { background: var(--green); color: #000; }
-.btn-boost:hover { filter: brightness(1.1); }
-.btn-copy { background: #23293d; color: var(--text); border: 1px solid #374151; font-size: 12px; }
-.btn-copy:hover { background: #374151; }
-pre { background: #0c0e14; padding: 12px; border-radius: 8px; font-size: 13px; color: #a5b4fc; overflow-x: auto; margin-top: 8px; }
-.receipts-list { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
-.receipt-link { font-size: 13px; color: #60a5fa; text-decoration: none; display: flex; align-items: center; gap: 4px; }
-.receipt-link:hover { text-decoration: underline; }
+header { display: flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:16px; }
+.brand { display:flex; align-items:center; gap:12px; }
+.brand h1 { font-size:22px; font-weight:700; letter-spacing:-0.5px; }
+.badge { font-size:11px; padding:4px 8px; border-radius:999px; font-weight:600; text-transform:uppercase; }
+.badge-green { background:rgba(16,185,129,0.2); color:var(--green); border:1px solid var(--green); }
+.badge-red { background:rgba(239,68,68,0.2); color:var(--red); border:1px solid var(--red); }
+.card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; }
+.metric-title { font-size:13px; color:var(--subtext); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; }
+.metric-value { font-size:28px; font-weight:700; }
+.progress-bar-bg { background:#1f2538; height:12px; border-radius:6px; overflow:hidden; margin:12px 0 6px 0; }
+.progress-bar-fill { height:100%; background:var(--green); transition:width 0.4s ease; }
+.btn { padding:8px 16px; border-radius:6px; font-weight:600; cursor:pointer; border:none; font-size:14px; transition:0.2s; }
+.btn-boost { background:var(--green); color:#000; }
+.btn-boost:hover { filter:brightness(1.1); }
+.btn-copy { background:#23293d; color:var(--text); border:1px solid #374151; font-size:12px; }
+.btn-copy:hover { background:#374151; }
+pre { background:#0c0e14; padding:12px; border-radius:8px; font-size:13px; color:#a5b4fc; overflow-x:auto; margin-top:8px; }
+.receipts-list { display:flex; flex-wrap:wrap; gap:12px; margin-top:10px; }
+.receipt-link { font-size:13px; color:#60a5fa; text-decoration:none; display:flex; align-items:center; gap:4px; }
+.receipt-link:hover { text-decoration:underline; }
 </style>
 </head>
 <body>
@@ -525,8 +576,8 @@ pre { background: #0c0e14; padding: 12px; border-radius: 8px; font-size: 13px; c
       <div id="progressFill" class="progress-bar-fill" style="width: 0%;"></div>
     </div>
     <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--subtext);">
-      <span id="remainingVal">Remaining: $10.0000</span>
-      <span id="pctVal">0.0% Used</span>
+      <span id="remainingVal">Available headroom: $10.0000</span>
+      <span id="pctVal">0.0% Committed</span>
     </div>
   </div>
 
@@ -578,9 +629,11 @@ async function refresh() {
     const data = await res.json();
     document.getElementById('spendVal').innerText = '$' + data.current_spend_usd.toFixed(4);
     document.getElementById('limitVal').innerText = '/ $' + data.daily_budget_limit_usd.toFixed(2) + ' Threshold';
-    document.getElementById('remainingVal').innerText = 'Remaining: $' + data.remaining_budget_usd.toFixed(4);
-    document.getElementById('pctVal').innerText = data.budget_used_pct + '% Used';
-    document.getElementById('progressFill').style.width = Math.min(100, data.budget_used_pct) + '%';
+    document.getElementById('remainingVal').innerText = 'Available headroom: $' + data.remaining_budget_usd.toFixed(4);
+    let commitment = data.budget_committed_pct.toFixed(1) + '% Committed';
+    if (data.inflight_reserved_usd > 0) commitment += ' ($' + data.inflight_reserved_usd.toFixed(4) + ' in-flight)';
+    document.getElementById('pctVal').innerText = commitment;
+    document.getElementById('progressFill').style.width = Math.min(100, data.budget_committed_pct) + '%';
     document.getElementById('threadVal').innerText = '$' + data.thread_spend_usd.toFixed(4);
     document.getElementById('latencyVal').innerHTML = data.port + ' <span style="font-size:14px; color:var(--subtext);">| ' + data.last_latency_ms + ' ms</span>';
 
