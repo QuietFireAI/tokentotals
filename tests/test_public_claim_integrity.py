@@ -16,6 +16,12 @@ FORBIDDEN_BLANKET_LIVE_AUDIT_PHRASES = (
     "all provider pricing is audited live",
 )
 
+FORBIDDEN_IMPLEMENTED_BADGE_CLAIMS = (
+    "turn-by-turn chat telemetry badge",
+    "every single developer turn or agent interaction renders",
+    "renders a clean, live telemetry badge directly in your working context",
+)
+
 
 def _public_claim_text() -> str:
     return "\n".join(path.read_text(encoding="utf-8").lower() for path in PUBLIC_CLAIM_FILES)
@@ -40,3 +46,12 @@ def test_provider_sync_scope_remains_explicit():
 
     assert "Pricing receipts" in dashboard_source
     assert "audited live" not in dashboard_source.lower()
+
+
+def test_turn_by_turn_badge_cannot_be_claimed_as_implemented():
+    text = _public_claim_text()
+    for phrase in FORBIDDEN_IMPLEMENTED_BADGE_CLAIMS:
+        assert phrase not in text, f"unsupported telemetry-badge claim returned: {phrase!r}"
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "It does not inject a telemetry badge into every IDE/chat turn." in readme
