@@ -39,7 +39,7 @@ A failed or incomplete OpenAI check preserves the previous verified snapshot. Su
 
 Anthropic and Google remain on the dated checked-in verified catalog until equivalent official-source adapters are separately implemented and tested. No third-party community registry is permitted to overwrite the runtime pricing authority.
 
-The matrix generator reads the same `pricing_engine` view as the runtime. When regenerated after an OpenAI promotion, its OpenAI rows therefore come from the same promoted pricing snapshot rather than a separate hand-maintained table.
+The matrix generator reads the same `pricing_engine` view as the runtime. When regenerated after an OpenAI promotion, its OpenAI rows therefore come from the same promoted pricing snapshot rather than a separate hand-maintained table. CI additionally checks that the committed portable base matrix remains identical to the base verified pricing view generated from the repository.
 
 Unknown models fail closed. TokenTotals does not substitute a generic “close enough” dollar rate.
 
@@ -130,9 +130,9 @@ Loopback binding, local state, source availability, and absence of a QuietFireAI
 
 ## 10. Verification
 
-The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation, removal of fabricated dashboard constants, and OpenAI pricing-source synchronization failure/quarantine paths.
+The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, and committed-matrix drift detection.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **19 tests with 0 failures** after the IR-003 implementation and test-isolation correction. Subsequent documentation/matrix consistency commits are required to keep the same suite green before an item is treated as closed.
+GitHub Actions on Ubuntu/Python 3.12 passed **20 tests with 0 failures** after the IR-005 matrix consistency check was added.
 
 This is regression evidence. It is not a substitute for live-provider integration tests, concurrency/load tests, packaging tests, dependency review, or security assessment.
 
