@@ -190,7 +190,7 @@ We encourage developers, researchers, and community builders to:
 
 ## 📊 Standardized Cross-Platform Pricing Comparison (Developer API Stack)
 
-TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet** / **Claude 3.5 Haiku**), **OpenAI** (**o1** / **o3-mini** / **GPT-4o-mini**), and **Google** (**Gemini 2.5 Pro** / **Gemini 2.0 Flash** / **Gemini 2.0 Flash-Lite**):
+TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet** / **Claude 3.5 Haiku**), **OpenAI** (**o1** / **o3-mini** / **o1-mini**), and **Google** (**Gemini 2.5 Pro** / **Gemini 2.0 Flash** / **Gemini 2.0 Flash-Lite**):
 
 ### Standard Turn Cost (10,000 Input / 2,000 Output Tokens)
 
@@ -200,8 +200,8 @@ TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet**
 | **Anthropic** | Claude 3.7 Sonnet | Frontier | **$0.0600** | **44.4x** |
 | **Google** | Gemini 2.5 Pro | Frontier | **$0.0325** | **24.1x** |
 | **OpenAI** | OpenAI o3-mini | Workhorse | **$0.0198** | **14.7x** |
+| **OpenAI** | OpenAI o1-mini | Economy | **$0.0198** | **14.7x** |
 | **Anthropic** | Claude 3.5 Haiku | Economy | **$0.0160** | **11.9x** |
-| **OpenAI** | OpenAI GPT-4o-mini | Economy | **$0.0027** | **2.0x** |
 | **Google** | Gemini 2.0 Flash | Workhorse | **$0.0018** | **1.33x** |
 | **Google** | Gemini 2.0 Flash-Lite | Economy | **$0.00135** | **1.0x (Baseline)** |
 
