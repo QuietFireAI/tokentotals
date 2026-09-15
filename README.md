@@ -65,13 +65,15 @@ Point your IDE, agent framework, or scripts to `http://127.0.0.1:8080/v1` instea
                        │
                        ▼ (Calls http://127.0.0.1:8080/v1)
             ┌─────────────────────┐
-            │  TokenTotals Proxy   │ ──► 1. Pre-flight BPE token count & budget audit
+            │  TokenTotals Proxy   │ ──► 1. Pre-flight token estimate & budget audit
             │   (Local on your PC) │ ──► 2. Checks Daily Cap ($10.00) & Thread Spend
-            └─────────────────────┘ ──► 3. Calculates Potential Savings vs Flash/Mini
+            └─────────────────────┘ ──► 3. Preserves the explicitly requested model/provider
                        │
                        ▼ (Forwarded directly if under budget)
              [ OpenAI / Anthropic / Google Gemini ]
 ```
+
+TokenTotals intentionally does **not** silently replace the model or provider requested by the client. Pricing data alone cannot establish equivalent capabilities, tool or modality support, credentials, context limits, provider policy, or output behavior. Model selection remains with the user or calling application.
 
 ---
 
@@ -91,7 +93,6 @@ Point your IDE, agent framework, or scripts to `http://127.0.0.1:8080/v1` instea
 Left-click the tray icon or visit `http://127.0.0.1:8080/dashboard` in your browser to view:
 * Live Spend Fuel Gauge & remaining dollar headroom.
 * Per-thread/task spend tracking.
-* **Potential Savings Opportunity Meter:** Identifies when flagship models (GPT-4o / o1) were used for routine/short queries that could have used lighter models for ~90% savings.
 * 1-Click configuration copy for all major IDEs.
 * Direct receipts and links to provider-published pricing documentation.
 
@@ -144,14 +145,15 @@ response = client.chat.completions.create(
 {
     "daily_budget_limit_usd": 10.0,
     "port": 8080,
-    "auto_economy_mode": false,
     "warning_threshold_pct": 75
 }
 ```
 
 * `daily_budget_limit_usd`: Your local daily estimated-spend threshold used by TokenTotals' pacing logic. It is not the provider's billing limit.
 * `port`: Local port to bind the proxy server.
-* `auto_economy_mode`: If set to `true`, automatically remaps routine/simple prompts to `o3-mini` or `gemini-2.0-flash`. (Default: `false` - advisory only).
+* `warning_threshold_pct`: Percentage of the local daily threshold at which the tray indicator changes to caution status.
+
+Older local config files may still contain an `auto_economy_mode` key from earlier releases. Current TokenTotals ignores that retired key and does not automatically remap requested models.
 
 ---
 
@@ -177,8 +179,9 @@ We encourage developers, researchers, and community builders to:
 > **IMPORTANT: TokenTotals is an Observability & Pacing Governor, Not an Upstream Account Portal or Billing Mirror.**
 
 1. **No Account or Credit Line Access:** TokenTotals does **NOT** query, read, or interface with your credit card, bank account, or internal provider billing portals (e.g. OpenAI Billing Dashboard or Anthropic Console). We do not touch your actual account balances or credits.
-2. **Local Best-Effort Estimation:** Dollar metrics such as Today's Spend, Thread Spend, and Potential Savings are locally computed estimates based on billing-relevant telemetry available to the proxy, combined with versioned provider-published pricing references and known provider-specific rules. They can differ from final invoices because providers may apply cached/cache-write pricing, processing tiers, long-context rules, hosted-tool charges, batch modes, regional or account-specific pricing, negotiated discounts, credits, taxes, delayed or omitted telemetry, and pricing changes.
+2. **Local Best-Effort Estimation:** Dollar metrics such as Today's Spend and Thread Spend are locally computed estimates based on billing-relevant telemetry available to the proxy, combined with versioned provider-published pricing references and known provider-specific rules. They can differ from final invoices because providers may apply cached/cache-write pricing, processing tiers, long-context rules, hosted-tool charges, batch modes, regional or account-specific pricing, negotiated discounts, credits, taxes, delayed or omitted telemetry, and pricing changes.
 3. **Pacing & Protection, Not Invoicing:** TokenTotals is designed as a local airbag and telemetry monitor for development workflows. It does not replace, modify, or claim to reproduce provider billing statements. The provider's final invoice and account records remain authoritative.
+4. **Model Integrity:** TokenTotals does not infer that a cheaper model is an equivalent substitute for the model a client requested. Automatic model/provider downgrade routing was retired; model choice remains explicit.
 
 
 ---
