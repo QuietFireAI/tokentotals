@@ -75,7 +75,7 @@ async def list_models():
         "object": "list",
         "data": [
             {"id": "gpt-4o", "object": "model", "owned_by": "openai"},
-            {"id": "gpt-4o-mini", "object": "model", "owned_by": "openai"},
+            {"id": "o3-mini", "object": "model", "owned_by": "openai"},
             {"id": "claude-3-5-sonnet", "object": "model", "owned_by": "anthropic"},
             {"id": "gemini-2.0-flash", "object": "model", "owned_by": "google"}
         ]
@@ -174,7 +174,7 @@ async def proxy_openai(request: Request):
     CURRENT_POTENTIAL_SAVING = 0.0
 
     if CURRENT_ROUTINE_FLAG:
-        econ_model = "gpt-4o-mini" if "gpt" in model_id.lower() else "gemini-2.0-flash-lite"
+        econ_model = "o3-mini" if "gpt" in model_id.lower() else "gemini-2.0-flash-lite"
         econ_p = resolve_model(econ_model)
         econ_rate = econ_p.get("input_price_per_1m", 0.075)
         economy_cost = (estimated_tokens / 1e6) * econ_rate
@@ -323,7 +323,7 @@ pre { background: #0c0e14; padding: 12px; border-radius: 8px; font-size: 13px; c
   <div class="card alert-box" id="insightCard">
     <h3 style="font-size:14px; margin-bottom:4px; color:#fbbf24;">💡 Cost Optimization Insight</h3>
     <p style="font-size:13px; color:#e5e7eb;">
-      Routine tasks (formatting, short checks) sent to flagship models like GPT-4o can be shifted to lighter models like <code>gpt-4o-mini</code> or <code>gemini-2.0-flash</code> for an estimated potential savings of up to ~90%.
+      Routine tasks (formatting, short checks) sent to flagship models like GPT-4o can be shifted to lighter models like <code>o3-mini</code> or <code>gemini-2.0-flash</code> for an estimated potential savings of up to ~90%.
     </p>
   </div>
 
