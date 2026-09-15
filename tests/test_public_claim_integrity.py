@@ -38,6 +38,13 @@ FORBIDDEN_IMPLEMENTED_WEBSOCKET_CLAIMS = (
     "websocket proxy support is implemented",
 )
 
+FORBIDDEN_EVERY_RESPONSE_RECONCILIATION_CLAIMS = (
+    "every single api response from openai, anthropic, and google already contains everything you need to calculate your exact spend in real time",
+    "what the api already returns in every response",
+    "every response contains everything needed to calculate exact spend",
+    "every response contains everything you need to calculate exact spend",
+)
+
 
 def _public_claim_text() -> str:
     return "\n".join(path.read_text(encoding="utf-8").lower() for path in PUBLIC_CLAIM_FILES)
@@ -97,3 +104,14 @@ def test_websocket_proxy_cannot_be_claimed_as_implemented():
     assert "It does not provide a TokenTotals WebSocket proxy endpoint." in readme
     assert "This revision does **not** claim a TokenTotals WebSocket proxy endpoint." in whitepaper
     assert "supports HTTP `/v1/chat/completions` and SSE-style streamed responses" in whitepaper
+
+
+def test_every_response_exact_spend_claim_cannot_return():
+    text = _public_claim_text()
+    for phrase in FORBIDDEN_EVERY_RESPONSE_RECONCILIATION_CLAIMS:
+        assert phrase not in text, f"unsupported every-response reconciliation claim returned: {phrase!r}"
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").lower()
+    whitepaper = (ROOT / "TokenTotals_Security_Whitepaper.md").read_text(encoding="utf-8").lower()
+    assert "missing telemetry" in readme
+    assert "usage is unavailable" in whitepaper
