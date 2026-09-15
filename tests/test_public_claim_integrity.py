@@ -31,6 +31,13 @@ FORBIDDEN_PREFLIGHT_TOKEN_PRECISION_CLAIMS = (
     "provider-accurate pre-flight token count",
 )
 
+FORBIDDEN_IMPLEMENTED_WEBSOCKET_CLAIMS = (
+    "http/websocket loopback proxy daemon",
+    "http/websocket proxy daemon",
+    "supports http and websocket proxying",
+    "websocket proxy support is implemented",
+)
+
 
 def _public_claim_text() -> str:
     return "\n".join(path.read_text(encoding="utf-8").lower() for path in PUBLIC_CLAIM_FILES)
@@ -77,3 +84,16 @@ def test_preflight_token_estimator_cannot_be_claimed_as_bpe_or_exact():
     assert "Pre-flight token counts are **not represented as provider/model BPE counts**." in readme
     assert "The current pre-flight estimator is a conservative local UTF-8-length heuristic." in whitepaper
     assert "It is **not represented as a provider/model BPE tokenizer**." in whitepaper
+
+
+def test_websocket_proxy_cannot_be_claimed_as_implemented():
+    text = _public_claim_text()
+    for phrase in FORBIDDEN_IMPLEMENTED_WEBSOCKET_CLAIMS:
+        assert phrase not in text, f"unsupported WebSocket implementation claim returned: {phrase!r}"
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    whitepaper = (ROOT / "TokenTotals_Security_Whitepaper.md").read_text(encoding="utf-8")
+
+    assert "It does not provide a TokenTotals WebSocket proxy endpoint." in readme
+    assert "This revision does **not** claim a TokenTotals WebSocket proxy endpoint." in whitepaper
+    assert "supports HTTP `/v1/chat/completions` and SSE-style streamed responses" in whitepaper
