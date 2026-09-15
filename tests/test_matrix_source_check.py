@@ -1,9 +1,11 @@
+from datetime import date
+
 import pytest
 
 import matrix_source_check
 
 
-def test_anthropic_base_rates_are_read_from_first_model_rows():
+def test_anthropic_base_rates_are_read_from_model_pricing_not_navigation():
     catalog = {
         "models": {
             "claude-fable-5.1": {
@@ -19,6 +21,9 @@ def test_anthropic_base_rates_are_read_from_first_model_rows():
         }
     }
     text = """
+    Models
+    Claude Fable 5.1
+    Claude Opus 5
     Model pricing
     Claude Fable 5.1 $10 / MTok $12.50 / MTok $20 / MTok $0.25 / MTok $50 / MTok
     Claude Opus 5 $5 / MTok $6.25 / MTok $10 / MTok $0.50 / MTok $25 / MTok
@@ -27,7 +32,7 @@ def test_anthropic_base_rates_are_read_from_first_model_rows():
     assert [row["model"] for row in result] == ["claude-fable-5.1", "claude-opus-5"]
 
 
-def test_google_validator_uses_first_standard_occurrence_not_later_priority_repeat():
+def test_google_validator_uses_standard_section_not_promo_or_priority_repeat():
     catalog = {
         "models": {
             "gemini-3.1-pro-preview": {
@@ -43,7 +48,10 @@ def test_google_validator_uses_first_standard_occurrence_not_later_priority_repe
         }
     }
     text = """
-    Standard
+    Gemini 3.5 Flash promotional mention $99 $99
+    Google models
+    Gemini 3
+    Standard Model Priority Flex/Batch
     Gemini 3.1 Pro Preview Input Global $2.00 $4.00 $0.20 $0.40 Text output Global $12.00 $18.00
     Gemini 3.5 Flash Input Global $1.50 $1.50 $0.15 $0.15 Text output Global $9.00 $9.00
     Priority
@@ -65,6 +73,36 @@ def test_live_source_drift_fails_instead_of_accepting_new_number_silently():
             }
         }
     }
-    changed = "Gemini 3.5 Flash Input Global $2.00 Text output Global $10.00"
+    changed = """
+    Google models
+    Standard
+    Gemini 3.5 Flash Input Global $2.00 Text output Global $10.00
+    """
     with pytest.raises(ValueError, match="catalog input"):
         matrix_source_check.validate_provider_text("Google", changed, catalog)
+
+
+def test_expired_catalog_rate_fails_even_if_old_number_remains_on_provider_page():
+    catalog = {
+        "models": {
+            "gemini-3.8-flash": {
+                "provider": "Google",
+                "input_price_per_1m": 0.75,
+                "output_price_per_1m": 3.75,
+                "effective_until": "2026-12-31",
+            }
+        }
+    }
+    historical_and_new = """
+    Google models
+    Standard
+    Gemini 3.8 Flash through December 31, 2026 Input Global $0.75 Text output Global $3.75
+    Gemini 3.8 Flash Starting January 1, 2027 Input Global $1.50 Text output Global $7.50
+    """
+    with pytest.raises(ValueError, match="expired on 2026-12-31"):
+        matrix_source_check.validate_provider_text(
+            "Google",
+            historical_and_new,
+            catalog,
+            today=date(2027, 1, 1),
+        )
