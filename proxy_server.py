@@ -2,7 +2,6 @@ import json
 import time
 import sys
 import os
-from pathlib import Path
 
 if sys.stdout is None:
     sys.stdout = open(os.devnull, "w")
@@ -31,30 +30,35 @@ from google_pricing import (
     looks_like_google_model,
 )
 
-# Legacy pricing integration remains temporarily only for providers without a
-# repo-contained provider-specific calculator. OpenAI, Anthropic, and Google no
-# longer depend on the machine-specific pricing plugin for their primary live path.
-sys.path.insert(0, str(Path(r"C:\Users\Command Center\.gemini\config\plugins\token-cost-estimator\scripts")))
-try:
-    from pricing_engine import resolve_model as legacy_resolve_model, calculate_cost as legacy_calculate_cost
-except ImportError:
-    def legacy_resolve_model(m):
-        return {"input_price_per_1m": 2.50, "output_price_per_1m": 10.00}
 
-    def legacy_calculate_cost(p, i, o):
-        return {"input_cost_usd": (i / 1e6) * p["input_price_per_1m"]}
-
-try:
-    from token_estimator import estimate_text_tokens
-except ImportError:
-    def estimate_text_tokens(t, m):
-        return max(1, len(t) // 4)
+def estimate_text_tokens(text, model_id):
+    """Preflight token estimate using pinned LiteLLM tokenization when available."""
+    try:
+        count = int(litellm.token_counter(model=model_id, text=text))
+        return max(1, count)
+    except Exception:
+        # Deliberately a local heuristic only. This is not a billing counter.
+        return max(1, len(text) // 4)
 
 
-def legacy_input_estimate(model_id, estimated_tokens):
-    pricing = legacy_resolve_model(model_id)
-    calc = legacy_calculate_cost(pricing, estimated_tokens, 0)
-    return calc.get("input_cost_usd", calc.get("total_cost_usd", 0.0)) or 0.0
+def litellm_catalog_input_estimate(model_id, estimated_tokens):
+    """Exact-key fallback for providers without a TokenTotals provider engine."""
+    catalog = getattr(litellm, "model_cost", {}) or {}
+    record = catalog.get(model_id)
+    if not isinstance(record, dict):
+        return None
+
+    rate = record.get("input_cost_per_token")
+    if rate is None:
+        return None
+    try:
+        rate = float(rate)
+        tokens = max(0, int(estimated_tokens or 0))
+    except (TypeError, ValueError):
+        return None
+    if rate < 0:
+        return None
+    return tokens * rate
 
 
 def callback_param(kwargs, key):
@@ -133,6 +137,42 @@ def anthropic_preflight_input_estimate(model_id, estimated_tokens, payload):
             geo_multiplier = max(1.0, float(record.get("inference_geo_us_multiplier") or 1.0))
 
     return (max(0, estimated_tokens) / 1_000_000.0) * float(base_rate) * geo_multiplier
+
+
+def preflight_input_estimate(model_id, estimated_tokens, payload):
+    """Return (cost, source) without inventing a cross-provider price."""
+    if looks_like_openai_model(model_id):
+        result = estimate_openai_input_cost(
+            model_id,
+            estimated_tokens,
+            service_tier=payload.get("service_tier"),
+        )
+        cost = result.get("total_cost_usd")
+        return cost, "openai_registry" if cost is not None else "openai_registry_unresolved"
+
+    if looks_like_anthropic_model(model_id):
+        cost = anthropic_preflight_input_estimate(model_id, estimated_tokens, payload)
+        return cost, "anthropic_registry" if cost is not None else "anthropic_registry_unresolved"
+
+    if looks_like_google_model(model_id):
+        result = estimate_google_input_cost(
+            model_id,
+            estimated_tokens,
+            service_tier=payload.get("service_tier"),
+        )
+        cost = result.get("total_cost_usd")
+        return cost, "google_registry" if cost is not None else "google_registry_unresolved"
+
+    fallback = litellm_catalog_input_estimate(model_id, estimated_tokens)
+    if fallback is not None:
+        print(
+            "[TokenTotals Pricing Warning] No repo-contained provider engine matched "
+            f"{model_id!r}; using the exact-model input rate from pinned LiteLLM "
+            "as a secondary preflight estimate."
+        )
+        return fallback, "litellm_catalog_fallback"
+
+    return None, "unpriced"
 
 
 app = FastAPI(title="TokenTotals by QuietFireAI")
@@ -337,31 +377,17 @@ async def proxy_openai(request: Request):
     # fully reconstruct the applicable public pricing mechanics.
     prompt_text = json.dumps(payload.get("messages", []))
     estimated_tokens = estimate_text_tokens(prompt_text, model_id)
+    estimated_cost, preflight_source = preflight_input_estimate(model_id, estimated_tokens, payload)
 
-    if looks_like_openai_model(model_id):
-        openai_estimate = estimate_openai_input_cost(
-            model_id,
-            estimated_tokens,
-            service_tier=payload.get("service_tier"),
+    if estimated_cost is None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "TokenTotals Pricing Unavailable: no defensible preflight input price "
+                f"is available for model '{model_id}' (source={preflight_source}). "
+                "The request was not sent upstream."
+            ),
         )
-        estimated_cost = openai_estimate.get("total_cost_usd")
-        if estimated_cost is None:
-            estimated_cost = legacy_input_estimate(model_id, estimated_tokens)
-    elif looks_like_anthropic_model(model_id):
-        estimated_cost = anthropic_preflight_input_estimate(model_id, estimated_tokens, payload)
-        if estimated_cost is None:
-            estimated_cost = legacy_input_estimate(model_id, estimated_tokens)
-    elif looks_like_google_model(model_id):
-        google_estimate = estimate_google_input_cost(
-            model_id,
-            estimated_tokens,
-            service_tier=payload.get("service_tier"),
-        )
-        estimated_cost = google_estimate.get("total_cost_usd")
-        if estimated_cost is None:
-            estimated_cost = legacy_input_estimate(model_id, estimated_tokens)
-    else:
-        estimated_cost = legacy_input_estimate(model_id, estimated_tokens)
 
     # Check for budget breach BEFORE sending request
     limit = conf.get("daily_budget_limit_usd", 10.00)
@@ -384,23 +410,20 @@ async def proxy_openai(request: Request):
 
     if CURRENT_ROUTINE_FLAG:
         econ_model = "o3-mini" if "gpt" in model_id.lower() else "gemini-2.0-flash-lite"
-        if looks_like_openai_model(econ_model):
-            economy_result = estimate_openai_input_cost(
-                econ_model,
-                estimated_tokens,
-                service_tier=payload.get("service_tier"),
-            )
-            economy_cost = economy_result.get("total_cost_usd")
-            if economy_cost is None:
-                economy_cost = legacy_input_estimate(econ_model, estimated_tokens)
+        economy_cost, _ = preflight_input_estimate(econ_model, estimated_tokens, payload)
+
+        if economy_cost is not None:
+            CURRENT_POTENTIAL_SAVING = max(0.0, estimated_cost - economy_cost)
+
+            # Opt-In Auto-Economy Pilot (Default: False). Never switch to an
+            # economy target that TokenTotals cannot preflight-price.
+            if conf.get("auto_economy_mode", False):
+                model_id = econ_model
         else:
-            economy_cost = legacy_input_estimate(econ_model, estimated_tokens)
-
-        CURRENT_POTENTIAL_SAVING = max(0.0, estimated_cost - economy_cost)
-
-        # Opt-In Auto-Economy Pilot (Default: False)
-        if conf.get("auto_economy_mode", False):
-            model_id = econ_model
+            print(
+                "[TokenTotals Pricing Warning] Economy target could not be priced; "
+                f"skipping savings estimate and auto-routing for {econ_model!r}."
+            )
 
     # 3. UPSTREAM ROUTING VIA LITELLM
     auth_header = request.headers.get("authorization", "")
