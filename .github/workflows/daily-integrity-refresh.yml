@@ -3,9 +3,8 @@ name: daily-integrity-refresh
 on:
   workflow_dispatch:
   schedule:
-    # 00:05 America/New_York year-round. GitHub cron is UTC, so both UTC
-    # equivalents are scheduled and the gate below selects the active ET offset.
-    - cron: '5 4 * * *'
+    # One predictable daily refresh. GitHub cron is UTC.
+    # 05:05 UTC is 00:05 EST / 01:05 EDT, safely after the Eastern day boundary.
     - cron: '5 5 * * *'
 
 permissions:
@@ -16,39 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  eastern-midnight-gate:
-    runs-on: ubuntu-latest
-    outputs:
-      should_run: ${{ steps.gate.outputs.should_run }}
-      eastern_now: ${{ steps.gate.outputs.eastern_now }}
-    steps:
-      - name: Select the 00:05 Eastern schedule
-        id: gate
-        shell: bash
-        run: |
-          set -euo pipefail
-          eastern_now="$(TZ=America/New_York date '+%Y-%m-%d %H:%M:%S %Z')"
-          eastern_offset="$(TZ=America/New_York date '+%z')"
-          schedule_expr='${{ github.event.schedule }}'
-          echo "eastern_now=$eastern_now" >> "$GITHUB_OUTPUT"
-
-          if [ '${{ github.event_name }}' = 'workflow_dispatch' ]; then
-            echo 'should_run=true' >> "$GITHUB_OUTPUT"
-            echo "Manual daily integrity refresh accepted at $eastern_now."
-          elif [ "$schedule_expr" = '5 4 * * *' ] && [ "$eastern_offset" = '-0400' ]; then
-            echo 'should_run=true' >> "$GITHUB_OUTPUT"
-            echo "Scheduled 00:05 EDT refresh accepted at $eastern_now."
-          elif [ "$schedule_expr" = '5 5 * * *' ] && [ "$eastern_offset" = '-0500' ]; then
-            echo 'should_run=true' >> "$GITHUB_OUTPUT"
-            echo "Scheduled 00:05 EST refresh accepted at $eastern_now."
-          else
-            echo 'should_run=false' >> "$GITHUB_OUTPUT"
-            echo "Skipping inactive UTC schedule $schedule_expr at $eastern_now ($eastern_offset)."
-          fi
-
   refresh-validate-and-publish:
-    needs: eastern-midnight-gate
-    if: needs.eastern-midnight-gate.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
