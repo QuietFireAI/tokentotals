@@ -39,7 +39,10 @@ Existing installations with a legacy active-thread total are migrated on first s
 - `5c7b4711f2aa60e334f12522d05e4e648867503c` — serialized config/state transactions and introduced daily per-thread spend accounting with legacy active-thread migration.
 - `2aa189b3b23109ec32b977ec65720654216d5345` — removed process-global thread attribution and carried the server-owned thread ID through LiteLLM request-local callback metadata.
 - `c6157844f80e2d767ba3ce04cc559bde15aabe32` — added the initial concurrent accounting regression suite.
-- `0aa50c8d06408a46de05c0a099fb6ae7adcdee82` — added explicit legacy thread-spend migration coverage and established the final acceptance gate for this item.
+- `0aa50c8d06408a46de05c0a099fb6ae7adcdee82` — added explicit legacy thread-spend migration coverage and established the initial acceptance gate for this item.
+- `7c3b713eb671a20742df43774e5cc2eff855250f` — documented the post-response concurrency guarantee and in-flight reservation limitation in `README.md`.
+- `93372071472eb023a17e1a9826942f436eb58339` — updated the technical/security whitepaper to version `2.6-DEFENSIVE-SPEC` with explicit concurrency and pacing-boundary sections.
+- `067fd8fd08b70b0ce789a070ae635123dfa55b5a` — added a regression that requires the public docs to preserve both the request-local concurrency guarantee and the current in-flight reservation limitation.
 
 ## Regression invariants
 
@@ -48,10 +51,13 @@ Existing installations with a legacy active-thread total are migrated on first s
 1. interleaved `A -> B -> A` updates preserve A and B independently and restore A's accumulated same-day total when A becomes active again;
 2. 100 parallel spend updates across multiple thread IDs do not lose current-spend increments, per-thread increments, or request-count increments;
 3. callbacks use the thread identifier carried by their own request-local LiteLLM metadata, including out-of-order completion sequences;
-4. client-provided `litellm_metadata` cannot replace TokenTotals' server-owned thread attribution; and
-5. a legacy state file's active-thread spend survives first migration into the new per-thread map.
+4. client-provided `litellm_metadata` cannot replace TokenTotals' server-owned thread attribution;
+5. a legacy state file's active-thread spend survives first migration into the new per-thread map; and
+6. the public README and technical/security whitepaper state both the request-local concurrency protection and the fact that simultaneous preflight headroom is not yet reserved.
 
 ## Clean-machine evidence
+
+### Runtime/accounting acceptance gate
 
 GitHub Actions run: `35024972035`
 Job: `104569695600`
@@ -73,13 +79,31 @@ Concurrency-specific tests passing:
 - `test_legacy_active_thread_total_is_preserved_on_first_update`
 - `test_parallel_updates_do_not_lose_spend_or_request_counts`
 
+### Public-documentation follow-up gate
+
+GitHub Actions run: `35025792967`
+Job: `104572376153`
+Commit: `067fd8fd08b70b0ce789a070ae635123dfa55b5a`
+Result: **SUCCESS**
+
+Clean runner stages:
+
+- dependency install: success
+- Python compile: success
+- live `proxy_server` import: success
+- regression suite: **99/99 passed**
+
+Documentation/concurrency guard passing:
+
+- `test_public_docs_state_concurrency_guarantee_and_inflight_boundary`
+
 All existing provider-pricing, proxy-integration, legacy-removal, model-catalog, optimizer-retirement, dashboard-truthfulness, preflight-fallback, and pricing-document reconciliation regressions remained green.
 
 ## Result
 
-**COMPLETE for post-response accounting concurrency in the current single TokenTotals daemon process.**
+**COMPLETE for post-response accounting concurrency in the current single TokenTotals daemon process, including public documentation alignment.**
 
-Costs are no longer attributed through one shared request-global thread identifier, simultaneous callback state updates are serialized, and interleaved thread activity retains independent same-day totals.
+Costs are no longer attributed through one shared request-global thread identifier, simultaneous callback state updates are serialized, interleaved thread activity retains independent same-day totals, and the current public documentation states both the guarantee and its limit.
 
 ## Explicitly not claimed
 
