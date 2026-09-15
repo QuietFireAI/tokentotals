@@ -10,19 +10,16 @@ STATE_FILE = APP_DIR / "state.json"
 DEFAULT_CONFIG = {
     "daily_budget_limit_usd": 10.00,
     "port": 8080,
-    "auto_economy_mode": False,
     "warning_threshold_pct": 75
 }
 
 DEFAULT_STATE = {
     "date": str(date.today()),
     "current_spend_usd": 0.00,
-    "potential_savings_usd": 0.00,
     "thread_spend_usd": 0.00,
     "active_thread_id": "default",
     "is_locked": False,
-    "total_requests": 0,
-    "flagged_routine_calls": 0
+    "total_requests": 0
 }
 
 def init_files():
@@ -60,11 +57,9 @@ def get_state():
             if state.get("date") != today_str:
                 state["date"] = today_str
                 state["current_spend_usd"] = 0.00
-                state["potential_savings_usd"] = 0.00
                 state["thread_spend_usd"] = 0.00
                 state["is_locked"] = False
                 state["total_requests"] = 0
-                state["flagged_routine_calls"] = 0
                 save_state(state)
             return state
     except Exception:
@@ -75,14 +70,10 @@ def save_state(state_dict):
     with open(STATE_FILE, 'w') as f:
         json.dump(state_dict, f, indent=4)
 
-def update_spend(cost_usd, thread_id=None, potential_saving=0.0, is_routine=False):
+def update_spend(cost_usd, thread_id=None):
     state = get_state()
     state['current_spend_usd'] = round(state.get('current_spend_usd', 0.0) + cost_usd, 4)
     state['total_requests'] = state.get('total_requests', 0) + 1
-    
-    if is_routine:
-        state['flagged_routine_calls'] = state.get('flagged_routine_calls', 0) + 1
-        state['potential_savings_usd'] = round(state.get('potential_savings_usd', 0.0) + potential_saving, 4)
 
     current_thread = state.get('active_thread_id', 'default')
     if thread_id and thread_id != current_thread:
@@ -107,7 +98,7 @@ def quick_boost(boost_amount=5.00):
     conf = get_config()
     conf['daily_budget_limit_usd'] = round(conf.get('daily_budget_limit_usd', 10.00) + boost_amount, 2)
     save_config(conf)
-    
+
     state = get_state()
     state['is_locked'] = False
     save_state(state)
