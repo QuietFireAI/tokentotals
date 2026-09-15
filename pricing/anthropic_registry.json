@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "provider": "anthropic",
+  "platform_scope": "claude_api_list_pricing",
+  "currency": "USD",
+  "unit": "per_1m_tokens",
+  "verified_at": "2026-09-15",
+  "accuracy_statement": "Versioned Anthropic list-price reference for best-effort estimation. Not an invoice mirror.",
+  "sources": [
+    "https://platform.claude.com/docs/en/about-claude/pricing",
+    "https://platform.claude.com/docs/en/api/typescript/messages",
+    "https://platform.claude.com/docs/en/build-with-claude/prompt-caching",
+    "https://platform.claude.com/docs/en/build-with-claude/batch-processing",
+    "https://platform.claude.com/docs/en/build-with-claude/fast-mode",
+    "https://platform.claude.com/docs/en/api/service-tiers",
+    "https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions"
+  ],
+  "notes": {
+    "scope": "These are Claude API public list-price mechanics. Partner-operated Bedrock/Google Cloud regional pricing, private offers, CCU marketplace billing, taxes, credits, and negotiated discounts are not invoice-mirrored.",
+    "priority_tier": "Priority Tier is contractual/capacity based. A Priority-tier response is not treated as invoice-exact from public list rates.",
+    "inference_geo": "Claude 4.6 and later first-party models apply a 1.1x multiplier when inference_geo is us. Response usage is preferred over request assumptions.",
+    "batch": "Batch processing applies a 50% discount to token pricing. Fast mode is not available with Batch.",
+    "tools": "Web search has a separate per-request charge. Web fetch has no additional charge beyond token usage. Other tool/session SKUs require their own meters."
+  },
+  "tool_rates": {
+    "web_search_request_usd": 0.01,
+    "web_fetch_request_usd": 0.0
+  },
+  "models": {
+    "claude-fable-5-1": {
+      "aliases": [],
+      "rates": {"base_input": 10.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0, "cache_read": 0.25, "output": 50.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": false
+    },
+    "claude-mythos-5-1": {
+      "aliases": [],
+      "rates": {"base_input": 10.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0, "cache_read": 0.25, "output": 50.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": true
+    },
+    "claude-fable-5": {
+      "aliases": [],
+      "rates": {"base_input": 10.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0, "cache_read": 1.0, "output": 50.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": false
+    },
+    "claude-mythos-5": {
+      "aliases": [],
+      "rates": {"base_input": 10.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0, "cache_read": 1.0, "output": 50.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": true
+    },
+    "claude-opus-5": {
+      "aliases": [],
+      "rates": {"base_input": 5.0, "cache_write_5m": 6.25, "cache_write_1h": 10.0, "cache_read": 0.5, "output": 25.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": {"base_input": 10.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0, "cache_read": 1.0, "output": 50.0},
+      "limited_availability": false
+    },
+    "claude-opus-4-8": {
+      "aliases": [],
+      "rates": {"base_input": 5.0, "cache_write_5m": 6.25, "cache_write_1h": 10.0, "cache_read": 0.5, "output": 25.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": {"base_input": 10.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0, "cache_read": 1.0, "output": 50.0},
+      "limited_availability": false
+    },
+    "claude-opus-4-7": {
+      "aliases": [],
+      "rates": {"base_input": 5.0, "cache_write_5m": 6.25, "cache_write_1h": 10.0, "cache_read": 0.5, "output": 25.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": false
+    },
+    "claude-opus-4-6": {
+      "aliases": [],
+      "rates": {"base_input": 5.0, "cache_write_5m": 6.25, "cache_write_1h": 10.0, "cache_read": 0.5, "output": 25.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": false
+    },
+    "claude-opus-4-5-20251101": {
+      "aliases": ["claude-opus-4-5"],
+      "rates": {"base_input": 5.0, "cache_write_5m": 6.25, "cache_write_1h": 10.0, "cache_read": 0.5, "output": 25.0},
+      "supports_inference_geo": false,
+      "inference_geo_us_multiplier": null,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": false
+    },
+    "claude-sonnet-5": {
+      "aliases": [],
+      "rates": {"base_input": 2.0, "cache_write_5m": 2.5, "cache_write_1h": 4.0, "cache_read": 0.2, "output": 10.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": false
+    },
+    "claude-sonnet-4-6": {
+      "aliases": [],
+      "rates": {"base_input": 3.0, "cache_write_5m": 3.75, "cache_write_1h": 6.0, "cache_read": 0.3, "output": 15.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": false
+    },
+    "claude-sonnet-4-5-20250929": {
+      "aliases": ["claude-sonnet-4-5"],
+      "rates": {"base_input": 3.0, "cache_write_5m": 3.75, "cache_write_1h": 6.0, "cache_read": 0.3, "output": 15.0},
+      "supports_inference_geo": false,
+      "inference_geo_us_multiplier": null,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": false
+    },
+    "claude-haiku-4-5-20251001": {
+      "aliases": ["claude-haiku-4-5"],
+      "rates": {"base_input": 1.0, "cache_write_5m": 1.25, "cache_write_1h": 2.0, "cache_read": 0.1, "output": 5.0},
+      "supports_inference_geo": false,
+      "inference_geo_us_multiplier": null,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": false
+    }
+  }
+}
