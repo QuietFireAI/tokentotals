@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
+import httpx
 from fastapi.testclient import TestClient
 
 import config_manager
@@ -151,54 +152,57 @@ class InflightBudgetReservationTests(unittest.TestCase):
         conf["daily_budget_limit_usd"] = 0.50
         config_manager.save_config(conf)
 
-        started = threading.Event()
-        release = threading.Event()
-        upstream_calls = []
+        async def scenario():
+            started = asyncio.Event()
+            release = asyncio.Event()
+            upstream_calls = []
 
-        async def held_upstream(**kwargs):
-            upstream_calls.append(kwargs)
-            started.set()
-            while not release.is_set():
-                await asyncio.sleep(0.01)
-            metadata = kwargs["litellm_metadata"]
-            config_manager.update_spend(
-                0.20,
-                thread_id=metadata[proxy_server.THREAD_METADATA_KEY],
-                reservation_id=metadata[proxy_server.RESERVATION_METADATA_KEY],
-            )
-            return _FakeResponse()
-
-        def send_first():
-            return TestClient(proxy_server.app).post(
-                "/v1/chat/completions",
-                headers={"x-thread-id": "first", "authorization": "Bearer test"},
-                json={
-                    "model": "gpt-4o",
-                    "messages": [{"role": "user", "content": "first"}],
-                },
-            )
-
-        with patch.object(proxy_server, "preflight_input_estimate", return_value=(0.30, "test")), \
-             patch.object(proxy_server.litellm, "acompletion", side_effect=held_upstream):
-            with ThreadPoolExecutor(max_workers=1) as pool:
-                first_future = pool.submit(send_first)
-                self.assertTrue(started.wait(timeout=2.0))
-
-                second = TestClient(proxy_server.app).post(
-                    "/v1/chat/completions",
-                    headers={"x-thread-id": "second", "authorization": "Bearer test"},
-                    json={
-                        "model": "gpt-4o",
-                        "messages": [{"role": "user", "content": "second"}],
-                    },
+            async def held_upstream(**kwargs):
+                upstream_calls.append(kwargs)
+                started.set()
+                await release.wait()
+                metadata = kwargs["litellm_metadata"]
+                config_manager.update_spend(
+                    0.20,
+                    thread_id=metadata[proxy_server.THREAD_METADATA_KEY],
+                    reservation_id=metadata[proxy_server.RESERVATION_METADATA_KEY],
                 )
-                self.assertEqual(second.status_code, 429)
-                self.assertIn("temporarily reserved", second.json()["detail"])
-                self.assertEqual(len(upstream_calls), 1)
-                self.assertFalse(config_manager.get_state()["is_locked"])
+                return _FakeResponse()
 
-                release.set()
-                first = first_future.result(timeout=2.0)
+            transport = httpx.ASGITransport(app=proxy_server.app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+                with patch.object(proxy_server, "preflight_input_estimate", return_value=(0.30, "test")), \
+                     patch.object(proxy_server.litellm, "acompletion", side_effect=held_upstream):
+                    first_task = asyncio.create_task(
+                        client.post(
+                            "/v1/chat/completions",
+                            headers={"x-thread-id": "first", "authorization": "Bearer test"},
+                            json={
+                                "model": "gpt-4o",
+                                "messages": [{"role": "user", "content": "first"}],
+                            },
+                        )
+                    )
+                    await asyncio.wait_for(started.wait(), timeout=2.0)
+
+                    second = await client.post(
+                        "/v1/chat/completions",
+                        headers={"x-thread-id": "second", "authorization": "Bearer test"},
+                        json={
+                            "model": "gpt-4o",
+                            "messages": [{"role": "user", "content": "second"}],
+                        },
+                    )
+                    self.assertEqual(second.status_code, 429)
+                    self.assertIn("not sent upstream", second.json()["detail"])
+                    self.assertEqual(len(upstream_calls), 1)
+                    self.assertFalse(config_manager.get_state()["is_locked"])
+
+                    release.set()
+                    first = await asyncio.wait_for(first_task, timeout=2.0)
+                    return first, upstream_calls
+
+        first, upstream_calls = asyncio.run(scenario())
 
         self.assertEqual(first.status_code, 200)
         self.assertEqual(len(upstream_calls), 1)
