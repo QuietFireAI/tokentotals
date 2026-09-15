@@ -176,6 +176,7 @@ def test_stream_without_final_usage_keeps_full_reservation(client, monkeypatch):
     state = config_manager.get_state()
     assert observed["spend_before_upstream"] > 0
     assert state["current_spend_usd"] == pytest.approx(observed["spend_before_upstream"], abs=1e-9)
+    assert state["unreconciled_responses"] == 1
     assert state["unreconciled_streams"] == 1
 
 
@@ -281,7 +282,7 @@ def test_dashboard_has_no_fabricated_static_telemetry(client):
     for marker in forbidden:
         assert marker not in html
 
-    assert "Unreconciled Streams" in html
+    assert "Unreconciled Responses" in html
 
 
 def test_dashboard_dynamic_metrics_are_backed_by_status_fields(client):
@@ -292,6 +293,7 @@ def test_dashboard_dynamic_metrics_are_backed_by_status_fields(client):
             "thread_spend_usd": 0.345678,
             "potential_savings_usd": 0.456789,
             "total_requests": 7,
+            "unreconciled_responses": 3,
             "unreconciled_streams": 2,
         }
     )
@@ -304,6 +306,7 @@ def test_dashboard_dynamic_metrics_are_backed_by_status_fields(client):
     assert payload["thread_spend_usd"] == pytest.approx(0.345678)
     assert payload["potential_savings_usd"] == pytest.approx(0.456789)
     assert payload["total_requests"] == 7
+    assert payload["unreconciled_responses"] == 3
     assert payload["unreconciled_streams"] == 2
 
     html = client.get("/dashboard").text
@@ -316,7 +319,7 @@ def test_dashboard_dynamic_metrics_are_backed_by_status_fields(client):
         "total_requests",
         "potential_savings_usd",
         "pricing_verified_at",
-        "unreconciled_streams",
+        "unreconciled_responses",
         "port",
         "last_latency_ms",
         "is_locked",
