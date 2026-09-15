@@ -48,7 +48,8 @@ class MoneyPrecisionTests(unittest.TestCase):
         state = config_manager.get_state()
 
         self.assertEqual(state["current_spend_usd"], 0.0000412345)
-        self.assertIn("toFixed(4)", proxy_server.DASHBOARD_HTML)
+        self.assertIn("function usd(value, digits=4)", proxy_server.DASHBOARD_HTML)
+        self.assertIn("toFixed(digits)", proxy_server.DASHBOARD_HTML)
 
 
 if __name__ == "__main__":
