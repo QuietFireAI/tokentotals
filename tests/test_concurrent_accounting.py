@@ -166,6 +166,20 @@ class ConcurrentAccountingTests(unittest.TestCase):
             "spoofed-thread",
         )
 
+    def test_public_docs_state_concurrency_guarantee_and_inflight_boundary(self):
+        root = Path(__file__).resolve().parents[1]
+        readme = (root / "README.md").read_text(encoding="utf-8")
+        whitepaper = (root / "TokenTotals_Security_Whitepaper.md").read_text(encoding="utf-8-sig")
+
+        for document in (readme, whitepaper):
+            lower = document.lower()
+            self.assertIn("request-local", lower)
+            self.assertIn("in-flight", lower)
+            self.assertTrue(
+                "does not yet reserve" in lower or "not yet an in-flight reservation" in lower,
+                "public docs must disclose that simultaneous preflight headroom is not reserved yet",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
