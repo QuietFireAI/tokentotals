@@ -44,9 +44,11 @@ The receipt sources for the 2026-09-14 catalog are the official OpenAI, Anthropi
 
 Unknown models fail closed. TokenTotals does not substitute a generic “close enough” dollar rate.
 
-### 3.1 What the catalog does not yet model exactly
+### 3.1 Accuracy boundary
 
-Actual provider invoices can include billing dimensions beyond uncached text input/output tokens, including caching modes, long-context rules, batch/flex/priority modes, region, tools, search/grounding, image/audio generation, promotions, and other SKU-specific charges. TokenTotals must not call an estimate “exact” unless those applicable dimensions are explicitly represented and tested.
+Actual provider invoices can include billing dimensions beyond uncached text input/output tokens, including model snapshots, token and cache telemetry, context bands, requested versus actual service tier, regional processing, modality, hosted tools, storage/runtime meters, fine-tuning, promotions/effective dates, account-specific pricing, retries/partial streams, missing telemetry, and provider-side pricing changes.
+
+TokenTotals therefore reports the most accurate independent estimate supported by the telemetry and pricing rules available for the transaction. It does not claim invoice parity. See `docs/ACCURACY_AND_ESTIMATION_STANDARD.md` for the normative disclosure standard.
 
 ## 4. Pre-flight budget reservation
 
@@ -71,7 +73,7 @@ If the caller supplies no output-token maximum, TokenTotals applies `default_max
 
 ### 4.1 Input token estimation
 
-The current pre-flight estimator is a conservative local UTF-8-length heuristic. It is **not an exact model-specific BPE tokenizer** and is not represented as one. Provider-reported usage is preferred after the response.
+The current pre-flight estimator is a conservative local UTF-8-length heuristic. It is **not represented as a provider/model BPE tokenizer**. Provider-reported usage is preferred after the response.
 
 ### 4.2 Reconciliation
 
@@ -93,7 +95,7 @@ Tracked state includes estimated/reserved daily spend, active-thread spend, requ
 
 When the local state is locked, new chat-completion requests receive HTTP 403 before TokenTotals performs an upstream LiteLLM call.
 
-The HTTP unlock endpoint requires exact acknowledgment text:
+The HTTP unlock endpoint requires the literal acknowledgment text:
 
 ```text
 I UNDERSTAND
