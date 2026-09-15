@@ -3,7 +3,7 @@
 **Author:** QuietFireAI (Jeff Phillips)  
 **License:** GNU General Public License v3.0 (GPLv3)  
 **Date:** September 2026  
-**Document Version:** 2.7-DEFENSIVE-SPEC
+**Document Version:** 2.8-DEFENSIVE-SPEC
 
 ---
 
@@ -22,6 +22,7 @@ The open-source publication documents mechanisms including:
 3. Provider-specific reconstruction of billing-relevant LLM telemetry with explicit incomplete-estimate behavior when required dimensions are unavailable.
 4. Request-local callback attribution and serialized single-daemon spend-state updates for concurrent post-response accounting.
 5. Ephemeral, atomic in-flight reservation of each admitted request's defensible preflight estimate so concurrent requests cannot consume the same known local headroom.
+6. A local append-only turn telemetry ledger that preserves whitelisted token/cost/provenance metadata, explicit missing-field semantics, and per-model history inside a continuing thread without persisting prompt or response text.
 
 ---
 
@@ -182,6 +183,33 @@ The normal runtime is a single local TokenTotals daemon process. Within that pro
 Legacy state containing only an active thread plus `thread_spend_usd` is migrated on the first spend update so the already-recorded same-day active-thread amount is retained.
 
 This design is intentionally scoped to the current one-daemon architecture. It is not represented as a cross-process or distributed transactional store.
+
+### 6.6 Append-Only Local Turn Telemetry Ledger
+
+After a TokenTotals-routed completion settles local accounting, the callback can append one telemetry record to `~/.tokentotals/turns.jsonl`. The server-owned reservation identifier is reused as the durable turn identifier so a duplicated callback cannot append a second history record for the same routed turn.
+
+The runtime writer uses an explicit schema whitelist. It does not serialize arbitrary callback/request dictionaries and therefore does not intentionally persist prompt text, response text, provider API keys, or hidden chain-of-thought/reasoning content. The ledger stores operational/billing telemetry rather than conversation content.
+
+Depending on provider exposure and the ability to derive a field without inventing it, a record can contain:
+
+* requested, canonical, and provider-observed model identities as distinct values;
+* provider and pricing-registry verification date;
+* input, uncached input, cached input, cache-write/create, output, reasoning/thinking, and tool-input token categories;
+* modality token breakdowns and supported server-tool counters;
+* provider-reported total tokens, a TokenTotals reconstructed total, and residual/unclassified tokens when the totals do not reconcile;
+* timing/latency and requested/observed processing-tier metadata where exposed;
+* component costs, total turn estimate, completeness status, and a cost basis identifying a complete provider-registry calculation, LiteLLM response-cost fallback, known list-equivalent fallback, or unavailable total; and
+* cumulative local and thread estimated spend after settlement.
+
+Token fields also carry a basis state. `0` is reserved for an actually observed or defensibly derived zero. When a provider does not expose a category, the ledger records that field as unavailable rather than silently treating missing telemetry as zero.
+
+Historical thread summaries are derived from ledger records rather than a second mutable model counter. A single thread can therefore switch among models/providers while retaining one thread identity and simultaneously maintaining independent per-model turn, token, and estimated-cost totals. Summary token categories include both the accumulated value and the number of turns on which that category was actually available, so partial observability is visible.
+
+Cost aggregation in the ledger uses integer picodollar units (`10^-12` USD) before rendering back to dollars. The simpler local state accumulator also retains substantially more internal precision than the four-decimal human-facing display. These choices prevent repeated very small turns from disappearing through display-level rounding.
+
+The ledger file is opened in append mode, flushed, and `fsync`ed for each completed record. Corrupt JSON is surfaced rather than silently skipped. A ledger-write failure is isolated from the already-completed accounting settlement: TokenTotals emits a ledger warning rather than undoing or hiding the cost update.
+
+This is **runtime append-only behavior, not immutable storage**. The JSONL file belongs to the local user and can be edited, moved, or deleted outside TokenTotals. The current ledger is not represented as tamper-evident, cryptographically chained, or a provider-authoritative billing record.
 
 ---
 
