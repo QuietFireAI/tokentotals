@@ -55,6 +55,14 @@ FORBIDDEN_COMPLIANCE_CLAIMS = (
     "automatically fisma compliant",
 )
 
+FORBIDDEN_CROSS_PLATFORM_GUI_CLAIMS = (
+    "platform-windows%20%7c%20macos%20%7c%20linux",
+    "platform: windows | macos | linux",
+    "gui supports windows, macos, and linux",
+    "desktop app supports windows, macos, and linux",
+    "cross-platform gui for windows, macos, and linux",
+)
+
 
 def _public_claim_text() -> str:
     return "\n".join(path.read_text(encoding="utf-8").lower() for path in PUBLIC_CLAIM_FILES)
@@ -138,3 +146,23 @@ def test_fedramp_fisma_compliance_cannot_be_inferred_from_local_architecture():
     assert "It is not a FedRAMP/FISMA authorization and does not make an environment compliant by itself." in readme
     assert "They do not by themselves establish FedRAMP authorization, FISMA compliance" in whitepaper
     assert "Those determinations belong to the relevant organization and security/compliance authority." in whitepaper
+
+
+def test_gui_platform_claim_matches_current_windows_oriented_implementation():
+    text = _public_claim_text()
+    for phrase in FORBIDDEN_CROSS_PLATFORM_GUI_CLAIMS:
+        assert phrase not in text, f"unsupported cross-platform GUI claim returned: {phrase!r}"
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    gui_source = (ROOT / "app_gui.py").read_text(encoding="utf-8")
+    build_script = (ROOT / "build.ps1").read_text(encoding="utf-8")
+
+    assert "The packaged GUI/build path in this repository is currently Windows-oriented." in readme
+    assert "The Python proxy may be portable, but macOS/Linux GUI packaging is not release-tested here." in readme
+
+    # These are implementation evidence for the current documentation boundary.
+    # A future cross-platform GUI should deliberately replace this test together
+    # with real platform-specific packaging and CI evidence.
+    assert "import winsound" in gui_source
+    assert "os.startfile" in gui_source
+    assert "PyInstaller" in build_script
