@@ -82,10 +82,12 @@ For a supported model TokenTotals:
 1. estimates incoming prompt tokens locally;
 2. resolves a verified pricing record;
 3. chooses/validates a bounded output-token allowance;
-4. computes a conservative high-side reservation;
-5. atomically checks and reserves that amount against the daily limit;
+4. computes a conservative high-side reservation for estimated input plus the bounded output ceiling;
+5. atomically checks and commits that reservation against the daily limit **before** the upstream call begins;
 6. sends the request only if the reservation succeeds;
 7. reconciles the reservation to provider-reported token usage when available.
+
+If a caller supplies both `max_tokens` and `max_completion_tokens`, TokenTotals reserves against the larger valid ceiling. If a stream ends without usable final usage telemetry, the conservative reservation remains on the books and the stream is marked unreconciled rather than silently releasing budget headroom.
 
 This closes the baseline implementation's input-only pre-flight gap and its check-then-send concurrency race within a single TokenTotals process.
 
@@ -177,6 +179,8 @@ The forensic hardening suite now covers:
 - unlock and boost acknowledgements;
 - prevention of upstream calls after price/budget rejection;
 - bounded output reservation, including conflicting output-bound fields;
+- proof that the full input-plus-output reservation is committed before upstream execution begins;
+- retention of the conservative reservation when a stream ends without final usage telemetry;
 - reservation against the exact model actually selected for auto-economy routing;
 - removal of hard-coded dashboard telemetry;
 - OpenAI official-source pricing parsing;
@@ -196,9 +200,9 @@ The forensic hardening suite now covers:
 - Python 3.12 agreement across the compatibility contract, CI, and Windows build path;
 - constrained Windows PyInstaller packaging dependencies.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **33 tests / 0 failures** on the final IR-020 reproducibility revision. Separate clean-environment jobs also passed the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The non-destructive matrix-source workflow previously passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass. This is regression/source-validation evidence, not a substitute for live-provider integration, load, final executable packaging, or security testing.
+GitHub Actions on Ubuntu/Python 3.12 passed **35 tests / 0 failures** on the IR-007 output-reservation revalidation revision. The new IR-007 tests directly inspect the committed reservation from inside the mocked upstream call and prove that a stream without final usage retains that reservation. Separate clean-environment jobs continue to exercise the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The non-destructive matrix-source workflow previously passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass. This is regression/source-validation evidence, not a substitute for live-provider integration, load, final executable packaging, or security testing.
 
-See [`docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md`](docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md) for the dependency-reproducibility and daily Python compatibility evidence.
+See [`docs/IR-007_OUTPUT_RESERVATION_PROOF.md`](docs/IR-007_OUTPUT_RESERVATION_PROOF.md) for the circuit-breaker output-reservation evidence and [`docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md`](docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md) for the dependency-reproducibility and daily Python compatibility evidence.
 
 ## Security and privacy boundary
 
