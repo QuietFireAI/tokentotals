@@ -1,158 +1,158 @@
-BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//QuietFireAI//TokenTotals Launch Plan//EN
-CALSCALE:GREGORIAN
-METHOD:PUBLISH
-X-WR-CALNAME:TokenTotals 30-Day Launch Plan
-X-WR-TIMEZONE:America/New_York
-BEGIN:VEVENT
-UID:tokentotals-launch-day0-0@quietfireai.com
-DTSTAMP:20260914T222246Z
-DTSTART:20260922T100000
-DTEND:20260922T120000
-SUMMARY:🛡️ TokenTotals Launch: Staging & 60s Demo Recording
-DESCRIPTION:Phase 1: Verify GitHub repo (github.com/QuietFireAI/tokentotals). Record 60-second screen capture of Cursor hitting limit, audio chime, and topmost 'I UNDERSTAND' lockout modal.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day3-1@quietfireai.com
-DTSTAMP:20260914T222246Z
-DTSTART:20260925T080000
-DTEND:20260925T110000
-SUMMARY:🚀 TokenTotals: Hacker News 'Show HN' Launch
-DESCRIPTION:Phase 2: Post 'Show HN: TokenTotals - An open-source, local airbag for Cursor and AI agents' at 8:00 AM ET. Monitor comments and engage with the community.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day4-2@quietfireai.com
-DTSTAMP:20260914T222246Z
-DTSTART:20260926T110000
-DTEND:20260926T130000
-SUMMARY:💬 TokenTotals: Reddit Community Drop
-DESCRIPTION:Phase 2: Post tailored angles across subreddits:\n- r/Cursor & r/Windsurf (Set a hard $5/day ceiling)\n- r/LocalLLaMA (Zero-egress loopback proxy & cache savings)\n- r/OpenAI (Why billing dashboards lag by 24h).
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day5-3@quietfireai.com
-DTSTAMP:20260914T222246Z
-DTSTART:20260927T120000
-DTEND:20260927T130000
-SUMMARY:🐦 TokenTotals: X/Twitter Launch Thread
-DESCRIPTION:Phase 2: Publish viral 4-tweet thread with the 60s demo video, GitHub repo link, ORCID attribution, and Buy Me a Coffee link.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day7-4@quietfireai.com
-DTSTAMP:20260914T222246Z
-DTSTART:20260929T090000
-DTEND:20260929T110000
-SUMMARY:✍️ TokenTotals: HackerNoon & Medium Article Drop
-DESCRIPTION:Phase 3: Publish deep dive: 'The $400 Morning Surprise: Why Cloud AI Billing Fails Autonomous Agents (and How We Built a Localhost Airbag)' on HackerNoon and Medium.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day10-5@quietfireai.com
-DTSTAMP:20260914T222246Z
-DTSTART:20261002T140000
-DTEND:20261002T160000
-SUMMARY:📰 TokenTotals: 404 Media & Tech Press Pitch
-DESCRIPTION:Phase 3: Send personalized pitches to independent tech journalists (404 Media, Ars Technica) highlighting an indie engineer solving corporate AI billing platform neglect.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day15-6@quietfireai.com
-DTSTAMP:20260914T222246Z
-DTSTART:20261007T030000
-DTEND:20261007T070000
-SUMMARY:🏆 TokenTotals: Product Hunt Launch Day
-DESCRIPTION:Phase 4: Launch on Product Hunt at 12:01 AM PT. Engage with hunters, answer questions in comments, and share Product Hunt link on socials.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day17-7@quietfireai.com
-DTSTAMP:20260914T222246Z
-DTSTART:20261009T100000
-DTEND:20261009T120000
-SUMMARY:📬 TokenTotals: AI Newsletter Submissions
-DESCRIPTION:Phase 4: Submit to top AI newsletters:\n- Ben's Bites\n- TLDR AI\n- The Rundown\n- List on There's An AI For That (TAAFT) & AlternativeTo.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day22-8@quietfireai.com
-DTSTAMP:20260914T222246Z
-DTSTART:20261014T100000
-DTEND:20261014T120000
-SUMMARY:📣 TokenTotals: Regional Press & QuietFire Bridge
-DESCRIPTION:Phase 5: Distribute regional press release highlighting local software innovation. Publish announcement on how TokenTotals integrates as default L7 governor for TelsonBase and DispatcherAgents.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day29-9@quietfireai.com
-DTSTAMP:20260914T222246Z
-DTSTART:20261021T150000
-DTEND:20261021T170000
-SUMMARY:📈 TokenTotals: 30-Day Retrospective & Community Review
-DESCRIPTION:Phase 5: Audit GitHub stars, forks, and issues. Review community pull requests (Mac/Linux support, Ollama fallback), and plan v2.6 roadmap.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//QuietFireAI//TokenTotals Launch Plan//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:TokenTotals 30-Day Launch Plan
+X-WR-TIMEZONE:America/New_York
+BEGIN:VEVENT
+UID:tokentotals-launch-day0-0@quietfireai.com
+DTSTAMP:20260915T230000Z
+DTSTART:20260922T100000
+DTEND:20260922T120000
+SUMMARY:🛡️ TokenTotals Launch: Staging & 60s Demo Recording
+DESCRIPTION:Phase 1: Verify GitHub repo (github.com/QuietFireAI/tokentotals). Record 60-second screen capture of Cursor hitting the configured local pacing threshold, audio chime, and topmost 'I UNDERSTAND' local lockout modal.
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder: TokenTotals Launch Milestone
+TRIGGER:-PT30M
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:tokentotals-launch-day3-1@quietfireai.com
+DTSTAMP:20260915T230000Z
+DTSTART:20260925T080000
+DTEND:20260925T110000
+SUMMARY:🚀 TokenTotals: Hacker News 'Show HN' Launch
+DESCRIPTION:Phase 2: Post 'Show HN: TokenTotals - An open-source, local airbag for Cursor and AI agents' at 8:00 AM ET. Monitor comments and engage with the community.
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder: TokenTotals Launch Milestone
+TRIGGER:-PT30M
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:tokentotals-launch-day4-2@quietfireai.com
+DTSTAMP:20260915T230000Z
+DTSTART:20260926T110000
+DTEND:20260926T130000
+SUMMARY:💬 TokenTotals: Reddit Community Drop
+DESCRIPTION:Phase 2: Post tailored angles across subreddits:\n- r/Cursor & r/Windsurf (Local pacing threshold + turn telemetry)\n- r/LocalLLaMA (Local loopback control plane; permitted provider calls still egress upstream)\n- r/OpenAI (Why local turn-level cost telemetry matters between provider billing updates).
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder: TokenTotals Launch Milestone
+TRIGGER:-PT30M
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:tokentotals-launch-day5-3@quietfireai.com
+DTSTAMP:20260915T230000Z
+DTSTART:20260927T120000
+DTEND:20260927T130000
+SUMMARY:🐦 TokenTotals: X/Twitter Launch Thread
+DESCRIPTION:Phase 2: Publish 4-tweet thread with the 60s demo video, GitHub repo link, ORCID attribution, and Buy Me a Coffee link.
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder: TokenTotals Launch Milestone
+TRIGGER:-PT30M
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:tokentotals-launch-day7-4@quietfireai.com
+DTSTAMP:20260915T230000Z
+DTSTART:20260929T090000
+DTEND:20260929T110000
+SUMMARY:✍️ TokenTotals: HackerNoon & Medium Article Drop
+DESCRIPTION:Phase 3: Publish deep dive: 'The $400 Morning Surprise: Why Autonomous AI Workflows Need Local Cost Telemetry and Pacing' on HackerNoon and Medium.
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder: TokenTotals Launch Milestone
+TRIGGER:-PT30M
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:tokentotals-launch-day10-5@quietfireai.com
+DTSTAMP:20260915T230000Z
+DTSTART:20261002T140000
+DTEND:20261002T160000
+SUMMARY:📰 TokenTotals: 404 Media & Tech Press Pitch
+DESCRIPTION:Phase 3: Send personalized pitches to independent tech journalists (404 Media, Ars Technica) highlighting an indie engineer building transparent local AI cost telemetry and pacing tooling.
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder: TokenTotals Launch Milestone
+TRIGGER:-PT30M
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:tokentotals-launch-day15-6@quietfireai.com
+DTSTAMP:20260915T230000Z
+DTSTART:20261007T030000
+DTEND:20261007T070000
+SUMMARY:🏆 TokenTotals: Product Hunt Launch Day
+DESCRIPTION:Phase 4: Launch on Product Hunt at 12:01 AM PT. Engage with hunters, answer questions in comments, and share Product Hunt link on socials.
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder: TokenTotals Launch Milestone
+TRIGGER:-PT30M
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:tokentotals-launch-day17-7@quietfireai.com
+DTSTAMP:20260915T230000Z
+DTSTART:20261009T100000
+DTEND:20261009T120000
+SUMMARY:📬 TokenTotals: AI Newsletter Submissions
+DESCRIPTION:Phase 4: Submit to top AI newsletters:\n- Ben's Bites\n- TLDR AI\n- The Rundown\n- List on There's An AI For That (TAAFT) & AlternativeTo.
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder: TokenTotals Launch Milestone
+TRIGGER:-PT30M
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:tokentotals-launch-day22-8@quietfireai.com
+DTSTAMP:20260915T230000Z
+DTSTART:20261014T100000
+DTEND:20261014T120000
+SUMMARY:📣 TokenTotals: Regional Press & QuietFire Bridge
+DESCRIPTION:Phase 5: Distribute regional press release highlighting local software innovation. Publish announcement on how TokenTotals integrates as the local cost-telemetry and pacing layer for TelsonBase and DispatcherAgents.
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder: TokenTotals Launch Milestone
+TRIGGER:-PT30M
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:tokentotals-launch-day29-9@quietfireai.com
+DTSTAMP:20260915T230000Z
+DTSTART:20261021T150000
+DTEND:20261021T170000
+SUMMARY:📈 TokenTotals: 30-Day Retrospective & Community Review
+DESCRIPTION:Phase 5: Audit GitHub stars, forks, and issues. Review community pull requests and plan the next roadmap from verified runtime behavior and community feedback.
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder: TokenTotals Launch Milestone
+TRIGGER:-PT30M
+END:VALARM
+END:VEVENT
 END:VCALENDAR
