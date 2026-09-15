@@ -16,7 +16,6 @@ TokenTotals introduces a local, zero-egress Layer-7 HTTP/WebSocket loopback prox
 By publishing this specification under the GPLv3 open-source license, QuietFireAI dedicates these mechanisms to the public domain, barring any entity from asserting patent claims over:
 1. Local pre-flight Layer-7 LLM cost simulation prior to TCP/TLS socket upstream handshakes.
 2. Local loopback proxy enforcement paired with OS-level blocking modal confirmation ("I UNDERSTAND" pattern).
-3. Client-side heuristic counterfactual model downgrade advisory computing potential savings without external telemetry.
 
 ---
 
@@ -76,15 +75,20 @@ When `is_locked = true`, the daemon transitions from passive proxying to active 
 
 ---
 
-## 5. Counterfactual Model Optimization & Advisory
+## 5. Model-Integrity Boundary
 
-TokenTotals incorporates local heuristic classification to calculate counterfactual "Potential Savings":
+TokenTotals preserves the model identifier explicitly selected by the client. It does not automatically downgrade, remap, or substitute a different model or provider based solely on prompt length or comparative list pricing.
 
-$$\text{Potential Savings} = \sum_{i=1}^{n} \left( C_{\text{actual}}(R_i, m_{\text{flagship}}) - C_{\text{counterfactual}}(R_i, m_{\text{economy}}) \right)$$
+This boundary is intentional. A lower token price does not establish functional equivalence. Safe substitution would require additional information that a pricing meter alone cannot prove, including:
 
-Where $R_i$ satisfies the routine complexity threshold ($\text{Tokens}_{\text{in}} < 300$, word count $< 80$, and task classification $\in \{\text{format}, \text{lint}, \text{short\_query}\}$).
+* provider credentials and authorization;
+* supported tools and modalities;
+* context-window and structured-output requirements;
+* reasoning and latency requirements;
+* provider-specific policy and data-handling constraints; and
+* application-specific quality or capability requirements.
 
-This information is presented purely as **non-destructive advisory insights** on the local dashboard, preserving user autonomy while quantifying optimization opportunities.
+Earlier experimental builds included a heuristic counterfactual downgrade/potential-savings feature. That behavior was retired from the runtime rather than updated with newer model names because the heuristic could not defensibly prove equivalent execution or full-turn savings. Model selection remains the responsibility of the user or calling application.
 
 ---
 
@@ -94,7 +98,7 @@ The system produces deterministic, KaTeX-safe telemetry payloads capturing both 
 * **Pre-Flight Status:** In Budget (Green), Caution (Yellow), Limit Reached (Red).
 * **Cognitive Decomposition:** Separation of latent chain-of-thought (thinking tokens) from materialized output tokens.
 * **Cache Amortization:** Real-time ratio of cached prompt tokens against upstream baseline rates.
-* **Context Velocity:** Token accumulation velocity per interaction turn ($V_{	ext{tok}} = \Delta T / \Delta n$).
+* **Context Velocity:** Token accumulation velocity per interaction turn ($V_{\text{tok}} = \Delta T / \Delta n$).
 
 QuietFireAI encourages open-source contributors to fork, extend, and adapt these specifications under the GNU GPLv3 license.
 
