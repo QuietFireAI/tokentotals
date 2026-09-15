@@ -1,19 +1,27 @@
-"""Generate TokenTotals pricing comparison surfaces from the verified pricing view.
+"""Generate all public TokenTotals pricing surfaces from one verified pricing view.
 
-`MODEL_COMPARISON_MATRIX.md` and the marked pricing block in `README.md` are both
-rendered from `pricing_engine`, so the public comparison surfaces cannot quietly
-become independent hand-maintained pricing tables.
+The matrix, README pricing block, whitepaper pricing-integrity block, and daily pricing
+status document are rendered from `pricing_engine`. Public calculation examples therefore
+share one catalog and cannot quietly become independent hand-maintained numbers.
 """
+from __future__ import annotations
+
 from pathlib import Path
 
 from pricing_engine import calculate_cost, list_models, load_catalog
 
 INPUT_TOKENS = 10_000
 OUTPUT_TOKENS = 2_000
-OUTPUT = Path(__file__).with_name("MODEL_COMPARISON_MATRIX.md")
-README = Path(__file__).with_name("README.md")
+ROOT = Path(__file__).resolve().parent
+OUTPUT = ROOT / "MODEL_COMPARISON_MATRIX.md"
+README = ROOT / "README.md"
+WHITEPAPER = ROOT / "TokenTotals_Security_Whitepaper.md"
+DAILY_STATUS = ROOT / "docs" / "PRICING_DAILY_STATUS.md"
+
 README_START = "<!-- TOKENTOTALS_VERIFIED_PRICING_START -->"
 README_END = "<!-- TOKENTOTALS_VERIFIED_PRICING_END -->"
+WHITEPAPER_START = "<!-- TOKENTOTALS_DAILY_PRICING_START -->"
+WHITEPAPER_END = "<!-- TOKENTOTALS_DAILY_PRICING_END -->"
 
 
 def _money(value: float) -> str:
@@ -87,17 +95,24 @@ def render_compact_table() -> str:
     )
 
 
+def _refresh_metadata() -> dict:
+    return load_catalog().get("daily_integrity_refresh", {}) or {}
+
+
 def render_readme_pricing_section() -> str:
     catalog = load_catalog()
+    refresh = _refresh_metadata()
+    checked_at = refresh.get("source_checked_at", "NOT YET RECORDED")
     return "\n".join(
         [
             README_START,
             "## Current verified model pricing snapshot",
             "",
             f"**Verified catalog date:** {catalog.get('verified_at', 'UNKNOWN')}  ",
+            f"**Official sources last checked:** {checked_at}  ",
             "**Comparison workload:** 10,000 input tokens + 2,000 output tokens.",
             "",
-            "This table is generated from the same `pricing_engine` view used by the proxy and `MODEL_COMPARISON_MATRIX.md`; it is not a separately maintained marketing table. Dollar values are independent approximations from represented provider rules and observed/estimated telemetry, not provider invoices.",
+            "This block is generated from the same `pricing_engine` view used by the proxy, `MODEL_COMPARISON_MATRIX.md`, and the pricing status documentation. Dollar values are independent approximations from represented provider rules and observed/estimated telemetry, not provider invoices.",
             "",
             render_compact_table(),
             "",
@@ -110,8 +125,85 @@ def render_readme_pricing_section() -> str:
             "",
             "Pre-flight reservation uses the same formula with the catalog's conservative guard rates. The guard is deliberately a high-side pacing amount; it is **not** a prediction that the provider will invoice that amount. After usable provider token telemetry arrives, TokenTotals reconciles the reservation to the most specific supported estimate. Unknown pricing fails closed instead of receiving an invented rate.",
             "",
-            "The compact table shows represented base text-token rates. Context bands, cache read/write rates, service modes, region, tools, modalities, promotions/effective dates, account-specific pricing, and other billable dimensions can change the applicable provider charge. See [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md) for the row-by-row guard rates and qualifiers.",
+            "The compact table shows represented base text-token rates. Context bands, cache read/write rates, service modes, region, tools, modalities, promotions/effective dates, account-specific pricing, and other billable dimensions can change the applicable provider charge. See [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md) for row-by-row guard rates and [docs/PRICING_DAILY_STATUS.md](docs/PRICING_DAILY_STATUS.md) for the latest source-check receipt.",
             README_END,
+        ]
+    )
+
+
+def render_whitepaper_pricing_section() -> str:
+    catalog = load_catalog()
+    refresh = _refresh_metadata()
+    checked_at = refresh.get("source_checked_at", "NOT YET RECORDED")
+    providers = refresh.get("providers", {})
+    provider_lines = []
+    for provider in ("OpenAI", "Anthropic", "Google"):
+        info = providers.get(provider, {})
+        digest = info.get("source_sha256") or info.get("combined_source_hash") or "not recorded"
+        mode = info.get("mode", "not recorded")
+        provider_lines.append(f"- **{provider}:** `{digest}` — {mode}")
+    return "\n".join(
+        [
+            WHITEPAPER_START,
+            "### Daily pricing-integrity receipt",
+            "",
+            f"**Catalog verified date:** {catalog.get('verified_at', 'UNKNOWN')}  ",
+            f"**Official sources checked:** {checked_at}",
+            "",
+            "The daily integrity refresh treats the pricing catalog, model matrix, README pricing block, this whitepaper receipt, and calculation examples as one generated integrity surface. A provider validation failure prevents the refresh from being stamped current.",
+            "",
+            *provider_lines,
+            "",
+            f"For the standard comparison workload of {INPUT_TOKENS:,} input tokens + {OUTPUT_TOKENS:,} output tokens, all displayed base estimates and conservative reservations are recalculated from the same verified catalog on each successful refresh. See `MODEL_COMPARISON_MATRIX.md` and `docs/PRICING_DAILY_STATUS.md` for the generated values and source receipt.",
+            WHITEPAPER_END,
+        ]
+    )
+
+
+def render_daily_status() -> str:
+    catalog = load_catalog()
+    refresh = _refresh_metadata()
+    checked_at = refresh.get("source_checked_at", "NOT YET RECORDED")
+    providers = refresh.get("providers", {})
+    provider_rows = []
+    for provider in ("OpenAI", "Anthropic", "Google"):
+        info = providers.get(provider, {})
+        digest = info.get("source_sha256") or info.get("combined_source_hash") or "not recorded"
+        provider_rows.append(
+            f"| {provider} | {info.get('status', 'unknown')} | {info.get('mode', 'unknown')} | `{digest}` |"
+        )
+    return "\n".join(
+        [
+            "# TokenTotals Daily Pricing Integrity Status",
+            "",
+            "> Generated file. Do not hand-edit pricing values or freshness metadata here.",
+            "",
+            f"**Last successful official-source refresh:** {checked_at}  ",
+            f"**Verified catalog date:** {catalog.get('verified_at', 'UNKNOWN')}  ",
+            f"**Calculation workload:** {INPUT_TOKENS:,} input tokens + {OUTPUT_TOKENS:,} output tokens",
+            "",
+            "A successful daily refresh means every represented provider passed its configured official-source integrity check before the catalog freshness date, matrix, README block, whitepaper receipt, and example calculations were regenerated. A failed provider check must fail the workflow rather than stamping stale numbers as current.",
+            "",
+            "| Provider | Status | Refresh mode | Source hash |",
+            "| :--- | :--- | :--- | :--- |",
+            *provider_rows,
+            "",
+            "## Current generated comparison",
+            "",
+            render_compact_table(),
+            "",
+            "## Calculation rule",
+            "",
+            "```text",
+            "base_estimate = (input_tokens / 1,000,000 × base_input_rate)",
+            "              + (output_tokens / 1,000,000 × base_output_rate)",
+            "",
+            "reservation = (estimated_input_tokens / 1,000,000 × guard_input_rate)",
+            "            + (bounded_output_tokens / 1,000,000 × guard_output_rate)",
+            "```",
+            "",
+            "These are independent approximations/pacing controls, not provider invoices. Unsupported billing dimensions remain explicit limitations rather than being silently invented.",
+            "",
         ]
     )
 
@@ -120,6 +212,7 @@ def render() -> str:
     catalog = load_catalog()
     sources = catalog.get("sources", {})
     dynamic = catalog.get("dynamic_sources", {})
+    refresh = _refresh_metadata()
     rows = []
     for model, record in _sorted_models():
         row = _row_values(model, record)
@@ -132,6 +225,7 @@ def render() -> str:
 
     verification_lines = [
         f"**Checked-in catalog verification date:** {catalog.get('verified_at', 'UNKNOWN')}",
+        f"**Official sources last checked:** {refresh.get('source_checked_at', 'NOT YET RECORDED')}",
     ]
     openai_dynamic = dynamic.get("openai")
     if openai_dynamic:
@@ -147,8 +241,7 @@ def render() -> str:
             *verification_lines,
             "",
             "This file is generated from TokenTotals' effective verified pricing view. Do not hand-edit prices here.",
-            "The view combines the checked-in catalog with any promoted provider snapshot consumed by `pricing_engine`.",
-            "OpenAI is currently the first dynamic official-source provider; Anthropic and Google remain dated verified catalog entries with non-destructive official-source drift checks.",
+            "The matrix, README pricing block, whitepaper pricing receipt, and daily status document are regenerated together after successful official-source checks.",
             "Unknown models are rejected by the runtime until a verified pricing entry is deliberately added.",
             "",
             "## What this matrix means",
@@ -208,22 +301,40 @@ def render() -> str:
     )
 
 
-def update_readme(text: str) -> str:
-    section = render_readme_pricing_section()
-    if README_START in text and README_END in text:
-        before, rest = text.split(README_START, 1)
-        _, after = rest.split(README_END, 1)
+def _replace_marked(text: str, start: str, end: str, section: str, insertion_marker: str) -> str:
+    if start in text and end in text:
+        before, rest = text.split(start, 1)
+        _, after = rest.split(end, 1)
         return before.rstrip() + "\n\n" + section + "\n\n" + after.lstrip()
-
-    insertion_marker = "## Budget-gate behavior"
     if insertion_marker not in text:
-        raise RuntimeError(
-            "README has no generated pricing block and no insertion marker; refusing to guess where to write it."
-        )
+        raise RuntimeError(f"No marked block and no insertion marker {insertion_marker!r}; refusing to guess.")
     return text.replace(insertion_marker, section + "\n\n" + insertion_marker, 1)
 
 
+def update_readme(text: str) -> str:
+    return _replace_marked(text, README_START, README_END, render_readme_pricing_section(), "## Budget-gate behavior")
+
+
+def update_whitepaper(text: str) -> str:
+    return _replace_marked(text, WHITEPAPER_START, WHITEPAPER_END, render_whitepaper_pricing_section(), "### 3.1 Accuracy boundary")
+
+
+def rendered_outputs() -> dict[Path, str]:
+    return {
+        OUTPUT: render(),
+        README: update_readme(README.read_text(encoding="utf-8")),
+        WHITEPAPER: update_whitepaper(WHITEPAPER.read_text(encoding="utf-8")),
+        DAILY_STATUS: render_daily_status(),
+    }
+
+
+def write_all() -> None:
+    outputs = rendered_outputs()
+    for path, text in outputs.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text.rstrip() + "\n", encoding="utf-8")
+    print("Refreshed matrix, README pricing block, whitepaper pricing receipt, and daily pricing status")
+
+
 if __name__ == "__main__":
-    OUTPUT.write_text(render(), encoding="utf-8")
-    README.write_text(update_readme(README.read_text(encoding="utf-8")), encoding="utf-8")
-    print(f"Wrote {OUTPUT} and refreshed the verified pricing block in {README}")
+    write_all()
