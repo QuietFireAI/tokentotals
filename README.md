@@ -16,6 +16,7 @@ See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_ST
 - Checked-in, dated base pricing catalog with official provider receipt URLs.
 - Official-source OpenAI pricing checker for the supported OpenAI models in this revision.
 - Validated OpenAI candidate snapshots that are promoted separately from the last verified runtime snapshot.
+- Non-destructive daily source-drift validation for the dated Anthropic and Google matrix rates.
 - Unknown model pricing **fails closed** instead of using a generic dollar fallback.
 - Conservative pre-flight reservation for estimated input **and bounded output** tokens.
 - Atomic in-process budget check/reservation and post-response reconciliation.
@@ -31,7 +32,7 @@ See [`docs/ACCURACY_AND_ESTIMATION_STANDARD.md`](docs/ACCURACY_AND_ESTIMATION_ST
 - Pre-flight token counts are **not represented as provider/model BPE counts**. The current local estimator is a conservative UTF-8 length heuristic.
 - TokenTotals does not claim invoice parity or guaranteed identity with provider billing.
 - The current OpenAI source synchronization is not the same thing as a complete OpenAI billing adapter. Service-tier, cache, context-band, regional, tool, modality, storage, and other billing-event accounting are implemented only when specifically documented and tested.
-- Anthropic and Google do not yet have the dynamic official-source synchronization path implemented for OpenAI; they remain dated verified catalog entries in this revision.
+- Anthropic and Google do not yet have the dynamic official-source synchronization path implemented for OpenAI; they remain dated verified catalog entries in this revision. Their live source-drift check validates those dated entries but does not automatically promote new rates into runtime pricing.
 - It does not intercept applications that bypass the configured local proxy.
 - It does not provide a TokenTotals WebSocket proxy endpoint.
 - It does not inject a telemetry badge into every IDE/chat turn.
@@ -56,7 +57,9 @@ Official pricing receipts used by this revision:
 - Anthropic: https://platform.claude.com/docs/en/about-claude/pricing
 - Google Cloud: https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing
 
-Anthropic and Google continue to use the checked-in dated catalog until equivalent official-source adapters are separately implemented and tested.
+Anthropic and Google continue to use the checked-in dated catalog until equivalent official-source adapters are separately implemented and tested. `matrix_source_check.py` independently checks their represented base/standard matrix rates against those official pages every day and on relevant pricing changes. It is deliberately non-destructive: drift, a parsing ambiguity, a missing model row, or an expired effective-dated rate fails the check rather than rewriting runtime pricing.
+
+The Google Gemini 3.6/3.7/3.8 Flash promotional rates represented in this revision are effective only through **2026-12-31**. Their catalog records carry that expiration so the validator cannot continue treating the historical promotional number as current after its effective window ends.
 
 The human-readable matrix is generated with:
 
@@ -160,10 +163,13 @@ The forensic hardening suite now covers:
 - same-day retry after failed source checks;
 - review-required handling when source content changes without a recognized pricing/rule change;
 - committed matrix drift detection against the base verified pricing view;
+- Anthropic/Google live matrix-source parsing anchored to their base/standard pricing sections;
+- live source-rate drift rejection rather than silent catalog acceptance;
+- effective-date expiry enforcement for promotional matrix rates;
 - clean-install use of the real declared LiteLLM dependency rather than a test-injected stand-in;
 - public-claim guards that prevent a blanket all-provider “audited live” claim and preserve the actual provider synchronization scope.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **25 tests / 0 failures** on the forensic-hardening branch after the routed-model reservation and public-claim integrity checks were added. This is regression evidence, not a substitute for live-provider integration, load, packaging, or security testing.
+GitHub Actions on Ubuntu/Python 3.12 passed **29 tests / 0 failures** on the forensic-hardening branch after the IR-005 matrix source-drift and effective-date guards were added. The separate non-destructive matrix-source workflow also passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass. This is regression/source-validation evidence, not a substitute for live-provider integration, load, packaging, or security testing.
 
 ## Security and privacy boundary
 
