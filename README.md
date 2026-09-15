@@ -64,7 +64,7 @@ The human-readable matrix is generated with:
 python generate_model_matrix.py
 ```
 
-The generator reads the same effective pricing view as the runtime. Regenerating the matrix after an OpenAI snapshot promotion therefore uses the promoted OpenAI rates rather than an independent hand-maintained table.
+The generator reads the same effective pricing view as the runtime. Regenerating the matrix after an OpenAI snapshot promotion therefore uses the promoted OpenAI rates rather than an independent hand-maintained table. CI also checks that the committed portable matrix matches the checked-in base verified pricing view so catalog/generator changes cannot silently leave the public matrix stale.
 
 Unknown models are rejected until a verified pricing entry is deliberately added. This is intentional: TokenTotals should say **unknown** rather than quietly inventing a plausible dollar rate.
 
@@ -157,9 +157,10 @@ The forensic hardening suite now covers:
 - runtime consumption of the same promoted OpenAI snapshot;
 - quarantine of suspicious price jumps;
 - same-day retry after failed source checks;
-- review-required handling when source content changes without a recognized pricing/rule change.
+- review-required handling when source content changes without a recognized pricing/rule change;
+- committed matrix drift detection against the base verified pricing view.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **19 tests / 0 failures** on the repaired branch after the IR-003 implementation and test-isolation correction. This is regression evidence, not a substitute for live-provider integration, load, packaging, or security testing.
+GitHub Actions on Ubuntu/Python 3.12 passed **20 tests / 0 failures** after the IR-005 matrix consistency check was added. This is regression evidence, not a substitute for live-provider integration, load, packaging, or security testing.
 
 ## Security and privacy boundary
 
