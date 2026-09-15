@@ -12,6 +12,7 @@ import html
 import json
 import re
 import urllib.request
+from datetime import date, datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Iterable
@@ -73,16 +74,40 @@ def fetch_source(url: str, timeout: int = 30) -> tuple[str, str]:
     return raw.decode("utf-8", errors="replace"), digest
 
 
+def pricing_scope(provider: str, text: str) -> str:
+    """Discard navigation/promo text before the provider's base pricing table.
+
+    Both official pages mention model names outside the price table. Anchoring first
+    prevents navigation text or marketing banners from being mistaken for a rate row.
+    """
+    if provider == "Anthropic":
+        anchor = text.find("Model pricing")
+        if anchor < 0:
+            raise ValueError("Anthropic pricing source did not expose the expected Model pricing section")
+        return text[anchor:]
+
+    if provider == "Google":
+        google_models = text.find("Google models")
+        if google_models < 0:
+            raise ValueError("Google pricing source did not expose the expected Google models section")
+        standard = text.find("Standard", google_models)
+        if standard < 0:
+            raise ValueError("Google pricing source did not expose the expected Standard pricing section")
+        return text[standard:]
+
+    raise ValueError(f"Unsupported live matrix provider: {provider}")
+
+
 def _next_label_position(text: str, start: int, labels: Iterable[str]) -> int | None:
     positions = [pos for label in labels if (pos := text.find(label, start)) >= 0]
     return min(positions) if positions else None
 
 
 def model_window(text: str, label: str, provider_labels: Iterable[str]) -> str:
-    """Return the first pricing-table occurrence of a model up to the next model.
+    """Return a model's first base/standard pricing-table occurrence.
 
-    Provider pages repeat models in Priority/Flex/Batch sections. The first occurrence
-    on both supported pages is the standard/base table that the public matrix represents.
+    The input text must already be scoped to the provider's base/standard pricing
+    section. Later Priority/Flex/Batch tables therefore cannot satisfy this check.
     """
     start = text.find(label)
     if start < 0:
@@ -102,7 +127,28 @@ def _contains_rate(values: Iterable[float], expected: float) -> bool:
     return any(abs(value - expected) < 1e-9 for value in values)
 
 
-def validate_provider_text(provider: str, text: str, catalog: dict) -> list[dict]:
+def _check_effective_window(model_id: str, record: dict, today: date) -> None:
+    effective_from = record.get("effective_from")
+    effective_until = record.get("effective_until")
+    if effective_from and today < date.fromisoformat(str(effective_from)):
+        raise ValueError(
+            f"{model_id}: catalog rate is not effective until {effective_from}; today is {today.isoformat()}"
+        )
+    if effective_until and today > date.fromisoformat(str(effective_until)):
+        raise ValueError(
+            f"{model_id}: catalog rate expired on {effective_until}; today is {today.isoformat()}"
+        )
+
+
+def validate_provider_text(
+    provider: str,
+    text: str,
+    catalog: dict,
+    *,
+    today: date | None = None,
+) -> list[dict]:
+    today = today or datetime.now(timezone.utc).date()
+    text = pricing_scope(provider, text)
     models = catalog.get("models", {})
     provider_models = [
         (model_id, record)
@@ -115,6 +161,7 @@ def validate_provider_text(provider: str, text: str, catalog: dict) -> list[dict
     labels = [DISPLAY_NAMES[model_id] for model_id, _ in provider_models]
     results: list[dict] = []
     for model_id, record in provider_models:
+        _check_effective_window(model_id, record, today)
         label = DISPLAY_NAMES.get(model_id)
         if not label:
             raise ValueError(f"No official display-name mapping for {model_id}")
@@ -125,18 +172,20 @@ def validate_provider_text(provider: str, text: str, catalog: dict) -> list[dict
         if not _contains_rate(values, input_rate):
             raise ValueError(
                 f"{provider} {model_id}: catalog input ${input_rate:g}/1M was not found "
-                "in the model's first live pricing-table occurrence"
+                "in the model's live base/standard pricing row"
             )
         if not _contains_rate(values, output_rate):
             raise ValueError(
                 f"{provider} {model_id}: catalog output ${output_rate:g}/1M was not found "
-                "in the model's first live pricing-table occurrence"
+                "in the model's live base/standard pricing row"
             )
         results.append(
             {
                 "model": model_id,
                 "input_price_per_1m": input_rate,
                 "output_price_per_1m": output_rate,
+                "effective_from": record.get("effective_from"),
+                "effective_until": record.get("effective_until"),
             }
         )
     return results
@@ -148,8 +197,6 @@ def validate_live_sources() -> dict:
     for provider, url in SOURCE_URLS.items():
         document, digest = fetch_source(url)
         text = visible_text(document)
-        if provider == "Google" and "Standard" not in text:
-            raise ValueError("Google pricing source did not expose the expected Standard pricing section")
         records = validate_provider_text(provider, text, catalog)
         audit["providers"][provider] = {
             "source": url,
