@@ -489,13 +489,13 @@ pre { background: #0c0e14; padding: 12px; border-radius: 8px; font-size: 13px; c
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:flex-end;">
       <div>
-        <div class="metric-title">Today's Total Spend / Hard Ceiling</div>
+        <div class="metric-title">Local Estimated Spend / Pacing Threshold</div>
         <div style="display:flex; align-items:baseline; gap:8px;">
           <span class="metric-value" id="spendVal">$0.0000</span>
-          <span style="color:var(--subtext); font-size:18px;" id="limitVal">/ $10.00 Limit</span>
+          <span style="color:var(--subtext); font-size:18px;" id="limitVal">/ $10.00 Threshold</span>
         </div>
       </div>
-      <button class="btn btn-boost" onclick="addBoost()">⚡ +$5 Quick Boost</button>
+      <button class="btn btn-boost" onclick="addBoost()">⚡ +$5 Local Threshold</button>
     </div>
     <div class="progress-bar-bg">
       <div id="progressFill" class="progress-bar-fill" style="width: 0%;"></div>
@@ -508,24 +508,14 @@ pre { background: #0c0e14; padding: 12px; border-radius: 8px; font-size: 13px; c
 
   <div class="grid">
     <div class="card">
-      <div class="metric-title">Token Velocity & Session Total</div>
-      <div class="metric-value" id="velocityVal" style="font-size:22px; color:#a78bfa;">~199k <span style="font-size:14px; color:#9ca3af;">tok/turn</span></div>
-      <div style="font-size:12px; color:#9ca3af; margin-top:4px;" id="cumulTokVal">14.5M tokens processed</div>
-    </div>
-    <div class="card">
-      <div class="metric-title">Prompt Cache Savings</div>
-      <div class="metric-value" id="cacheVal" style="font-size:22px; color:#34d399;">~85% <span style="font-size:14px; color:#9ca3af;">Hit</span></div>
-      <div style="font-size:12px; color:#9ca3af; margin-top:4px;">Prompt caching discount active</div>
-    </div>
-    <div class="card">
       <div class="metric-title">Active Thread / Task Spend</div>
       <div class="metric-value" id="threadVal" style="color:#60a5fa;">$0.0000</div>
-      <div style="font-size:12px; color:var(--subtext); margin-top:4px;">Resets per chat/task session</div>
+      <div style="font-size:12px; color:var(--subtext); margin-top:4px;">Local estimated spend for the active tracked thread</div>
     </div>
     <div class="card">
-      <div class="metric-title">Proxy Port & Latency</div>
+      <div class="metric-title">Proxy Port & Last Observed Latency</div>
       <div class="metric-value" id="latencyVal" style="font-size:22px;">8080 <span style="font-size:14px; color:var(--subtext);">| 0 ms</span></div>
-      <div style="font-size:12px; color:var(--subtext); margin-top:4px;">100% Local Zero-Egress Loopback</div>
+      <div style="font-size:12px; color:var(--subtext); margin-top:4px;">Local loopback control plane; permitted requests still egress to the selected upstream provider</div>
     </div>
   </div>
 
@@ -547,12 +537,12 @@ client = OpenAI(base_url="http://127.0.0.1:8080/v1", api_key="YOUR_KEY")</code><
   </div>
 
   <div class="card">
-    <h3 style="font-size:14px; margin-bottom:6px;">📊 Model Pricing Chart & Docs</h3>
+    <h3 style="font-size:14px; margin-bottom:6px;">📊 Model Pricing & Docs</h3>
     <p style="font-size:12px; color:var(--subtext);">Pricing references are versioned from provider documentation. Calculations use available model and usage telemetry and are not represented as billing-exact.</p>
     <div class="receipts-list">
-      <a class="receipt-link" href="https://openai.com/api/pricing/" target="_blank">🔗 OpenAI Official Pricing Receipt ↗</a>
-      <a class="receipt-link" href="https://www.anthropic.com/pricing" target="_blank">🔗 Anthropic Claude Pricing Receipt ↗</a>
-      <a class="receipt-link" href="https://ai.google.dev/pricing" target="_blank">🔗 Google Gemini Pricing Receipt ↗</a>
+      <a class="receipt-link" href="https://openai.com/api/pricing/" target="_blank">🔗 OpenAI Official Pricing Documentation ↗</a>
+      <a class="receipt-link" href="https://www.anthropic.com/pricing" target="_blank">🔗 Anthropic Claude Pricing Documentation ↗</a>
+      <a class="receipt-link" href="https://ai.google.dev/pricing" target="_blank">🔗 Google Gemini Pricing Documentation ↗</a>
     </div>
   </div>
 </div>
@@ -563,7 +553,7 @@ async function refresh() {
     const res = await fetch('/api/status');
     const data = await res.json();
     document.getElementById('spendVal').innerText = '$' + data.current_spend_usd.toFixed(4);
-    document.getElementById('limitVal').innerText = '/ $' + data.daily_budget_limit_usd.toFixed(2) + ' Limit';
+    document.getElementById('limitVal').innerText = '/ $' + data.daily_budget_limit_usd.toFixed(2) + ' Threshold';
     document.getElementById('remainingVal').innerText = 'Remaining: $' + data.remaining_budget_usd.toFixed(4);
     document.getElementById('pctVal').innerText = data.budget_used_pct + '% Used';
     document.getElementById('progressFill').style.width = Math.min(100, data.budget_used_pct) + '%';
@@ -573,7 +563,7 @@ async function refresh() {
     const badge = document.getElementById('statusBadge');
     if (data.is_locked) {
       badge.className = 'badge badge-red';
-      badge.innerText = '🔴 LIMIT REACHED';
+      badge.innerText = '🔴 LOCAL THRESHOLD REACHED';
       document.getElementById('progressFill').style.background = 'var(--red)';
     } else if (data.traffic_light === 'YELLOW') {
       badge.className = 'badge';
