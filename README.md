@@ -9,7 +9,7 @@
 
 
 > [!IMPORTANT]
-> **Operational Scope & Liability Disclaimer:** TokenTotals is an independent developer cost calculator, real-time telemetry estimator, and local notification daemon. It calculates estimated spend based on published provider rates and notifies developers when custom threshold limits are met. TokenTotals **does not** guarantee exact third-party vendor billing alignment, nor does it guarantee absolute network-level traffic blocking under all operating system configurations. Users remain solely responsible for monitoring their direct cloud provider accounts.
+> **Operational Scope & Liability Disclaimer:** TokenTotals is an independent developer cost calculator, real-time telemetry estimator, and local notification daemon. It calculates estimated spend from available telemetry, provider-published pricing references, and known provider-specific billing rules. TokenTotals is **not a billing mirror**, does **not** guarantee invoice-exact third-party vendor billing alignment, and does not guarantee absolute network-level traffic blocking under all operating system configurations. Users remain responsible for monitoring their direct cloud provider accounts and final provider invoices.
 
 ---
 
@@ -39,7 +39,7 @@ Visit `http://127.0.0.1:8080/dashboard` in your browser for:
 * Live Spend Fuel Gauge & dollar headroom.
 * Per-thread/task spend tracking.
 * 1-Click configuration copy for Cursor, VS Code, and Python.
-* Verified provider pricing documentation receipts.
+* Provider pricing reference links and local verification receipts.
 
 ---
 
@@ -93,7 +93,7 @@ Left-click the tray icon or visit `http://127.0.0.1:8080/dashboard` in your brow
 * Per-thread/task spend tracking.
 * **Potential Savings Opportunity Meter:** Identifies when flagship models (GPT-4o / o1) were used for routine/short queries that could have used lighter models for ~90% savings.
 * 1-Click configuration copy for all major IDEs.
-* Direct receipts and links to official provider pricing documentation.
+* Direct receipts and links to provider-published pricing documentation.
 
 ### 4. 🔒 Localhost-Only Architecture
 * **Zero Telemetry:** No tracking, no user accounts, no external analytics.
@@ -149,7 +149,7 @@ response = client.chat.completions.create(
 }
 ```
 
-* `daily_budget_limit_usd`: Your hard spending cap for the calendar day.
+* `daily_budget_limit_usd`: Your local daily estimated-spend threshold used by TokenTotals' pacing logic. It is not the provider's billing limit.
 * `port`: Local port to bind the proxy server.
 * `auto_economy_mode`: If set to `true`, automatically remaps routine/simple prompts to `o3-mini` or `gemini-2.0-flash`. (Default: `false` - advisory only).
 
@@ -174,11 +174,11 @@ We encourage developers, researchers, and community builders to:
 
 ## ⚖️ Operational Scope & Billing Disclaimer
 
-> **IMPORTANT: TokenTotals is an Observability & Pacing Governor, Not an Upstream Account Portal.**
+> **IMPORTANT: TokenTotals is an Observability & Pacing Governor, Not an Upstream Account Portal or Billing Mirror.**
 
 1. **No Account or Credit Line Access:** TokenTotals does **NOT** query, read, or interface with your credit card, bank account, or internal provider billing portals (e.g. OpenAI Billing Dashboard or Anthropic Console). We do not touch your actual account balances or credits.
-2. **Local Contextual Estimation:** All dollar metrics (Today's Spend, Thread Spend, Potential Savings) are **locally computed mathematical estimates** based on the raw token payloads passing through this local proxy, calculated against official published vendor pricing catalogs.
-3. **Pacing & Protection, Not Invoicing:** TokenTotals acts as an on-the-wire airbag and telemetry monitor for your development workflow. It does not replace or modify your official end-of-month provider billing statements.
+2. **Local Best-Effort Estimation:** Dollar metrics such as Today's Spend, Thread Spend, and Potential Savings are locally computed estimates based on billing-relevant telemetry available to the proxy, combined with versioned provider-published pricing references and known provider-specific rules. They can differ from final invoices because providers may apply cached/cache-write pricing, processing tiers, long-context rules, hosted-tool charges, batch modes, regional or account-specific pricing, negotiated discounts, credits, taxes, delayed or omitted telemetry, and pricing changes.
+3. **Pacing & Protection, Not Invoicing:** TokenTotals is designed as a local airbag and telemetry monitor for development workflows. It does not replace, modify, or claim to reproduce provider billing statements. The provider's final invoice and account records remain authoritative.
 
 
 ---
@@ -190,11 +190,11 @@ We encourage developers, researchers, and community builders to:
 
 ## 📊 Standardized Cross-Platform Pricing Comparison (Developer API Stack)
 
-TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet** / **Claude 3.5 Haiku**), **OpenAI** (**o1** / **GPT-4o** / **o3-mini** / **GPT-4o-mini**), and **Google** (**Gemini 2.5 Pro** / **Gemini 2.0 Flash** / **Gemini 2.0 Flash-Lite**):
+TokenTotals includes dated, standardized comparison examples across **Anthropic**, **OpenAI**, and **Google**. These examples are useful for relative cost comparison; they are not runtime billing mirrors and are not permanent price guarantees.
 
-### Standard Turn Cost (10,000 Input / 2,000 Output Tokens)
+### Example Turn Cost (10,000 Input / 2,000 Output Tokens)
 
-| Provider | Model | Tier | Standard Turn Cost | Multiplier vs. Baseline |
+| Provider | Model | Tier | Example Turn Estimate | Multiplier vs. Baseline |
 | :--- | :--- | :--- | :--- | :--- |
 | **OpenAI** | OpenAI o1 | Frontier | **$0.2700** | **200.0x** |
 | **Anthropic** | Claude 3.7 Sonnet | Frontier | **$0.0600** | **44.4x** |
@@ -206,48 +206,53 @@ TokenTotals normalizes all LLM costs across **Anthropic** (**Claude 3.7 Sonnet**
 | **Google** | Gemini 2.0 Flash | Workhorse | **$0.0018** | **1.33x** |
 | **Google** | Gemini 2.0 Flash-Lite | Economy | **$0.00135** | **1.0x (Baseline)** |
 
-*For complete details, see [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md).*
+*For assumptions and the dated snapshot boundary, see [MODEL_COMPARISON_MATRIX.md](MODEL_COMPARISON_MATRIX.md).*
 
 
-## 🔍 The Data Was There All Along
+## 🔍 Use the Billing Data That Is Actually Available
 
-Every single API response from OpenAI, Anthropic, and Google already contains everything you need to calculate your exact spend in real time:
+LLM APIs often return important billing inputs such as token counts, cache usage, model identity, and sometimes processing metadata. Those fields are extremely useful—but they are **not necessarily the complete provider invoice model**.
+
+A simplified response may look like:
 
 ```json
-// What the API already returns in EVERY response:
 {
   "usage": {
-    "prompt_tokens": 34521,        // <-- They KNEW how many tokens you sent
-    "completion_tokens": 1847,     // <-- They KNEW how many they generated
+    "prompt_tokens": 34521,
+    "completion_tokens": 1847,
     "prompt_tokens_details": {
-      "cached_tokens": 32768       // <-- They KNEW you were being cached at 90% discount
+      "cached_tokens": 32768
     }
   }
 }
 ```
 
-The pricing per million tokens is published on their public websites. The math is grade-school multiplication:
+Where the required inputs are known, the arithmetic is deterministic:
 
 ```
-(tokens / 1,000,000) x price_per_million = your_cost
+(tokens / 1,000,000) x applicable_rate = estimated_component_cost
 ```
 
-**That is all TokenTotals does.** It reads the numbers the providers were already sending you, multiplies by their own published prices, and shows you the running total they chose not to.
+But modern AI pricing increasingly resembles cloud infrastructure pricing rather than a single gas-pump rate. The applicable cost may depend on multiple categories and modifiers: uncached input, cached input, cache writes, output/reasoning tokens, service or processing tier, long-context thresholds, hosted tools, batch processing, regional or account pricing, negotiated contracts, credits, taxes, and provider-side adjustments.
 
-> *The frontier AI labs raised $50 billion to build Artificial General Intelligence that can write poetry, pass the bar exam, and design microchips... but somehow, none of them built a gas gauge.*
+**That is the job TokenTotals is designed to do:** observe the telemetry that is available, apply versioned provider pricing rules and known modifiers, show the resulting estimate and its assumptions, and avoid inventing precision when a billing dimension is missing.
 
-TokenTotals exists because an independent developer got tired of waiting.
+Think of it more like an AWS-style near-real-time cost meter than a clone of the provider's accounts-receivable system. The estimate can become very close when the telemetry and rules are complete; the provider's invoice remains the final authority.
+
+> *The frontier AI labs raised billions to build systems that can write poetry, pass professional exams, and design software. Developers still deserve a better fuel gauge while those systems are running.*
+
+TokenTotals exists to provide that local fuel gauge.
 
 ---
 
 ## 🏛️ Government, Defense & Enterprise
 
-TokenTotals' localhost-only architecture is uniquely suited for environments where cloud-based FinOps tools are prohibited or infeasible:
+TokenTotals' localhost-only architecture is designed for environments where cloud-based FinOps tools may be prohibited or infeasible:
 
-### Why Government & Defense Need This:
-* **OMB Budget Accountability:** Federal agencies running AI pilots on GPT-5 or Claude for document processing, intelligence analysis, or citizen services face Congressional audit scrutiny on every line item. TokenTotals provides per-task cost attribution without transmitting classified or sensitive data off-machine.
-* **FedRAMP & FISMA Compliance:** Cloud SaaS FinOps tools (Portkey, Helicone, Langfuse) require years of security certification before deployment in federal environments. A local, zero-egress tool that never transmits data off the machine sails through compliance review.
-* **Air-Gapped & Classified Networks (SCIFs):** Defense and intelligence community workloads on air-gapped networks literally *cannot* use cloud dashboards. A local loopback proxy is the only architecture that works.
+### Why Government & Defense May Need This:
+* **Budget Accountability:** Agencies running AI pilots can benefit from local per-task cost estimates and attribution without sending additional telemetry to a separate FinOps service.
+* **Compliance-Sensitive Environments:** A local architecture can reduce the amount of operational telemetry sent to additional third-party observability services, although each deployment must still complete its own security, compliance, authorization, and accreditation review.
+* **Restricted Networks:** Where a permitted model endpoint is reachable but external observability SaaS is not, a local loopback proxy can provide an additional local monitoring layer.
 
 ### Commercial Enterprise Licensing:
 TokenTotals is free and open-source (GPLv3) for individual developers and open-source projects.
