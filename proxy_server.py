@@ -24,10 +24,16 @@ from anthropic_pricing import (
     looks_like_anthropic_model,
     resolve_anthropic_model,
 )
+from google_pricing import (
+    calculate_google_response_cost,
+    estimate_google_input_cost,
+    infer_google_platform,
+    looks_like_google_model,
+)
 
 # Legacy pricing integration remains temporarily only for providers without a
-# repo-contained provider-specific calculator. OpenAI and Anthropic no longer
-# depend on the machine-specific pricing plugin for their primary live path.
+# repo-contained provider-specific calculator. OpenAI, Anthropic, and Google no
+# longer depend on the machine-specific pricing plugin for their primary live path.
 sys.path.insert(0, str(Path(r"C:\Users\Command Center\.gemini\config\plugins\token-cost-estimator\scripts")))
 try:
     from pricing_engine import resolve_model as legacy_resolve_model, calculate_cost as legacy_calculate_cost
@@ -64,6 +70,31 @@ def callback_param(kwargs, key):
 
 def request_service_tier_from_callback(kwargs):
     return callback_param(kwargs, "service_tier")
+
+
+def google_request_feature_hints_from_callback(kwargs):
+    """Recover billable Google server-tool hints even if response normalization drops them."""
+    hints = set()
+    if callback_param(kwargs, "web_search_options") is not None:
+        hints.add("google_search")
+
+    tools = callback_param(kwargs, "tools") or []
+    if isinstance(tools, dict):
+        tools = [tools]
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        for key in tool:
+            normalized = str(key).replace("-", "_").lower()
+            if normalized in {"googlesearch", "google_search", "google_search_retrieval"}:
+                hints.add("google_search")
+            elif normalized in {"googlemaps", "google_maps"}:
+                hints.add("google_maps")
+            elif normalized in {"urlcontext", "url_context"}:
+                hints.add("url_context")
+            elif normalized in {"filesearch", "file_search"}:
+                hints.add("file_search")
+    return sorted(hints)
 
 
 def anthropic_preflight_input_estimate(model_id, estimated_tokens, payload):
@@ -164,17 +195,36 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
                     "Falling back to LiteLLM response_cost when available."
                 )
 
+        elif completion_response and looks_like_google_model(request_model):
+            provider_result = calculate_google_response_cost(
+                request_model,
+                completion_response,
+                request_service_tier=request_service_tier_from_callback(kwargs),
+                processing_mode="standard",
+                platform=infer_google_platform(request_model),
+                request_feature_hints=google_request_feature_hints_from_callback(kwargs),
+            )
+            if provider_result.get("complete") and provider_result.get("total_cost_usd") is not None:
+                cost = provider_result["total_cost_usd"]
+            else:
+                print(
+                    "[TokenTotals Pricing Warning] Google/Gemini telemetry could not be fully priced "
+                    f"from the verified registry: {provider_result.get('notes', [])}. "
+                    "Falling back to LiteLLM response_cost when available."
+                )
+
         if cost is None:
             litellm_cost = kwargs.get("response_cost", 0.0) or 0.0
             if litellm_cost:
                 cost = litellm_cost
-            elif provider_result and provider_result.get("provider") == "anthropic":
+            elif provider_result and provider_result.get("provider") in {"anthropic", "google"}:
                 known_equivalent = provider_result.get("known_list_equivalent_usd")
                 if known_equivalent is not None:
                     cost = known_equivalent
+                    provider_name = "Anthropic" if provider_result.get("provider") == "anthropic" else "Google/Gemini"
                     print(
                         "[TokenTotals Pricing Warning] LiteLLM supplied no response_cost; "
-                        "recording Anthropic known list-equivalent estimate instead of $0. "
+                        f"recording {provider_name} known list-equivalent estimate instead of $0. "
                         "This value is incomplete and is not an invoice mirror."
                     )
                 else:
@@ -301,6 +351,15 @@ async def proxy_openai(request: Request):
         estimated_cost = anthropic_preflight_input_estimate(model_id, estimated_tokens, payload)
         if estimated_cost is None:
             estimated_cost = legacy_input_estimate(model_id, estimated_tokens)
+    elif looks_like_google_model(model_id):
+        google_estimate = estimate_google_input_cost(
+            model_id,
+            estimated_tokens,
+            service_tier=payload.get("service_tier"),
+        )
+        estimated_cost = google_estimate.get("total_cost_usd")
+        if estimated_cost is None:
+            estimated_cost = legacy_input_estimate(model_id, estimated_tokens)
     else:
         estimated_cost = legacy_input_estimate(model_id, estimated_tokens)
 
@@ -397,7 +456,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 body { background: var(--bg); color: var(--text); padding: 24px; display: flex; justify-content: center; }
 .container { max-width: 900px; width: 100%; display: flex; flex-direction: column; gap: 20px; }
-header { display: flex; justify-content:space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
 .badge { font-size: 11px; padding: 4px 8px; border-radius: 999px; font-weight: 600; text-transform: uppercase; }
