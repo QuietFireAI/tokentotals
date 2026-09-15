@@ -50,7 +50,7 @@ If you build with AI agents (Cursor Composer, Claude Code, CrewAI, AutoGen, or c
 An agent enters a recursive reasoning loop or a retry storm while you are away from your desk. 
 
 * **The 24-Hour Reporting Lag:** Cloud providers can report account usage on a different cadence than a local request stream. A local pacing meter gives you an additional near-real-time signal while work is running.
-* **In-Flight Streams Bypass Caps:** Provider-side controls and active request behavior can differ; TokenTotals applies its own preflight pacing check before forwarding a request.
+* **In-Flight Streams Bypass Caps:** Provider-side controls and active request behavior can differ; TokenTotals applies its own preflight pacing check and reserves the known preflight estimate before forwarding a request.
 * **Multi-Tool Blindspot:** When running multiple scripts and tools sharing API credentials, a local proxy can provide one local estimated-spend view for traffic routed through it.
 
 ---
@@ -82,10 +82,12 @@ TokenTotals intentionally does **not** silently replace the model or provider re
 
 ### 1. 🛑 The Advisory Budget Threshold & Alert
 * Before a request is sent, TokenTotals calculates a best-effort input-side preflight estimate and compares it with the configured local daily threshold.
-* If the request would exceed that local threshold, TokenTotals rejects it before the upstream completion call and marks the local state locked.
+* If the request would exceed that local threshold on its own, TokenTotals rejects it before the upstream completion call and marks the local state locked.
 * A topmost desktop modal can require **`"I UNDERSTAND"`** or **`[ +$5 Quick Boost ]`** to resume.
-* **Current concurrency boundary:** completed responses are attributed through request-local callback metadata, and local spend/state updates are serialized inside the single TokenTotals daemon so overlapping callbacks do not overwrite one another. Same-day thread totals are maintained independently even when completions arrive out of order.
-* **Not yet an in-flight reservation system:** simultaneous requests can still perform their preflight checks before either request has posted its eventual response cost. The current pacing check therefore does not claim to reserve estimated budget headroom across all requests already in flight.
+* **Concurrent post-response accounting:** completed responses are attributed through request-local callback metadata, and local spend/state updates are serialized inside the single TokenTotals daemon so overlapping callbacks do not overwrite one another. Same-day thread totals are maintained independently even when completions arrive out of order.
+* **In-flight preflight reservation:** before a permitted request is sent upstream, TokenTotals atomically reserves that request's defensible preflight estimate together with all other active reservations. Two concurrent requests can no longer independently spend the same known local headroom.
+* **Temporary contention is not a permanent lock:** if a request fits against posted spend but not against posted spend plus other active reservations, TokenTotals returns `429` and does not send that request upstream. Once the other request settles or fails, that headroom becomes available again.
+* **Reservation scope is deliberately limited:** the reservation is based on the cost TokenTotals can defensibly estimate before execution—currently the input-side preflight estimate. Output tokens, tools, final service tier, and other response-dependent charges can make the final turn cost higher than the reservation. Actual post-response cost is reconciled when telemetry arrives, and the local state can lock if the settled spend reaches the configured threshold.
 
 ### 2. 🚦 Traffic Light Glanceable Tray Icon
 * 🟢 **Green "T":** Under 75% of daily budget.
@@ -94,7 +96,7 @@ TokenTotals intentionally does **not** silently replace the model or provider re
 
 ### 3. 📊 Built-In Web Dashboard
 Left-click the tray icon or visit `http://127.0.0.1:8080/dashboard` in your browser to view:
-* Live Spend Fuel Gauge & remaining dollar headroom.
+* Live posted estimated spend, in-flight preflight commitments, and currently available local headroom.
 * Per-thread/task spend tracking.
 * 1-Click configuration copy for all major IDEs.
 * Direct receipts and links to provider-published pricing documentation.
@@ -199,7 +201,7 @@ We encourage developers, researchers, and community builders to:
 2. **Local Best-Effort Estimation:** Dollar metrics such as Today's Spend and Thread Spend are locally computed estimates based on billing-relevant telemetry available to the proxy, combined with versioned provider-published pricing references and known provider-specific rules. They can differ from final invoices because providers may apply cached/cache-write pricing, processing tiers, long-context rules, hosted-tool charges, batch modes, regional or account-specific pricing, negotiated discounts, credits, taxes, delayed or omitted telemetry, and pricing changes.
 3. **Pacing & Protection, Not Invoicing:** TokenTotals is designed as a local airbag and telemetry monitor for development workflows. It does not replace, modify, or claim to reproduce provider billing statements. The provider's final invoice and account records remain authoritative.
 4. **Model Integrity:** TokenTotals does not infer that a cheaper model is an equivalent substitute for the model a client requested. Automatic model/provider downgrade routing was retired; model choice remains explicit.
-5. **Concurrency Scope:** Post-response accounting is serialized within the normal single local TokenTotals daemon and uses request-local callback attribution. This does not constitute a distributed transaction system or guarantee that preflight headroom has been reserved for every simultaneously in-flight request.
+5. **Concurrency Scope:** Post-response accounting is serialized within the normal single local TokenTotals daemon and uses request-local callback attribution. Preflight estimates for active requests are reserved atomically inside that daemon so simultaneous requests cannot consume the same known headroom. This is not a distributed transaction system, and the reservation covers the preflight estimate rather than unknown final full-turn charges.
 
 ---
 
