@@ -90,11 +90,17 @@ For streams where final usage is unavailable, TokenTotals keeps the conservative
 
 The reservation lock is process-local. The current hardening does not provide an operating-system/inter-process file lock. Running multiple TokenTotals processes against the same state file is outside the proven budget invariant.
 
-## 5. State integrity
+## 5. State integrity and request isolation
 
 State/config JSON writes use a temporary file followed by `os.replace()` while protected by a process-local re-entrant lock. This reduces partial-write corruption and closes the baseline check-then-send race for concurrent requests handled by one process.
 
-Tracked state includes estimated/reserved daily spend, active-thread spend, request count, advisory savings estimate, lock state, and unreconciled stream count.
+The IR-008 revalidation used two simultaneous worker threads, each attempting a `$0.06` reservation against a `$0.10` budget. Exactly one reservation was accepted and one rejected, proving the in-process budget decision and reservation commit remain serialized under contention.
+
+The baseline also used shared request-scoped globals for thread identity, routine classification, and potential-savings metadata. Those shared values were unsafe under overlapping requests because one request could overwrite another request's context before callback accounting ran. The hardened request path keeps those values local and passes them explicitly into reservation and reconciliation operations.
+
+The IR-009 overlap revalidation held two HTTP requests simultaneously at the mocked upstream boundary and verified that distinct thread IDs, routine classification, and potential-savings metadata remained attached to the correct request through both reservation and reconciliation. The old request-scoped globals and callback symbol are separately guarded against regression.
+
+Tracked state includes estimated/reserved daily spend, active-thread spend, request count, advisory savings estimate, lock state, and unreconciled stream count. `active_thread_id` / `thread_spend_usd` are one current display slot, not a historical per-thread ledger.
 
 ## 6. Lock and acknowledgment behavior
 
@@ -146,18 +152,18 @@ The constraints provide **version reproducibility for the validated CPython 3.12
 
 ## 11. Verification
 
-The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation including conflicting output ceilings, direct proof that input-plus-output spend is committed before upstream execution, retention of a conservative reservation for streams without final usage, reservation against the model actually selected for automatic routing, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, Anthropic/Google base/standard source parsing and effective-date expiry enforcement, clean-install use of the declared LiteLLM runtime dependency, public-claim guards that preserve the actual provider synchronization scope, dependency-constraint coverage, clean constrained Linux/Windows environments, Python-version contract consistency, and constrained Windows packaging dependencies.
+The forensic hardening regression suite covers pricing math, fail-closed unknown models, conservative guard rates, atomic reservation/reconciliation, simultaneous in-process reservation contention, request-context isolation under overlapping HTTP calls, acknowledgment enforcement, no-upstream rejection paths, bounded output reservation including conflicting output ceilings, direct proof that input-plus-output spend is committed before upstream execution, retention of a conservative reservation for streams without final usage, reservation against the model actually selected for automatic routing, removal of fabricated dashboard constants, OpenAI pricing-source synchronization failure/quarantine paths, committed-matrix drift detection, Anthropic/Google base/standard source parsing and effective-date expiry enforcement, clean-install use of the declared LiteLLM runtime dependency, public-claim guards that preserve the actual provider synchronization scope, dependency-constraint coverage, clean constrained Linux/Windows environments, Python-version contract consistency, and constrained Windows packaging dependencies.
 
-GitHub Actions on Ubuntu/Python 3.12 passed **35 tests with 0 failures** on the IR-007 output-reservation revalidation revision. The new tests inspect the reservation from inside the mocked upstream function and exercise a streamed response with no final usage telemetry. No production proxy logic was changed during that revalidation because the existing hardened implementation already satisfied those invariants.
+GitHub Actions on Ubuntu/Python 3.12 passed **38 tests with 0 failures** on the IR-009 overlap revalidation revision. The two IR-009 tests prove the baseline request-scoped globals/callback cannot silently return and that two simultaneous requests preserve their own thread identity and routine/savings context through reservation and reconciliation. No production proxy logic was changed during the IR-009 revalidation because the existing hardened request-local implementation already satisfied those invariants.
 
 Separate clean-environment jobs continue to exercise the constrained Linux runtime import, constrained Windows runtime import, and constrained Windows PyInstaller toolchain. The daily Python compatibility check remains part of the same workflow and becomes scheduled automatically when the workflow resides on the repository default branch.
 
 The separate non-destructive matrix-source workflow also passed against the live Anthropic and Google official pricing pages on the 2026-09-15 revalidation pass.
 
-This is regression/source-validation evidence. It is not a substitute for live-provider integration tests, concurrency/load tests, final executable packaging tests, cryptographic dependency verification, or security assessment.
+This is regression/source-validation evidence. It is not a substitute for live-provider integration tests, broader concurrency/load tests, final executable packaging tests, cryptographic dependency verification, or security assessment.
 
 ## 12. Forensic record
 
 See `INTEGRITY_REPORT.md` for the separate baseline integrity findings and hardening findings, including confirmed machine-specific paths, silent pricing fallbacks, disconnected price synchronization, stale matrix data, input-only pre-flight accounting, API bypasses, concurrency hazards, static dashboard telemetry, routed-model reservation ordering, dependency reproducibility, and documentation claims that exceeded implementation.
 
-See `docs/IR-007_OUTPUT_RESERVATION_PROOF.md` for the output-reservation lifecycle evidence and `docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md` for the measured dependency and Python compatibility evidence.
+See `docs/IR-007_OUTPUT_RESERVATION_PROOF.md` for output-reservation lifecycle evidence, `docs/IR-008_CONCURRENT_RESERVATION_PROOF.md` for in-process contention evidence, `docs/IR-009_REQUEST_CONTEXT_ISOLATION_PROOF.md` for overlapping request-context evidence, and `docs/IR-020_DEPENDENCY_REPRODUCIBILITY_PROOF.md` for the measured dependency and Python compatibility evidence.
