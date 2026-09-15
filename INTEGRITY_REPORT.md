@@ -104,11 +104,19 @@ For streams without usable final usage telemetry, the conservative reservation r
 
 See `docs/IR-007_OUTPUT_RESERVATION_PROOF.md` for the dedicated proof sheet.
 
-### IR-008 — Concurrent requests could race the budget — CONFIRMED SAFETY DEFECT
+### IR-008 — Concurrent requests could race the budget — CONFIRMED SAFETY DEFECT / REPAIRED AND REVALIDATED
 
 Baseline performed read/check/send logic without an atomic reservation. Multiple concurrent calls could each observe the same remaining budget and pass independently.
 
-**Repair:** `try_reserve_spend()` performs check-and-reserve under a process lock with atomic state-file replacement.
+**Impact:** requests that were individually affordable could collectively cross the configured budget if they performed independent read/check decisions against the same pre-reservation state.
+
+**Repair:** `try_reserve_spend()` now performs the budget check and reservation commit while holding one process-local `threading.RLock`. The accepted reservation, request accounting, and atomic state-file replacement occur inside that critical section before the lock is released.
+
+**Validation:** the 2026-09-15 IR-008 pass added a true simultaneous-thread contention test. Two worker threads are released from the same barrier and each attempts to reserve `$0.06` against a `$0.10` budget. Each request fits alone but the pair cannot fit together. The required result is exactly one accepted reservation and one rejection; final spend must remain `$0.06`, `total_requests` must remain `1`, and the breaker must be locked. The test passed as part of the clean **36/36** regression suite. No production locking code was changed during this pass because the existing hardened implementation satisfied the tested single-process concurrency invariant.
+
+**Boundary:** the lock is process-local. Independent operating-system processes do not share the Python `RLock`, so multiple TokenTotals proxy processes against the same state file remain outside the proven budget invariant.
+
+See `docs/IR-008_CONCURRENT_RESERVATION_PROOF.md` for the dedicated proof sheet.
 
 ### IR-009 — Global per-request callback state — CONFIRMED CONCURRENCY DEFECT
 
@@ -195,7 +203,7 @@ A regression test added during the hardening pass forced the auto-economy select
 
 **Repair:** route selection now occurs before the budget calculation. The proxy resolves pricing for the exact model that will be sent upstream, estimates/reserves against that routed model, and uses the same routed pricing for response reconciliation. If auto-economy selects a model with no verified pricing, the request fails closed before upstream egress.
 
-**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **35/35** clean regression suite.
+**Validation:** the adversarial routed-model test previously failed with HTTP 200 where 403 was required. After the repair, that test passes. It remains part of the current **36/36** clean regression suite.
 
 ### IR-020 — Dependency graph was not version-reproducible — CONFIRMED HARDENING DEFECT / REPAIRED AND REVALIDATED
 
@@ -228,7 +236,7 @@ These components were preserved rather than rewritten wholesale.
 
 ## Repair validation
 
-Current GitHub Actions regression suite on the hardened branch: **35 passed / 0 failed** on Ubuntu/Python 3.12.
+Current GitHub Actions regression suite on the hardened branch: **36 passed / 0 failed** on Ubuntu/Python 3.12.
 
 Regression coverage includes:
 
@@ -236,7 +244,7 @@ Regression coverage includes:
 2. conservative guard rate >= displayed base estimate;
 3. strict alias resolution, no fuzzy model pricing;
 4. unknown model pricing fails closed;
-5. atomic reservation blocks concurrent-style over-budget reservations;
+5. atomic reservation blocks sequential over-budget reservations;
 6. reservation reconciliation releases unused headroom;
 7. unlock requires `I UNDERSTAND`;
 8. boost requires `BOOST $5`;
@@ -266,7 +274,8 @@ Regression coverage includes:
 32. the Python 3.12 compatibility contract, CI interpreters, and Windows build requirement cannot silently diverge;
 33. the Windows packaging path remains bound to the constrained PyInstaller dependency graph;
 34. the full conservative input-plus-output reservation is committed before upstream execution begins;
-35. a stream without final usage retains its conservative reservation and is marked unreconciled.
+35. a stream without final usage retains its conservative reservation and is marked unreconciled;
+36. two simultaneous in-process reservations that cannot both fit the remaining budget produce exactly one acceptance and one rejection.
 
 IR-003 additionally has a separate live-source validation workflow. On 2026-09-15 it fetched the supported OpenAI model pages directly from `developers.openai.com`, parsed and validated the temporary candidate successfully, and recorded source hashes/rates without promoting or modifying the runtime snapshot.
 
@@ -276,7 +285,7 @@ IR-020 additionally has clean-environment Linux runtime, Windows runtime, and Wi
 
 ## Remaining limitations before calling this production-proven
 
-- The 35-test suite is focused regression coverage, not a full integration or load test.
+- The 36-test suite is focused regression coverage, not a full integration or load test.
 - The live OpenAI, Anthropic, and Google source checks prove the currently supported source pages can be fetched and parsed at the recorded time; future provider page changes can still break parsing. Such failures must be surfaced for review rather than treated as proof that the provider price changed.
 - No live paid provider request was executed during this review; doing so should use intentionally tiny limits and test keys.
 - Multi-process workers are not supported for the file-lock budget invariant; the current lock is process-local. Run one TokenTotals proxy process unless cross-process locking is added.
