@@ -23,7 +23,11 @@ def test_unlock_rejects_missing_malformed_nonobject_and_wrong_ack_without_unlock
             content="{not-json",
             headers={"Content-Type": "application/json"},
         ),
-        lambda: client.post("/api/unlock", json=None),
+        lambda: client.post(
+            "/api/unlock",
+            content="null",
+            headers={"Content-Type": "application/json"},
+        ),
         lambda: client.post("/api/unlock", json={}),
         lambda: client.post("/api/unlock", json={"acknowledgement": "YES"}),
         lambda: client.post("/api/unlock", json={"acknowledgement": "I UNDERSTAND THIS"}),
