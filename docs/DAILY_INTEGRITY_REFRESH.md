@@ -27,16 +27,29 @@ A successful daily run performs this sequence:
 6. regenerate the marked README pricing block;
 7. regenerate the whitepaper pricing receipt;
 8. regenerate `docs/PRICING_DAILY_STATUS.md` and all displayed calculation examples;
-9. run the 24-hour completion validator;
-10. run the two telemetry-honesty stop-line tests explicitly;
-11. run the complete forensic regression/integration suite;
-12. reject any unexpected file modifications and require `git diff --check` to pass;
-13. publish the allowed pricing/documentation surfaces in one atomic daily commit; and
-14. email the generated daily integrity report to `dailyreport@firelandsai.com`.
+9. create an immutable timestamped archive copy of that generated daily status under `docs/pricing_archive/YYYY/MM/`;
+10. run the 24-hour completion validator;
+11. run the two telemetry-honesty stop-line tests explicitly;
+12. run the complete forensic regression/integration suite;
+13. reject any unexpected file modifications and require `git diff --check` to pass;
+14. publish the allowed pricing/documentation surfaces **and the archive receipt** in one atomic daily commit; and
+15. email the generated daily integrity report to `dailyreport@firelandsai.com`.
 
 If any provider verification, regeneration, freshness, telemetry, regression, or file-integrity step fails, the workflow does not publish a new daily pricing receipt and does not send a success email.
 
-The email step intentionally occurs **after** the atomic pricing publish. If SMTP delivery fails, the correctly verified pricing commit remains published, but the workflow is red and no successful-delivery claim is made.
+The email step intentionally occurs **after** the atomic pricing publish. If SMTP delivery fails, the correctly verified pricing commit and archive receipt remain published, but the workflow is red and no successful-delivery claim is made.
+
+## Immutable daily archive
+
+Every successful refresh copies the complete generated `docs/PRICING_DAILY_STATUS.md` into a timestamped repository receipt such as:
+
+`docs/pricing_archive/2026/09/2026-09-15T154231Z.md`
+
+The archive filename uses UTC and is Windows-safe. A manual verification run on the same date receives its own timestamped receipt rather than replacing the scheduled receipt.
+
+Archive receipts are intentionally append-only at creation time: if a receipt already exists for the same timestamp, the refresh raises an error instead of overwriting it. Regression tests verify that the archived file is byte-for-byte identical to the generated daily status and that an existing archive receipt cannot be replaced.
+
+Because the archive file is staged in the same Git commit as the catalog, matrix, README pricing block, whitepaper receipt, and current status file, the historical receipt and the public pricing surfaces share one auditable publication boundary.
 
 ## Freshness validator
 
@@ -86,7 +99,7 @@ The repository never stores the SMTP password or other mail credentials in sourc
 The daily workflow follows this model:
 
 ```text
-verify -> calculate -> regenerate -> test -> publish -> email receipt -> expire -> repeat
+verify -> calculate -> regenerate -> archive -> test -> publish -> email receipt -> expire -> repeat
 ```
 
 A changed price is an audit finding inside that cycle. A lack of price changes does not cancel the daily verification obligation.
