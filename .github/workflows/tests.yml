@@ -4,6 +4,8 @@ on:
   push:
     branches: [main, sol/forensic-hardening]
   pull_request:
+  schedule:
+    - cron: '17 09 * * *'
 
 jobs:
   runtime-smoke-linux:
@@ -15,6 +17,8 @@ jobs:
           python-version: '3.12'
       - name: Create clean runtime environment
         run: python -m venv .venv
+      - name: Verify supported Python runtime
+        run: .venv/bin/python runtime_compat.py
       - name: Install constrained runtime dependencies
         run: .venv/bin/python -m pip install -c constraints-py312.txt -r requirements.txt
       - name: Verify constrained runtime dependency graph
@@ -43,6 +47,9 @@ jobs:
       - name: Create clean runtime environment
         shell: pwsh
         run: python -m venv .venv
+      - name: Verify supported Python runtime
+        shell: pwsh
+        run: .\.venv\Scripts\python.exe runtime_compat.py
       - name: Install constrained runtime dependencies
         shell: pwsh
         run: .\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt -r requirements.txt
@@ -64,6 +71,9 @@ jobs:
       - name: Create clean build environment
         shell: pwsh
         run: python -m venv .venv
+      - name: Verify supported Python runtime
+        shell: pwsh
+        run: .\.venv\Scripts\python.exe runtime_compat.py
       - name: Install constrained runtime and build dependencies
         shell: pwsh
         run: .\.venv\Scripts\python.exe -m pip install -c constraints-py312.txt -r requirements.txt pyinstaller
@@ -82,6 +92,8 @@ jobs:
           python-version: '3.12'
       - name: Create clean test environment
         run: python -m venv .venv
+      - name: Verify supported Python runtime
+        run: .venv/bin/python runtime_compat.py
       - name: Install constrained test dependencies
         run: .venv/bin/python -m pip install -c constraints-py312.txt -r requirements-dev.txt
       - name: Verify constrained test dependency graph
