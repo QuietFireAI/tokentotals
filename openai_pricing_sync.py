@@ -340,7 +340,39 @@ def sync_openai_pricing(
             _atomic_json(STATUS_PATH, status)
             return status
 
+        source_changed = bool(
+            previous
+            and previous.get("combined_source_hash")
+            and previous.get("combined_source_hash") != candidate.get("combined_source_hash")
+        )
+
+        if previous and not changes and source_changed:
+            candidate["status"] = "review_required"
+            candidate["review_reason"] = (
+                "Official source content changed, but the parser detected no supported "
+                "pricing/rule change. Review before accepting the new source revision."
+            )
+            _atomic_json(CANDIDATE_PATH, candidate)
+            status = {
+                "provider": "OpenAI",
+                "checked_at": candidate["source_checked_at"],
+                "result": "candidate_only",
+                "message": candidate["review_reason"],
+                "changes": [],
+            }
+            _atomic_json(STATUS_PATH, status)
+            return status
+
         if previous and not changes:
+            refreshed = dict(candidate)
+            refreshed["status"] = "verified"
+            refreshed["promoted_at"] = previous.get("promoted_at")
+            _atomic_json(VERIFIED_PATH, refreshed)
+            try:
+                from pricing_engine import clear_catalog_cache
+                clear_catalog_cache()
+            except Exception:
+                pass
             status = {
                 "provider": "OpenAI",
                 "checked_at": candidate["source_checked_at"],
@@ -376,6 +408,8 @@ def sync_openai_pricing(
 
 def check_due_today() -> bool:
     status = _load_json(STATUS_PATH) or {}
+    if status.get("result") == "failed":
+        return True
     checked = str(status.get("checked_at", ""))[:10]
     return checked != datetime.now(timezone.utc).date().isoformat()
 
