@@ -50,10 +50,10 @@ Rates are USD per 1M tokens. The represented base rates are the standard/base te
 | Anthropic | `claude-haiku-4.5` | $1 | $5 | $2 | $5 | $0.020000 | $0.030000 | base input/output shown; caching and batch have separate rates |
 | Anthropic | `claude-opus-5` | $5 | $25 | $10 | $25 | $0.100000 | $0.150000 | base input/output shown; caching and batch have separate rates |
 | Anthropic | `claude-sonnet-5` | $2 | $10 | $4 | $10 | $0.040000 | $0.060000 | base input/output shown; caching and batch have separate rates |
-| Google | `gemini-3.1-flash-lite` | $0.25 | $1.5 | $0.55 | $1.65 | $0.005500 | $0.008800 | Standard/global base shown; region/service mode can differ |
+| Google | `gemini-3.1-flash-lite` | $0.25 | $1.5 | $0.495 | $2.97 | $0.005500 | $0.010890 | Standard/global base shown; region/service mode can differ |
 | Google | `gemini-3.1-pro-preview` | $2 | $12 | $7.2 | $32.4 | $0.044000 | $0.136800 | Standard/global base shown for <=200K input; >200K is higher |
 | Google | `gemini-3.5-flash` | $1.5 | $9 | $2.97 | $17.82 | $0.033000 | $0.065340 | Standard/global base shown; region/service mode can differ |
-| Google | `gemini-3.5-flash-lite` | $0.3 | $2.5 | $0.594 | $2.75 | $0.008000 | $0.011440 | Standard/global base shown; region/service mode can differ |
+| Google | `gemini-3.5-flash-lite` | $0.3 | $2.5 | $0.594 | $4.95 | $0.008000 | $0.015840 | Standard/global base shown; region/service mode can differ |
 | Google | `gemini-3.6-flash` | $0.75 | $3.75 | $1.485 | $7.425 | $0.015000 | $0.029700 | represented rate effective through 2026-12-31; Standard/global base shown; region/service mode can differ |
 | Google | `gemini-3.7-flash` | $0.75 | $3.75 | $1.485 | $7.425 | $0.015000 | $0.029700 | represented rate effective through 2026-12-31; Standard/global base shown; region/service mode can differ |
 | Google | `gemini-3.8-flash` | $0.75 | $3.75 | $1.485 | $7.425 | $0.015000 | $0.029700 | represented rate effective through 2026-12-31; Standard/global base shown; region/service mode can differ |
