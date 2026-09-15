@@ -74,7 +74,10 @@ def _economy_model_for(provider: str) -> str | None:
 def _require_ack(payload: dict, expected: str, field: str = "acknowledgement"):
     value = str(payload.get(field, "")).strip().upper()
     if value != expected.upper():
-        raise HTTPException(status_code=400, detail=f"Type exactly '{expected}' to continue.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Enter the acknowledgement phrase '{expected}' to continue.",
+        )
 
 
 def _requested_output_bound(payload: dict) -> int | None:
