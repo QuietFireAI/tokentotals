@@ -21,6 +21,14 @@ def _obj_get(obj, key, default=None):
     return getattr(obj, key, default)
 
 
+def _obj_has(obj, key):
+    if obj is None:
+        return False
+    if isinstance(obj, dict):
+        return key in obj
+    return hasattr(obj, key)
+
+
 def _clean_model_id(model_id):
     model_id = (model_id or "").strip()
     lower = model_id.lower()
@@ -157,11 +165,93 @@ def _find_grounding_metadata(response):
     return found
 
 
+def _query_values(arguments):
+    if arguments is None:
+        return [], False
+    if _obj_has(arguments, "queries"):
+        raw = _obj_get(arguments, "queries", None)
+    elif _obj_has(arguments, "query"):
+        raw = _obj_get(arguments, "query", None)
+    else:
+        return [], False
+    if raw is None:
+        return [], True
+    if not isinstance(raw, (list, tuple, set)):
+        raw = [raw]
+    return [str(value).strip() for value in raw if str(value).strip()], True
+
+
+def _interaction_grounding_activity(response):
+    steps = _obj_get(response, "steps", None)
+    if steps is None:
+        steps = _obj_get(response, "outputs", None)
+    if not isinstance(steps, (list, tuple)):
+        return None
+
+    search_seen = False
+    maps_seen = False
+    search_queries = []
+    maps_queries = []
+    search_queries_complete = True
+    maps_queries_complete = True
+
+    for step in steps:
+        step_type = str(_obj_get(step, "type", "") or "").lower()
+        if step_type == "google_search_call":
+            search_seen = True
+            values, explicit = _query_values(_obj_get(step, "arguments", None))
+            search_queries.extend(values)
+            if not explicit:
+                search_queries_complete = False
+        elif step_type == "google_maps_call":
+            maps_seen = True
+            values, explicit = _query_values(_obj_get(step, "arguments", None))
+            maps_queries.extend(values)
+            if not explicit:
+                maps_queries_complete = False
+
+    if not search_seen and not maps_seen:
+        return None
+
+    if search_seen:
+        search_count = len(set(search_queries)) if search_queries_complete else None
+        search_basis = "observed" if search_queries_complete else "unavailable"
+    else:
+        search_count = 0
+        search_basis = "derived"
+
+    if maps_seen:
+        maps_count = len(maps_queries) if maps_queries_complete else None
+        maps_basis = "observed" if maps_queries_complete else "unavailable"
+    else:
+        maps_count = 0
+        maps_basis = "derived"
+
+    return {
+        "search_used": search_seen,
+        "search_query_count": search_count,
+        "search_query_count_basis": search_basis,
+        "maps_used": maps_seen,
+        "maps_query_count": maps_count,
+        "maps_query_count_basis": maps_basis,
+        "grounding_metadata_observed": True,
+        "grounding_source_shape": "interactions_tool_calls",
+        "query_attribution_complete": search_queries_complete and maps_queries_complete,
+    }
+
+
 def _grounding_activity(response):
+    interaction = _interaction_grounding_activity(response)
+    if interaction is not None:
+        return interaction
+
     web_queries = []
     image_queries = []
     maps = False
+    web_grounding = False
+    metadata_seen = False
     for metadata in _find_grounding_metadata(response):
+        metadata_seen = True
         web_queries.extend(_obj_get(metadata, "webSearchQueries", None) or _obj_get(metadata, "web_search_queries", None) or [])
         image_queries.extend(_obj_get(metadata, "imageSearchQueries", None) or _obj_get(metadata, "image_search_queries", None) or [])
         if _obj_get(metadata, "googleMapsWidgetContextToken", None) or _obj_get(metadata, "google_maps_widget_context_token", None):
@@ -169,11 +259,48 @@ def _grounding_activity(response):
         for chunk in _obj_get(metadata, "groundingChunks", None) or _obj_get(metadata, "grounding_chunks", None) or []:
             if _obj_get(chunk, "maps", None):
                 maps = True
-    unique_search_queries = {str(q).strip() for q in [*web_queries, *image_queries] if str(q).strip()}
+            if _obj_get(chunk, "web", None) or _obj_get(chunk, "image", None):
+                web_grounding = True
+
+    unique_queries = {str(q).strip() for q in [*web_queries, *image_queries] if str(q).strip()}
+    search_used = bool(web_grounding or (unique_queries and not maps))
+    combined_legacy = bool(maps and search_used and unique_queries)
+
+    if search_used and not combined_legacy:
+        search_count = len(unique_queries)
+        search_basis = "observed"
+    elif search_used:
+        search_count = None
+        search_basis = "unavailable"
+    elif metadata_seen:
+        search_count = 0
+        search_basis = "derived"
+    else:
+        search_count = None
+        search_basis = "unavailable"
+
+    if maps:
+        # Legacy GenerateContent can expose webSearchQueries for Maps grounding,
+        # but does not identify the exact Gemini-3 billable Maps query count.
+        maps_count = None
+        maps_basis = "unavailable"
+    elif metadata_seen:
+        maps_count = 0
+        maps_basis = "derived"
+    else:
+        maps_count = None
+        maps_basis = "unavailable"
+
     return {
-        "search_query_count": len(unique_search_queries),
+        "search_used": search_used,
+        "search_query_count": search_count,
+        "search_query_count_basis": search_basis,
         "maps_used": maps,
-        "grounding_metadata_observed": bool(web_queries or image_queries or maps),
+        "maps_query_count": maps_count,
+        "maps_query_count_basis": maps_basis,
+        "grounding_metadata_observed": metadata_seen,
+        "grounding_source_shape": "legacy_grounding_metadata" if metadata_seen else "none",
+        "query_attribution_complete": not combined_legacy,
     }
 
 
@@ -212,7 +339,15 @@ def normalize_google_usage(usage, *, response=None):
         "toolUsePromptTokenCount", "thoughtsTokenCount", "totalTokenCount"
     ))
     grounding = _grounding_activity(response) if response is not None else {
-        "search_query_count": 0, "maps_used": False, "grounding_metadata_observed": False
+        "search_used": False,
+        "search_query_count": None,
+        "search_query_count_basis": "unavailable",
+        "maps_used": False,
+        "maps_query_count": None,
+        "maps_query_count_basis": "unavailable",
+        "grounding_metadata_observed": False,
+        "grounding_source_shape": "none",
+        "query_attribution_complete": False,
     }
 
     if raw_shape:
@@ -280,8 +415,13 @@ def normalize_google_usage(usage, *, response=None):
                 complete = False
                 notes.append("totalTokenCount contains unattributed tokens beyond the documented Google usage buckets.")
 
-        search_grounded = grounding["search_query_count"] > 0
-        billable_tool_use = 0 if search_grounded else tool_use
+        search_grounded = bool(grounding.get("search_used"))
+        if search_grounded and grounding.get("maps_used") and tool_use:
+            billable_tool_use = 0
+            complete = False
+            notes.append("Aggregate tool-use prompt tokens could not be split between Google Search and Google Maps; unresolved non-Search tool-use input was not guessed.")
+        else:
+            billable_tool_use = 0 if search_grounded else tool_use
         if have_tool_mod and _sum_modalities(tool_mod) != tool_use:
             complete = False
             notes.append("toolUsePromptTokensDetails does not reconcile to toolUsePromptTokenCount.")
@@ -529,37 +669,64 @@ def calculate_google_cost(model_id, usage, *, response=None, request_service_tie
 
     grounding = normalized["grounding"]
     tool_rates = registry.get("tool_pricing", {})
-    search_count = grounding["search_query_count"]
-    if search_count:
-        if float(record.get("generation", 0)) >= 3:
-            search_equivalent = search_count * float(tool_rates["gemini_3_search_request_usd"])
+    generation = float(record.get("generation", 0) or 0)
+
+    if grounding.get("search_used"):
+        if generation >= 3:
+            search_count = grounding.get("search_query_count")
+            if search_count is None:
+                complete_ref[0] = False
+                notes.append("Google Search grounding was observed, but the exact Gemini 3 search-query count was unavailable; no Search grounding charge was guessed.")
+            else:
+                search_equivalent = search_count * float(tool_rates["gemini_3_search_query_usd"])
+                components["search_grounding_list_equivalent"] = round(search_equivalent, 12)
+                subtotal += search_equivalent
+                if search_count:
+                    complete_ref[0] = False
+                    notes.append("Google Search grounding query count was observed. The public paid overage rate is represented, but project-level free allowance remaining is not observable from the response.")
         else:
             search_equivalent = float(tool_rates["gemini_2_5_search_grounded_prompt_usd"])
-        components["search_grounding_list_equivalent"] = round(search_equivalent, 12)
-        subtotal += search_equivalent
-        complete_ref[0] = False
-        notes.append("Google Search grounding was observed. The public paid overage rate is represented, but project-level free allowance remaining is not observable from the response.")
+            components["search_grounding_list_equivalent"] = round(search_equivalent, 12)
+            subtotal += search_equivalent
+            complete_ref[0] = False
+            notes.append("Google Search grounding was observed. The public paid per-grounded-prompt overage rate is represented, but project-level free allowance remaining is not observable from the response.")
 
-    if grounding["maps_used"]:
-        maps_equivalent = float(tool_rates["maps_grounded_prompt_usd"])
-        components["maps_grounding_list_equivalent"] = round(maps_equivalent, 12)
-        subtotal += maps_equivalent
-        complete_ref[0] = False
-        notes.append("Google Maps grounding was observed. The public paid overage rate is represented, but project-level free allowance remaining is not observable from the response.")
+    if grounding.get("maps_used"):
+        if generation >= 3:
+            maps_count = grounding.get("maps_query_count")
+            if maps_count is None:
+                complete_ref[0] = False
+                notes.append("Google Maps grounding was observed, but the exact Gemini 3 Maps search-query count was unavailable; no Maps grounding charge was guessed.")
+            else:
+                maps_equivalent = maps_count * float(tool_rates["gemini_3_maps_search_query_usd"])
+                components["maps_grounding_list_equivalent"] = round(maps_equivalent, 12)
+                subtotal += maps_equivalent
+                if maps_count:
+                    complete_ref[0] = False
+                    notes.append("Google Maps grounding query count was observed. The public paid overage rate is represented, but project-level free allowance remaining is not observable from the response.")
+        else:
+            maps_equivalent = float(tool_rates["gemini_2_5_maps_grounded_prompt_usd"])
+            components["maps_grounding_list_equivalent"] = round(maps_equivalent, 12)
+            subtotal += maps_equivalent
+            complete_ref[0] = False
+            notes.append("Google Maps grounding was observed. The public paid per-grounded-prompt overage rate is represented, but project-level free allowance remaining is not observable from the response.")
 
     hints = {str(x).lower() for x in (request_feature_hints or [])}
     if hints & {"file_search", "filesearch"}:
         complete_ref[0] = False
         notes.append("File Search can add embedding charges that are not reconstructable from ordinary response token telemetry.")
-    if hints & {"google_search", "googlesearch", "google_search_retrieval"} and not grounding["grounding_metadata_observed"]:
+    if hints & {"google_search", "googlesearch", "google_search_retrieval"} and not grounding.get("search_used"):
         complete_ref[0] = False
-        notes.append("Google Search was enabled/requested but no grounding execution metadata survived into the response.")
-    if hints & {"google_maps", "googlemaps"} and not grounding["maps_used"]:
+        notes.append("Google Search was enabled/requested but no executed Search call or unambiguous Search grounding metadata survived into the response.")
+    if hints & {"google_maps", "googlemaps"} and not grounding.get("maps_used"):
         complete_ref[0] = False
-        notes.append("Google Maps was enabled/requested but no billable execution counter was observable.")
+        notes.append("Google Maps was enabled/requested but no successful Maps grounding evidence was observable.")
     if hints & {"url_context", "urlcontext"} and not normalized["tool_use_prompt_tokens"]:
         complete_ref[0] = False
         notes.append("URL context was enabled/requested but tool-use input tokens were not observable.")
+    if hints & {"url_context", "urlcontext"} and grounding.get("search_used") and normalized["tool_use_prompt_tokens"]:
+        complete_ref[0] = False
+        notes.append("Aggregate tool-use prompt tokens could not be split between Google Search and URL Context; non-Search tool-use input was not guessed.")
 
     known_total = round(subtotal, 12)
     return {
