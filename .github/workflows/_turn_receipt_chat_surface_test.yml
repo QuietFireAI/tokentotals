@@ -1,0 +1,71 @@
+name: Turn Receipt chat surface work
+
+on:
+  push:
+    branches:
+      - turn-receipt-chat-surface-work
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Apply chat surface route patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one anchor, found {count}')
+              return text.replace(old, new, 1)
+
+          path = Path('proxy_server.py')
+          text = path.read_text(encoding='utf-8')
+          text = replace_once(
+              text,
+              'import turn_receipt_renderer\n',
+              'import turn_receipt_renderer\nimport turn_receipt_chat_surface\n',
+              'chat surface import',
+          )
+          anchor = '''async def serve_dashboard():\n    return HTMLResponse(content=DASHBOARD_HTML)\n\n\n@app.post("/v1/chat/completions")\n'''
+          block = '''async def serve_dashboard():\n    return HTMLResponse(content=DASHBOARD_HTML)\n\n\n@app.get("/chat", response_class=HTMLResponse)\n@app.get("/chat/", response_class=HTMLResponse)\nasync def serve_turn_receipt_chat():\n    return HTMLResponse(content=turn_receipt_chat_surface.CHAT_HTML)\n\n\n@app.post("/v1/chat/completions")\n'''
+          text = replace_once(text, anchor, block, 'chat route')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Verify patch
+        run: |
+          git diff --check
+          python -m compileall -q proxy_server.py turn_receipt_chat_surface.py tests/test_turn_receipt_chat_surface.py
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Smoke-import live proxy
+        run: python -c "import proxy_server; print('proxy_server import OK')"
+
+      - name: Run full regression suite
+        run: timeout --signal=TERM 90s python -m unittest discover -s tests -v
+
+      - name: Commit proven files and remove helper
+        if: success()
+        run: |
+          rm .github/workflows/_turn_receipt_chat_surface_test.yml
+          git config user.name "QuietFireAI"
+          git config user.email "211976194+QuietFireAI@users.noreply.github.com"
+          git add proxy_server.py turn_receipt_chat_surface.py tests/test_turn_receipt_chat_surface.py .github/workflows/_turn_receipt_chat_surface_test.yml
+          git commit -m "feat: add inline Turn Receipt chat surface"
+          git push origin HEAD:turn-receipt-chat-surface-work
