@@ -17,6 +17,14 @@ For the Hermes launch, the intended experience is:
 
 The receipt is calculated independently from the model answer. The model is not asked to report or calculate its own usage or cost, and receipt generation does not require a second LLM call.
 
+## Launch-surface history
+
+The first TokenTotals test concept used frontier-model/browser workflows. That work helped establish the receipt object, accounting engine, renderer, settlement behavior and in-conversation presentation model.
+
+Continuing to validate that path across frontier-model/browser surfaces at the required evidence standard became **too cost-intensive for the project on our end**. TokenTotals therefore moved the first launch integration to Hermes rather than weakening the proof standard or keeping the browser path as a mandatory launch dependency.
+
+That earlier browser/frontier work remains a testing/reference track and may continue. Hermes is the first launch surface because its documented lifecycle and telemetry provide a cleaner environment for proving the receipt as a real transaction artifact. OpenClaw is planned next.
+
 ## Core principles
 
 TokenTotals follows these rules:
@@ -55,7 +63,7 @@ Hermes turn
 one top-level Turn Receipt
 ```
 
-TokenTotals prices/account for each successful child request independently when sufficient telemetry exists, then rolls those children into the top-level human-turn receipt.
+TokenTotals accounts for each successful child request independently when sufficient telemetry exists, then rolls those children into the top-level human-turn receipt.
 
 A failed/retried API attempt remains failure evidence. It is not silently rewritten as a successful billed child.
 
@@ -174,7 +182,7 @@ Those surfaces are useful for engineering tests, but they are **not the Hermes l
 
 The built-in `/chat` surface is a controlled reference harness for exercising the TokenTotals engine and renderer.
 
-Browser extensions are an experimental path because consumer AI websites may not expose the stable usage/correlation telemetry required for a defensible receipt. Browser placement alone is not proof of complete accounting.
+The browser/frontier-model path was the project's initial test concept. It remains useful work, but sustained validation became too cost-intensive for the project's current resources to keep it as the first-launch dependency. Work may continue there after the Hermes/OpenClaw path is established.
 
 ## OpenClaw next
 
