@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 import turn_receipt
 import turn_ledger
@@ -151,6 +152,74 @@ class TurnReceiptTests(unittest.TestCase):
             "basis": "provider_reported",
         })
 
+    def test_for_thread_uses_ledger_summary_not_global_completed_turn_count(self):
+        record = self._record()
+        record["cumulative_completed_turns"] = 999
+        summary = {
+            "thread_id": "thread-7",
+            "turn_count": 4,
+            "cost_observed_turns": 3,
+            "estimated_cost_usd": 0.041,
+        }
+
+        with patch.object(turn_receipt.turn_ledger, "read_turns", return_value=[record]), \
+             patch.object(turn_receipt.turn_ledger, "summarize_thread", return_value=summary):
+            receipt = turn_receipt.for_thread("thread-7")
+
+        self.assertEqual(receipt["thread"]["turn_count"], 4)
+        self.assertEqual(receipt["thread"]["costed_turns"], 3)
+        self.assertEqual(receipt["thread"]["cost_coverage"], "partial")
+        self.assertEqual(receipt["thread"]["estimated_cost_usd"], 0.041)
+        self.assertNotEqual(receipt["thread"]["turn_count"], 999)
+
+    def test_for_thread_does_not_turn_no_cost_history_into_zero(self):
+        record = self._record()
+        summary = {
+            "thread_id": "thread-7",
+            "turn_count": 2,
+            "cost_observed_turns": 0,
+            "estimated_cost_usd": 0.0,
+        }
+
+        with patch.object(turn_receipt.turn_ledger, "read_turns", return_value=[record]), \
+             patch.object(turn_receipt.turn_ledger, "summarize_thread", return_value=summary):
+            receipt = turn_receipt.for_thread("thread-7")
+
+        self.assertIsNone(receipt["thread"]["estimated_cost_usd"])
+        self.assertEqual(receipt["thread"]["cost_coverage"], "unavailable")
+
+    def test_standard_view_is_compact_receipt_contract(self):
+        receipt = turn_receipt.from_record(self._record())
+        receipt["thread"] = {
+            "thread_id": "thread-7",
+            "turn_count": 4,
+            "estimated_cost_usd": 0.041,
+            "costed_turns": 4,
+            "cost_coverage": "complete",
+        }
+
+        view = turn_receipt.standard_view(receipt)
+
+        self.assertEqual(view["receipt_id"], "turn-abc123")
+        self.assertEqual(view["provider"], "openai")
+        self.assertEqual(view["model"], "gpt-example")
+        self.assertEqual(view["input_tokens"], 1250)
+        self.assertEqual(view["cached_input_tokens"], 1000)
+        self.assertEqual(view["output_tokens"], 400)
+        self.assertEqual(view["turn_estimate_usd"], 0.012345)
+        self.assertEqual(view["thread_estimate_usd"], 0.041)
+        self.assertEqual(view["thread_turn_count"], 4)
+        self.assertEqual(view["pricing_basis"], "provider_registry_complete")
+        self.assertEqual(view["website"], "TurnReceipt.com")
+        self.assertIn("not a provider invoice", view["disclaimer"])
+
+    def test_for_thread_rejects_blank_and_returns_none_for_unknown_thread(self):
+        with self.assertRaisesRegex(ValueError, "thread_id must be non-empty"):
+            turn_receipt.for_thread("   ")
+
+        with patch.object(turn_receipt.turn_ledger, "read_turns", return_value=[]):
+            self.assertIsNone(turn_receipt.for_thread("missing"))
+
     def test_receipt_rejects_missing_turn_identity(self):
         record = self._record()
         record["turn_id"] = ""
@@ -160,6 +229,7 @@ class TurnReceiptTests(unittest.TestCase):
     def test_empty_record_has_no_receipt(self):
         self.assertIsNone(turn_receipt.from_record(None))
         self.assertIsNone(turn_receipt.from_record({}))
+        self.assertIsNone(turn_receipt.standard_view(None))
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ renderers, APIs, exports, and tests.
 
 import receipt_pricing
 import telemetry_view
+import turn_ledger
 
 
 TURN_RECEIPT_SCHEMA = "tokentotals.turn_receipt"
@@ -120,4 +121,75 @@ def from_record(record):
             "provider_invoice": False,
         },
         "turn": turn,
+    }
+
+
+def for_thread(thread_id):
+    """Return the latest Turn Receipt plus a truthful current thread summary.
+
+    The ledger's cumulative_completed_turns field is process-global, so it must not
+    be presented as a per-thread count. The thread count and cost coverage here are
+    reconstructed from the append-only ledger for the requested thread instead.
+    """
+    key = str(thread_id or "").strip()
+    if not key:
+        raise ValueError("thread_id must be non-empty")
+
+    records = turn_ledger.read_turns(thread_id=key)
+    if not records:
+        return None
+
+    receipt = from_record(records[-1])
+    summary = turn_ledger.summarize_thread(key)
+    total_turns = int(summary.get("turn_count") or 0)
+    costed_turns = int(summary.get("cost_observed_turns") or 0)
+
+    if costed_turns == 0:
+        estimated_cost_usd = None
+        coverage = "unavailable"
+    else:
+        estimated_cost_usd = summary.get("estimated_cost_usd")
+        coverage = "complete" if costed_turns == total_turns else "partial"
+
+    receipt["thread"] = {
+        "thread_id": key,
+        "turn_count": total_turns,
+        "estimated_cost_usd": estimated_cost_usd,
+        "costed_turns": costed_turns,
+        "cost_coverage": coverage,
+    }
+    return receipt
+
+
+def standard_view(receipt):
+    """Return the compact, human-facing fields for the standard inline receipt."""
+    if not receipt:
+        return None
+
+    turn = receipt.get("turn") or {}
+    model = turn.get("model") or {}
+    tokens = turn.get("tokens") or {}
+    cost = turn.get("cost") or {}
+    thread = receipt.get("thread") or {}
+
+    def token_value(name):
+        metric = tokens.get(name) or {}
+        return metric.get("value")
+
+    return {
+        "receipt_id": receipt.get("receipt_id"),
+        "completed_at": turn.get("completed_at"),
+        "provider": turn.get("provider"),
+        "model": model.get("canonical") or model.get("observed") or model.get("requested"),
+        "input_tokens": token_value("input_tokens"),
+        "cached_input_tokens": token_value("cached_input_tokens"),
+        "output_tokens": token_value("output_tokens"),
+        "turn_estimate_usd": cost.get("estimated_usd"),
+        "estimate_indicator": cost.get("indicator"),
+        "thread_estimate_usd": thread.get("estimated_cost_usd", turn.get("cumulative_thread_estimated_spend_usd")),
+        "thread_turn_count": thread.get("turn_count"),
+        "pricing_basis": cost.get("basis"),
+        "pricing_registry_verified_at": cost.get("registry_verified_at"),
+        "disclaimer": "Independent usage estimate by TokenTotals — not a provider invoice.",
+        "website": "TurnReceipt.com",
     }
