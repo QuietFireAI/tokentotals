@@ -37,7 +37,12 @@ if (-not (Test-Path $exe)) {
 }
 
 Write-Host "`n[3/3] Running packaged smoke test..."
-$smoke = Start-Process -FilePath $exe -ArgumentList "--smoke-test" -Wait -PassThru
+$smoke = Start-Process -FilePath $exe -ArgumentList "--smoke-test" -PassThru
+if (-not $smoke.WaitForExit(90000)) {
+    Stop-Process -Id $smoke.Id -Force -ErrorAction SilentlyContinue
+    throw "Packaged smoke test timed out after 90 seconds"
+}
+$smoke.Refresh()
 if ($smoke.ExitCode -ne 0) {
     throw "Packaged smoke test failed with exit code $($smoke.ExitCode)"
 }
