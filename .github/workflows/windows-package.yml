@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "app_gui.py"
+      - "packaging_smoke.py"
       - "proxy_server.py"
       - "config_manager.py"
       - "turn_ledger.py"
@@ -23,6 +24,7 @@ on:
     branches: [main]
     paths:
       - "app_gui.py"
+      - "packaging_smoke.py"
       - "proxy_server.py"
       - "config_manager.py"
       - "turn_ledger.py"
@@ -72,6 +74,8 @@ jobs:
           if ($registryFiles.Count -ne 3) { throw "Expected exactly three bundled pricing registries; found $($registryFiles.Count)" }
           $iconFiles = Get-ChildItem -Path $root -Recurse -Filter "icon*.png"
           if ($iconFiles.Count -lt 4) { throw "Expected four bundled tray icon files; found $($iconFiles.Count)" }
+          $liteLLMBackup = Get-ChildItem -Path $root -Recurse -Filter "model_prices_and_context_window_backup.json"
+          if ($liteLLMBackup.Count -lt 1) { throw "LiteLLM runtime pricing/context backup data is missing from package" }
 
       - name: Create candidate ZIP
         shell: powershell
