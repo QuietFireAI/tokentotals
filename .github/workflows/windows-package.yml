@@ -1,0 +1,86 @@
+name: TokenTotals Windows Package Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app_gui.py"
+      - "proxy_server.py"
+      - "config_manager.py"
+      - "turn_ledger.py"
+      - "turn_notice.py"
+      - "telemetry_view.py"
+      - "openai_pricing.py"
+      - "anthropic_pricing.py"
+      - "google_pricing.py"
+      - "pricing/**"
+      - "icon*.png"
+      - "requirements.txt"
+      - "requirements-build.txt"
+      - "build.ps1"
+      - ".github/workflows/windows-package.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "app_gui.py"
+      - "proxy_server.py"
+      - "config_manager.py"
+      - "turn_ledger.py"
+      - "turn_notice.py"
+      - "telemetry_view.py"
+      - "openai_pricing.py"
+      - "anthropic_pricing.py"
+      - "google_pricing.py"
+      - "pricing/**"
+      - "icon*.png"
+      - "requirements.txt"
+      - "requirements-build.txt"
+      - "build.ps1"
+      - ".github/workflows/windows-package.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+
+      - name: Build and smoke-test packaged desktop
+        shell: powershell
+        run: .\build.ps1
+
+      - name: Verify packaged files
+        shell: powershell
+        run: |
+          $root = "dist\TokenTotals_QuietFireAI"
+          if (-not (Test-Path "$root\TokenTotals_QuietFireAI.exe")) { throw "Packaged EXE missing" }
+          $registryFiles = Get-ChildItem -Path $root -Recurse -Filter "*_registry.json"
+          if ($registryFiles.Count -ne 3) { throw "Expected exactly three bundled pricing registries; found $($registryFiles.Count)" }
+          $iconFiles = Get-ChildItem -Path $root -Recurse -Filter "icon*.png"
+          if ($iconFiles.Count -lt 4) { throw "Expected four bundled tray icon files; found $($iconFiles.Count)" }
+
+      - name: Create candidate ZIP
+        shell: powershell
+        run: Compress-Archive -Path "dist\TokenTotals_QuietFireAI\*" -DestinationPath "TokenTotals_Windows_candidate.zip" -Force
+
+      - name: Upload smoke-tested candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: TokenTotals-Windows-candidate
+          path: TokenTotals_Windows_candidate.zip
+          if-no-files-found: error
+          retention-days: 14
