@@ -198,9 +198,121 @@ class GooglePricingTests(unittest.TestCase):
         }
         result = calculate_google_response_cost("gemini-3.5-flash", response)
         self.assertFalse(result["complete"])
+        self.assertTrue(result["usage"]["grounding"]["search_used"])
         self.assertEqual(result["usage"]["grounding"]["search_query_count"], 2)
         self.assertEqual(result["usage"]["billable_tool_use_prompt_tokens"], 0)
         self.assertAlmostEqual(result["components_usd"]["search_grounding_list_equivalent"], 0.028)
+
+    def test_legacy_maps_queries_do_not_become_search_charge(self):
+        response = {
+            "modelVersion": "gemini-3.5-flash",
+            "usageMetadata": {
+                "promptTokenCount": 1_000,
+                "candidatesTokenCount": 500,
+                "totalTokenCount": 1_500,
+                "promptTokensDetails": [{"modality": "TEXT", "tokenCount": 1_000}],
+                "candidatesTokensDetails": [{"modality": "TEXT", "tokenCount": 500}],
+                "serviceTier": "standard",
+            },
+            "candidates": [{
+                "groundingMetadata": {
+                    "webSearchQueries": ["restaurants near me"],
+                    "groundingChunks": [{"maps": {"placeId": "places/example"}}],
+                }
+            }],
+        }
+        result = calculate_google_response_cost("gemini-3.5-flash", response)
+        grounding = result["usage"]["grounding"]
+        self.assertFalse(result["complete"])
+        self.assertFalse(grounding["search_used"])
+        self.assertEqual(grounding["search_query_count"], 0)
+        self.assertTrue(grounding["maps_used"])
+        self.assertIsNone(grounding["maps_query_count"])
+        self.assertEqual(grounding["maps_query_count_basis"], "unavailable")
+        self.assertNotIn("search_grounding_list_equivalent", result["components_usd"])
+        self.assertNotIn("maps_grounding_list_equivalent", result["components_usd"])
+        self.assertTrue(any("exact Gemini 3 Maps search-query count was unavailable" in n for n in result["notes"]))
+
+    def test_interactions_maps_query_count_can_be_priced_when_observed(self):
+        usage = {
+            "promptTokenCount": 1_000,
+            "candidatesTokenCount": 500,
+            "totalTokenCount": 1_500,
+            "promptTokensDetails": [{"modality": "TEXT", "tokenCount": 1_000}],
+            "candidatesTokensDetails": [{"modality": "TEXT", "tokenCount": 500}],
+            "serviceTier": "standard",
+        }
+        response = {
+            "steps": [{
+                "type": "google_maps_call",
+                "arguments": {"queries": ["coffee near union square", "breakfast union square"]},
+            }]
+        }
+        result = calculate_google_cost("gemini-3.5-flash", usage, response=response)
+        grounding = result["usage"]["grounding"]
+        self.assertFalse(result["complete"])
+        self.assertTrue(grounding["maps_used"])
+        self.assertEqual(grounding["maps_query_count"], 2)
+        self.assertEqual(grounding["maps_query_count_basis"], "observed")
+        self.assertAlmostEqual(result["components_usd"]["maps_grounding_list_equivalent"], 0.028)
+        self.assertNotIn("search_grounding_list_equivalent", result["components_usd"])
+
+    def test_legacy_combined_search_maps_keeps_query_split_unavailable(self):
+        response = {
+            "modelVersion": "gemini-3.5-flash",
+            "usageMetadata": {
+                "promptTokenCount": 1_000,
+                "candidatesTokenCount": 500,
+                "totalTokenCount": 1_500,
+                "promptTokensDetails": [{"modality": "TEXT", "tokenCount": 1_000}],
+                "candidatesTokensDetails": [{"modality": "TEXT", "tokenCount": 500}],
+                "serviceTier": "standard",
+            },
+            "candidates": [{
+                "groundingMetadata": {
+                    "webSearchQueries": ["alpha", "beta"],
+                    "groundingChunks": [
+                        {"web": {"uri": "https://example.com", "title": "Example"}},
+                        {"maps": {"placeId": "places/example"}},
+                    ],
+                }
+            }],
+        }
+        result = calculate_google_response_cost("gemini-3.5-flash", response)
+        grounding = result["usage"]["grounding"]
+        self.assertFalse(result["complete"])
+        self.assertTrue(grounding["search_used"])
+        self.assertTrue(grounding["maps_used"])
+        self.assertIsNone(grounding["search_query_count"])
+        self.assertIsNone(grounding["maps_query_count"])
+        self.assertFalse(grounding["query_attribution_complete"])
+        self.assertNotIn("search_grounding_list_equivalent", result["components_usd"])
+        self.assertNotIn("maps_grounding_list_equivalent", result["components_usd"])
+
+    def test_gemini_2_5_maps_uses_per_grounded_prompt_rate(self):
+        response = {
+            "modelVersion": "gemini-2.5-flash",
+            "usageMetadata": {
+                "promptTokenCount": 1_000,
+                "candidatesTokenCount": 500,
+                "totalTokenCount": 1_500,
+                "promptTokensDetails": [{"modality": "TEXT", "tokenCount": 1_000}],
+                "candidatesTokensDetails": [{"modality": "TEXT", "tokenCount": 500}],
+                "serviceTier": "standard",
+            },
+            "candidates": [{
+                "groundingMetadata": {
+                    "webSearchQueries": ["restaurants near me"],
+                    "groundingChunks": [{"maps": {"placeId": "places/example"}}],
+                }
+            }],
+        }
+        result = calculate_google_response_cost("gemini-2.5-flash", response)
+        self.assertFalse(result["complete"])
+        self.assertFalse(result["usage"]["grounding"]["search_used"])
+        self.assertTrue(result["usage"]["grounding"]["maps_used"])
+        self.assertAlmostEqual(result["components_usd"]["maps_grounding_list_equivalent"], 0.025)
+        self.assertNotIn("search_grounding_list_equivalent", result["components_usd"])
 
     def test_search_requested_but_metadata_missing_is_incomplete(self):
         usage = {
@@ -217,7 +329,7 @@ class GooglePricingTests(unittest.TestCase):
             request_feature_hints=["google_search"],
         )
         self.assertFalse(result["complete"])
-        self.assertTrue(any("no grounding execution metadata" in n for n in result["notes"]))
+        self.assertTrue(any("no executed Search call" in n for n in result["notes"]))
 
     def test_vertex_platform_is_incomplete(self):
         usage = {
