@@ -12,6 +12,9 @@
 - Product: https://tokentotals.com
 - Receipt: https://turnreceipt.com
 - Turn Receipt reference: https://turnreceipts.com
+- TokenTotals support: support@tokentotals.com
+- Turn Receipt support: support@turnreceipts.com
+- Project support: support@quietfireai.com
 
 ## Project evolution
 
@@ -47,6 +50,8 @@ TokenTotals is a local accounting engine for AI turns. For the Hermes launch, a 
 
 The model does **not** calculate its own receipt. Receipt generation does not require a second LLM call.
 
+**The data is often there. The usable receipt usually isn't. TokenTotals makes one.**
+
 ```text
 You use Hermes normally
         ↓
@@ -76,15 +81,16 @@ The Hermes answer is rendered first and is not rewritten by TokenTotals.
 
 ## Current launch status
 
-The Hermes integration candidate has automated evidence for:
+The Hermes integration candidate currently has automated evidence for:
 
-- full TokenTotals regression coverage;
 - Hermes-specific contract tests;
 - successful loading by a pinned real Hermes installation through Hermes' own plugin doctor;
 - Windows TokenTotals candidate build and packaged smoke tests; and
 - standalone Hermes plugin packaging.
 
-Those checks are necessary, but they are **not the final product proof**.
+The complete TokenTotals regression suite remains a required release gate. A Hermes-first documentation rewrite exposed documentation-contract failures in that suite; those failures are preserved and reconciled before the branch can be called green.
+
+Those automated checks are necessary, but they are **not the final product proof**.
 
 The launch gate is a real user-zero Hermes session showing:
 
@@ -122,7 +128,7 @@ A receipt can include, when the underlying runtime/provider exposes the informat
 
 **Missing is not zero.** If a billing-relevant field cannot be established, TokenTotals leaves it unavailable rather than manufacturing a neat-looking `0`.
 
-A Turn Receipt is an independent usage estimate, not a provider invoice. Provider account and invoice records remain authoritative.
+A Turn Receipt is an independent usage estimate, not a provider invoice. Provider account and final invoice records remain authoritative.
 
 ## One human turn, several transactions
 
@@ -139,6 +145,8 @@ one top-level Turn Receipt
 
 Each successful child request is accounted for independently before the turn-level total is produced. Failed attempts are preserved as failure evidence rather than silently converted into successful billed children.
 
+One thread can contain multiple models. TokenTotals preserves independent per-model/child evidence rather than pretending a mixed-model thread came from one model.
+
 ## Privacy boundary
 
 The Hermes plugin is designed to send TokenTotals accounting metadata, not conversation content.
@@ -154,15 +162,72 @@ The accounting payload excludes:
 - authorization headers; and
 - hidden reasoning content.
 
-The current CLI placement adapter uses an in-memory digest of the final answer only to bind the settled receipt to the exact response panel. The answer text is not sent to TokenTotals or written to the Turn Receipt evidence store by the plugin.
+The local turn ledger does not persist prompt text, response text, API keys, cookies, authorization headers, or hidden reasoning content. The current CLI placement adapter uses an in-memory digest of the final answer only to bind the settled receipt to the exact response panel. The answer text is not sent to TokenTotals or written to the Turn Receipt evidence store by the plugin.
+
+## Local ledger and evidence semantics
+
+Completed turn telemetry is stored locally in `~/.tokentotals/turns.jsonl`. Runtime writes are append-only and idempotent by turn identity, but the file is **not represented as immutable or tamper-evident**. It is a local operational ledger, not a cryptographic notarization system.
+
+Observed, derived, fallback, and unavailable values remain distinguishable. Missing is not zero, and an explicit observed zero is not interchangeable with missing telemetry.
+
+## Request-local concurrency and in-flight accounting
+
+TokenTotals keeps server-owned accounting attribution **request-local** so concurrent turns do not borrow another request's thread or reservation metadata.
+
+Before an admitted provider request leaves the machine, TokenTotals can reserve an **in-flight** preflight estimate based on the input known at admission time. That reservation protects the same local pacing capacity from being spent simultaneously by concurrent requests. When the turn settles, the reservation is released and replaced with the defensible full-turn cost, including output and other billable components that become known only after the provider response.
+
+A local pacing threshold is a local control on requests routed through TokenTotals. It is **not provider-account clearance**, does not represent an external account balance, and does not guarantee what a provider will ultimately invoice.
+
+TokenTotals does **not** silently replace the model or provider requested by the caller. Model selection remains explicit; retired optimizer behavior is not part of the active runtime.
+
+## Upstream network boundary
+
+**Upstream egress exists.** TokenTotals itself keeps its accounting state local, but permitted requests still leave the local machine when the selected provider or remote runtime must be contacted. “Local” describes the TokenTotals control/accounting plane; it does not mean the chosen AI provider runs locally.
+
+A genuinely self-hosted model can of course avoid a per-token provider request, but that is a property of the selected runtime/model path, not a blanket TokenTotals network guarantee.
+
+## Versioned Provider Rules, Not a Second Billing Portal
+
+TokenTotals uses versioned provider-specific accounting rules and only produces dollar estimates when the required basis is defensible. The repository-contained pricing registries are:
+
+- `pricing/openai_registry.json`
+- `pricing/anthropic_registry.json`
+- `pricing/google_registry.json`
+
+Those files are runtime accounting inputs, not claims that a README table is a provider's current invoice schedule. Any static price shown in screenshots, examples, or descriptive UI material is **illustrative UI copy, not a live pricing snapshot**.
+
+Provider-native/account telemetry remains attributed to its source. TokenTotals does not silently average conflicting numbers or turn an unavailable billing dimension into a guessed zero. See [`CALCULATION_TRANSPARENCY.md`](CALCULATION_TRANSPARENCY.md) for the formulas, component treatment, fallback rules, and limitations.
 
 ## Standard and Expanded receipts
 
-**Standard** is the compact default. It is intended to sit immediately beneath the answer and show the essential turn economics.
+**Standard Receipt** is the compact default. It is intended to sit immediately beneath the answer and show the essential turn economics.
 
-**Expanded** uses the same canonical receipt object and exposes deeper telemetry, pricing provenance, child API-call count, failures, reconciliation, and thread information where available.
+**Expanded Receipt** uses the same canonical receipt object and exposes deeper telemetry, pricing provenance, child API-call count, failures, reconciliation, and current thread information where available.
 
 Changing Standard/Expanded changes presentation only. It does not create another calculator or another model call.
+
+The formal receipt definition is in [`TURN_RECEIPTS.md`](TURN_RECEIPTS.md).
+
+## Local reference client and API
+
+The Hermes experience is the launch target, but the built-in local `/chat` page remains a useful controlled reference client for the same engine and renderer.
+
+`TokenTotals.exe` binds to an available loopback port from `8080` through `8089`. When the first port is available, the reference chat surface is:
+
+`http://127.0.0.1:8080/chat`
+
+Relevant receipt/telemetry surfaces include:
+
+- `/api/turn-receipt/<turn_id>`
+- `/api/turn-receipt/<turn_id>/render?mode=standard`
+- `/api/turn-receipt/<turn_id>/render?mode=expanded`
+- `/api/telemetry/thread?thread_id=<id>`
+
+Successful proxy responses use the server-owned `X-TokenTotals-Receipt-ID` binding where applicable. The receipt is rendered separately; provider/model response content is not modified to append receipt text.
+
+## Desktop support boundary
+
+The validated desktop packaging target for this pre-release line is **desktop-windows**. TokenTotals does not currently claim a validated macOS or Linux desktop release. Python/source use on other systems is a separate support question and must not be confused with a tested packaged desktop release.
 
 ## Installation and user-zero testing
 
@@ -226,6 +291,7 @@ TokenTotals is evidence-driven. Failures are preserved rather than rewritten out
 - [`USER_GUIDE.md`](USER_GUIDE.md) — literal Hermes user guide
 - [`TURN_RECEIPTS.md`](TURN_RECEIPTS.md) — canonical Turn Receipt definition
 - [`CALCULATION_TRANSPARENCY.md`](CALCULATION_TRANSPARENCY.md) — formulas and pricing/reconciliation rules
+- [`MODEL_COMPARISON_MATRIX.md`](MODEL_COMPARISON_MATRIX.md) — provider mechanics and registry-source map
 - [`ROADMAP.md`](ROADMAP.md) — Hermes-first launch sequence
 - [`archive/verification-receipts/`](archive/verification-receipts/) — preserved verification history
 
