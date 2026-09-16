@@ -5,19 +5,35 @@
 **First launch surface:** Hermes Agent  
 **Next planned surface:** OpenClaw  
 **Individual receipt:** https://turnreceipt.com  
+**Turn Receipt reference:** https://turnreceipts.com  
 **Product:** https://tokentotals.com
 
 ## Definition
 
 A **Turn Receipt** is an inspectable record of one completed AI turn that separates observed telemetry from derived calculations, preserves unavailable information as unavailable, records the pricing/accounting basis used, and makes the resulting arithmetic checkable.
 
-This document formalizes the term **Turn Receipt** for the TokenTotals project and its integrations. The term refers to the receipt object and evidence contract described here; it does not imply ownership of ordinary uses of the words “turn” or “receipt.”
+This document formalizes the term **Turn Receipt** for the TokenTotals project and its integrations. The term refers to the receipt object and evidence contract described here; it does not imply ownership of ordinary uses of the words “turn” or “receipt.” TokenTotals does **not** claim that no person or project ever used those ordinary words or similar phrases before this project.
 
 For the Hermes launch, the intended experience is:
 
 > **use Hermes normally → Hermes answer → Turn Receipt directly beneath that answer**
 
 The receipt is calculated independently from the model answer. The model is not asked to report or calculate its own usage or cost, and receipt generation does not require a second LLM call.
+
+## Public receipt contract
+
+The public receipt behavior is intentionally narrow and testable:
+
+- **Observed is not derived.** Runtime/provider telemetry remains distinguishable from TokenTotals calculations.
+- **Missing is not zero.** If a field cannot be established, it remains unavailable.
+- **Show the math.** Derived values should be reproducible from recorded inputs and pricing/accounting rules.
+- Provider account and final invoice remain authoritative for provider billing.
+- **Standard** is the default inline presentation beneath the completed answer.
+- **Expanded** renders the same Turn Receipt with deeper telemetry, provenance, child-transaction detail, and the current thread aggregate at render time where available.
+- `X-TokenTotals-Receipt-ID` is the server-owned response binding used by supported TokenTotals proxy surfaces to identify the settled receipt for that turn.
+- A fallback estimate remains explicitly labeled as a fallback estimate; it is not silently presented as provider-native billing telemetry.
+
+Standard and Expanded are two views of one canonical receipt object. Expanded thread context is contextual information loaded at render time; it does not rewrite the historical turn record.
 
 ## Launch-surface history
 
@@ -38,7 +54,7 @@ TokenTotals follows these rules:
 5. **Preserve multi-call structure.** One human turn may contain several provider transactions; those child transactions should remain inspectable.
 6. **Do not modify the model answer to make the receipt exist.** The answer and accounting object remain separate.
 7. **Do not ask the model to grade itself.** Receipt accounting is out-of-band from model generation.
-8. **Do not turn an estimate into an invoice claim.** Provider billing/account records remain authoritative.
+8. **Do not turn an estimate into an invoice claim.** Provider account and final invoice remain authoritative.
 9. **Minimize retained content.** Accounting does not require storing prompt text, answer text, credentials, or hidden reasoning.
 
 ## Hermes receipt topology
@@ -92,9 +108,9 @@ No receipt is required to contain every field. Provider/runtime telemetry varies
 
 TokenTotals uses one canonical receipt object with two presentation depths.
 
-**Standard** is the compact default intended to sit directly beneath the completed answer.
+**Standard** is the default inline presentation intended to sit directly beneath the completed answer.
 
-**Expanded** exposes deeper telemetry, provenance, reconciliation, child API-call information and thread context where available.
+**Expanded** renders the same Turn Receipt and exposes deeper telemetry, provenance, reconciliation, child API-call information and the current thread aggregate at render time where available.
 
 Changing presentation does not change the accounting object and does not trigger another model call.
 
@@ -125,7 +141,7 @@ The Hermes integration therefore relies on Hermes' stable lifecycle identifiers 
 - provider API-request identity; and
 - API-call ordering/count information.
 
-The top-level TokenTotals receipt identity is derived from the stable Hermes turn identity.
+The top-level TokenTotals receipt identity is derived from the stable Hermes turn identity. On supported TokenTotals proxy surfaces, the `X-TokenTotals-Receipt-ID` binding exposes that server-owned receipt identity without modifying the model answer.
 
 ## Cost semantics
 
@@ -139,7 +155,9 @@ A top-level Hermes turn can be classified as:
 
 Unavailable cost is not displayed as `$0.00`.
 
-Every Turn Receipt remains an independent estimate, not a provider invoice.
+When provider-specific reconstruction is incomplete and a defensible secondary basis exists, TokenTotals may show a clearly labeled fallback estimate. A fallback estimate is not relabeled as observed provider billing.
+
+Every Turn Receipt remains an independent estimate, not a provider invoice. Provider account and final invoice remain authoritative.
 
 ## Privacy boundary
 
