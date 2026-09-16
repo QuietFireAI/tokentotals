@@ -36,13 +36,28 @@ if (-not (Test-Path $exe)) {
     throw "Build completed without expected executable: $exe"
 }
 
+$trace = Join-Path $PSScriptRoot "packaging-smoke-trace.txt"
+Remove-Item $trace -Force -ErrorAction SilentlyContinue
+
+function Write-SmokeTrace {
+    if (Test-Path $trace) {
+        Write-Host "--- packaged smoke trace ---"
+        Get-Content $trace | ForEach-Object { Write-Host $_ }
+        Write-Host "--- end packaged smoke trace ---"
+    } else {
+        Write-Host "Packaged smoke trace file was not created."
+    }
+}
+
 Write-Host "`n[3/3] Running packaged smoke test..."
-$smoke = Start-Process -FilePath $exe -ArgumentList "--smoke-test" -PassThru
+$smoke = Start-Process -FilePath $exe -ArgumentList "--smoke-test" -WorkingDirectory $PSScriptRoot -PassThru
 if (-not $smoke.WaitForExit(90000)) {
     Stop-Process -Id $smoke.Id -Force -ErrorAction SilentlyContinue
+    Write-SmokeTrace
     throw "Packaged smoke test timed out after 90 seconds"
 }
 $smoke.Refresh()
+Write-SmokeTrace
 if ($smoke.ExitCode -ne 0) {
     throw "Packaged smoke test failed with exit code $($smoke.ExitCode)"
 }
