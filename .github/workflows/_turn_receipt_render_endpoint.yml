@@ -1,0 +1,73 @@
+name: Turn Receipt render endpoint work
+
+on:
+  push:
+    branches:
+      - turn-receipt-render-endpoint-work
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Apply render endpoint patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one anchor, found {count}')
+              return text.replace(old, new, 1)
+
+          path = Path('proxy_server.py')
+          text = path.read_text(encoding='utf-8')
+          text = replace_once(
+              text,
+              'import turn_receipt\n',
+              'import turn_receipt\nimport turn_receipt_renderer\n',
+              'renderer import',
+          )
+          anchor = '''    return receipt\n\n\n@app.get("/api/turn-notice")\n'''
+          block = '''    return receipt\n\n\n@app.get("/api/turn-receipt/{turn_id}/render", response_class=HTMLResponse)\nasync def render_turn_receipt(turn_id: str, mode: str = "standard"):\n    key = str(turn_id).strip()\n    if not key:\n        raise HTTPException(status_code=400, detail="turn_id must be non-empty")\n\n    selected_mode = str(mode or "standard").strip().lower()\n    if selected_mode not in turn_receipt_renderer.VALID_MODES:\n        raise HTTPException(status_code=400, detail="mode must be 'standard' or 'expanded'")\n\n    try:\n        receipt = turn_receipt.by_id(key)\n    except turn_ledger.LedgerCorruptionError as exc:\n        raise HTTPException(status_code=500, detail=f"TokenTotals turn ledger is corrupt: {exc}")\n    if receipt is None:\n        raise HTTPException(status_code=404, detail=f"No TokenTotals Turn Receipt exists for turn '{key}'.")\n\n    thread_view = None\n    if selected_mode == "expanded":\n        thread_id = str(((receipt.get("turn") or {}).get("thread_id")) or "").strip()\n        if thread_id:\n            try:\n                thread_view = telemetry_view.thread_view(thread_id)\n            except turn_ledger.LedgerCorruptionError as exc:\n                raise HTTPException(status_code=500, detail=f"TokenTotals turn ledger is corrupt: {exc}")\n\n    html = turn_receipt_renderer.render_html(\n        receipt,\n        mode=selected_mode,\n        thread_view=thread_view,\n    )\n    return HTMLResponse(content=html)\n\n\n@app.get("/api/turn-notice")\n'''
+          text = replace_once(text, anchor, block, 'render route')
+          path.write_text(text, encoding='utf-8')
+
+          Path('tests/test_turn_receipt_render_api.py').write_text('''import unittest\nfrom unittest.mock import patch\n\nfrom fastapi.testclient import TestClient\n\nimport proxy_server\nimport turn_ledger\n\n\nclass TurnReceiptRenderApiTests(unittest.TestCase):\n    def setUp(self):\n        self.client = TestClient(proxy_server.app)\n        self.receipt = {\n            "schema": "tokentotals.turn_receipt",\n            "schema_version": 1,\n            "receipt_id": "turn-render",\n            "turn": {"turn_id": "turn-render", "thread_id": "thread-render"},\n        }\n\n    def test_standard_returns_html_and_does_not_load_thread_aggregate(self):\n        with patch.object(proxy_server.turn_receipt, "by_id", return_value=self.receipt) as receipt_lookup, \\\n             patch.object(proxy_server.telemetry_view, "thread_view") as thread_lookup, \\\n             patch.object(proxy_server.turn_receipt_renderer, "render_html", return_value='<article>standard</article>') as renderer:\n            response = self.client.get('/api/turn-receipt/turn-render/render?mode=standard')\n\n        self.assertEqual(response.status_code, 200)\n        self.assertTrue(response.headers.get('content-type', '').startswith('text/html'))\n        self.assertEqual(response.text, '<article>standard</article>')\n        receipt_lookup.assert_called_once_with('turn-render')\n        thread_lookup.assert_not_called()\n        renderer.assert_called_once_with(self.receipt, mode='standard', thread_view=None)\n\n    def test_expanded_loads_current_thread_aggregate(self):\n        thread = {"thread_id": "thread-render", "turn_count": 4}\n        with patch.object(proxy_server.turn_receipt, "by_id", return_value=self.receipt), \\\n             patch.object(proxy_server.telemetry_view, "thread_view", return_value=thread) as thread_lookup, \\\n             patch.object(proxy_server.turn_receipt_renderer, "render_html", return_value='<article>expanded</article>') as renderer:\n            response = self.client.get('/api/turn-receipt/turn-render/render?mode=expanded')\n\n        self.assertEqual(response.status_code, 200)\n        thread_lookup.assert_called_once_with('thread-render')\n        renderer.assert_called_once_with(self.receipt, mode='expanded', thread_view=thread)\n\n    def test_default_mode_is_standard(self):\n        with patch.object(proxy_server.turn_receipt, "by_id", return_value=self.receipt), \\\n             patch.object(proxy_server.telemetry_view, "thread_view") as thread_lookup, \\\n             patch.object(proxy_server.turn_receipt_renderer, "render_html", return_value='<article>standard</article>') as renderer:\n            response = self.client.get('/api/turn-receipt/turn-render/render')\n\n        self.assertEqual(response.status_code, 200)\n        thread_lookup.assert_not_called()\n        renderer.assert_called_once_with(self.receipt, mode='standard', thread_view=None)\n\n    def test_invalid_mode_is_rejected_before_receipt_lookup(self):\n        with patch.object(proxy_server.turn_receipt, "by_id") as lookup:\n            response = self.client.get('/api/turn-receipt/turn-render/render?mode=giant')\n        self.assertEqual(response.status_code, 400)\n        self.assertIn("standard", response.json()["detail"])\n        lookup.assert_not_called()\n\n    def test_unknown_turn_returns_404(self):\n        with patch.object(proxy_server.turn_receipt, "by_id", return_value=None):\n            response = self.client.get('/api/turn-receipt/missing/render')\n        self.assertEqual(response.status_code, 404)\n\n    def test_receipt_ledger_corruption_is_visible(self):\n        with patch.object(proxy_server.turn_receipt, "by_id", side_effect=turn_ledger.LedgerCorruptionError('bad line 12')):\n            response = self.client.get('/api/turn-receipt/turn-render/render')\n        self.assertEqual(response.status_code, 500)\n        self.assertIn('bad line 12', response.json()['detail'])\n\n    def test_expanded_thread_corruption_is_visible(self):\n        with patch.object(proxy_server.turn_receipt, "by_id", return_value=self.receipt), \\\n             patch.object(proxy_server.telemetry_view, "thread_view", side_effect=turn_ledger.LedgerCorruptionError('bad line 13')):\n            response = self.client.get('/api/turn-receipt/turn-render/render?mode=expanded')\n        self.assertEqual(response.status_code, 500)\n        self.assertIn('bad line 13', response.json()['detail'])\n\n\nif __name__ == '__main__':\n    unittest.main()\n''', encoding='utf-8')
+          PY
+
+      - name: Verify patch
+        run: |
+          git diff --check
+          python -m compileall -q proxy_server.py tests/test_turn_receipt_render_api.py
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Smoke-import live proxy
+        run: python -c "import proxy_server; print('proxy_server import OK')"
+
+      - name: Run full regression suite
+        run: timeout --signal=TERM 90s python -m unittest discover -s tests -v
+
+      - name: Commit proven files and remove helper
+        if: success()
+        run: |
+          rm .github/workflows/_turn_receipt_render_endpoint.yml
+          git config user.name "QuietFireAI"
+          git config user.email "211976194+QuietFireAI@users.noreply.github.com"
+          git add proxy_server.py tests/test_turn_receipt_render_api.py .github/workflows/_turn_receipt_render_endpoint.yml
+          git commit -m "feat: expose rendered Turn Receipt fragments"
+          git push origin HEAD:turn-receipt-render-endpoint-work
