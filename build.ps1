@@ -19,6 +19,7 @@ python -m PyInstaller `
     --add-data "icon_green.png;." `
     --add-data "icon_yellow.png;." `
     --add-data "icon_red.png;." `
+    --collect-data "litellm" `
     --hidden-import "uvicorn.logging" `
     --hidden-import "uvicorn.loops" `
     --hidden-import "uvicorn.loops.auto" `
