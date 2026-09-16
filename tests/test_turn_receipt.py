@@ -77,6 +77,7 @@ class TurnReceiptTests(unittest.TestCase):
         self.assertEqual(receipt["turn"]["cost"]["basis"], "provider_registry_complete")
         self.assertEqual(receipt["turn"]["cost"]["components_usd"]["output"], 0.01)
         self.assertEqual(receipt["turn"]["cost"]["components_basis"], "same_as_estimate")
+        self.assertEqual(receipt["turn"]["cost"]["indicator"]["level"], "normal")
 
     def test_receipt_hides_provider_components_when_total_uses_litellm_fallback(self):
         record = self._record()
@@ -95,6 +96,19 @@ class TurnReceiptTests(unittest.TestCase):
         self.assertEqual(cost["components_usd"], {})
         self.assertEqual(cost["components_basis"], "unavailable_for_estimate_basis")
 
+    def test_fallback_estimate_is_explicitly_flagged_for_user(self):
+        record = self._record()
+        record["estimated_cost_usd"] = 0.031
+        record["cost_basis"] = "litellm_response_cost_fallback"
+        record["estimate_complete"] = False
+
+        indicator = turn_receipt.from_record(record)["turn"]["cost"]["indicator"]
+        self.assertEqual(indicator["status"], "fallback")
+        self.assertEqual(indicator["level"], "warning")
+        self.assertEqual(indicator["label"], "Fallback estimate")
+        self.assertIn("may be higher or lower", indicator["message"])
+        self.assertIn("provider invoice", indicator["message"])
+
     def test_known_list_equivalent_keeps_matching_components_but_stays_incomplete(self):
         record = self._record()
         record["cost_basis"] = "known_list_equivalent"
@@ -105,6 +119,20 @@ class TurnReceiptTests(unittest.TestCase):
         self.assertEqual(cost["components_basis"], "same_as_estimate")
         self.assertEqual(cost["components_usd"]["input"], 0.002345)
         self.assertFalse(cost["complete"])
+        self.assertEqual(cost["indicator"]["status"], "list_equivalent")
+        self.assertEqual(cost["indicator"]["level"], "warning")
+
+    def test_unavailable_cost_is_not_presented_as_zero(self):
+        record = self._record()
+        record["estimated_cost_usd"] = None
+        record["cost_basis"] = "unavailable"
+        record["estimate_complete"] = False
+        record["pricing_components_usd"] = {}
+
+        cost = turn_receipt.from_record(record)["turn"]["cost"]
+        self.assertIsNone(cost["estimated_usd"])
+        self.assertEqual(cost["indicator"]["status"], "unavailable")
+        self.assertIn("not treated as zero", cost["indicator"]["message"])
 
     def test_receipt_preserves_missing_and_explicit_zero_semantics(self):
         receipt = turn_receipt.from_record(self._record())
