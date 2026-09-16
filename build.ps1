@@ -1,17 +1,46 @@
-﻿Write-Host "========================================="
-Write-Host " TokenTotals PyInstaller Build Script    "
+$ErrorActionPreference = "Stop"
+
+Write-Host "========================================="
+Write-Host " TokenTotals Windows Build               "
 Write-Host "========================================="
 
-Write-Host "
-[1/3] Installing PyInstaller..."
-pip install pyinstaller
+Write-Host "`n[1/3] Installing pinned build dependencies..."
+python -m pip install --upgrade pip
+python -m pip install -r requirements-build.txt
 
-$pluginDir = "C:\Users\Command Center\.gemini\config\plugins\token-cost-estimator\scripts"
+Write-Host "`n[2/3] Building TokenTotals_QuietFireAI..."
+python -m PyInstaller `
+    --noconfirm `
+    --clean `
+    --windowed `
+    --name "TokenTotals_QuietFireAI" `
+    --add-data "pricing;pricing" `
+    --add-data "icon.png;." `
+    --add-data "icon_green.png;." `
+    --add-data "icon_yellow.png;." `
+    --add-data "icon_red.png;." `
+    --hidden-import "uvicorn.logging" `
+    --hidden-import "uvicorn.loops" `
+    --hidden-import "uvicorn.loops.auto" `
+    --hidden-import "uvicorn.protocols" `
+    --hidden-import "uvicorn.protocols.http" `
+    --hidden-import "uvicorn.protocols.http.auto" `
+    --hidden-import "uvicorn.protocols.websockets" `
+    --hidden-import "uvicorn.protocols.websockets.auto" `
+    --hidden-import "uvicorn.lifespan" `
+    --hidden-import "uvicorn.lifespan.on" `
+    app_gui.py
 
-Write-Host "
-[2/3] Compiling Application Engine..."
-pyinstaller --noconfirm --windowed --name "TokenTotals" --paths "$pluginDir" --hidden-import "uvicorn.logging" --hidden-import "uvicorn.loops" --hidden-import "uvicorn.loops.auto" --hidden-import "uvicorn.protocols" --hidden-import "uvicorn.protocols.http" --hidden-import "uvicorn.protocols.http.auto" --hidden-import "uvicorn.protocols.websockets" --hidden-import "uvicorn.protocols.websockets.auto" --hidden-import "uvicorn.lifespan" --hidden-import "uvicorn.lifespan.on" app_gui.py
+$exe = Join-Path $PSScriptRoot "dist\TokenTotals_QuietFireAI\TokenTotals_QuietFireAI.exe"
+if (-not (Test-Path $exe)) {
+    throw "Build completed without expected executable: $exe"
+}
 
-Write-Host "
-[3/3] Build Complete!"
-Write-Host "Your standalone TokenTotals.exe app is located in the dist\TokenTotals folder."
+Write-Host "`n[3/3] Running packaged smoke test..."
+& $exe --smoke-test
+if ($LASTEXITCODE -ne 0) {
+    throw "Packaged smoke test failed with exit code $LASTEXITCODE"
+}
+
+Write-Host "`nBuild complete and smoke-tested."
+Write-Host "Output: dist\TokenTotals_QuietFireAI\"
