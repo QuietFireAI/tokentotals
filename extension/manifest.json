@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "TurnReceipt",
+  "version": "0.1.0",
+  "description": "Renders a local TokenTotals Turn Receipt directly beneath completed AI chat answers.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://gemini.google.com/*",
+        "https://chatgpt.com/*",
+        "https://claude.ai/*"
+      ],
+      "js": ["content.js"],
+      "css": ["receipt_host.css"],
+      "run_at": "document_idle",
+      "world": "ISOLATED"
+    }
+  ],
+  "background": {
+    "service_worker": "service_worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "TurnReceipt",
+    "default_popup": "popup.html"
+  }
+}
