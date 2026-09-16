@@ -32,7 +32,7 @@ python -m PyInstaller `
     --hidden-import "uvicorn.protocols.websockets.auto" `
     --hidden-import "uvicorn.lifespan" `
     --hidden-import "uvicorn.lifespan.on" `
-    app_gui.py
+    app_gui_external.py
 
 $exe = Join-Path $PSScriptRoot "dist\TokenTotals\TokenTotals.exe"
 if (-not (Test-Path $exe)) {
