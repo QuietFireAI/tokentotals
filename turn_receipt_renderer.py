@@ -89,7 +89,11 @@ def _indicator_markup(cost):
     level = indicator.get("level") or "warning"
     message = indicator.get("message") or ""
     css_level = "normal" if level == "normal" else "warning"
-    detail = f'<div class="tt-receipt-indicator-message">{_e(message)}</div>' if message else ""
+    detail = (
+        f'<div class="tt-receipt-indicator-message">{_e(message)}</div>'
+        if message and css_level == "warning"
+        else ""
+    )
     return (
         f'<div class="tt-receipt-indicator tt-{css_level}">'
         f'<strong>{_e(label)}</strong>{detail}</div>'
@@ -238,6 +242,7 @@ def _identity_section(turn):
     rate = turn.get("output_tokens_per_wall_second")
     return (
         '<section class="tt-receipt-section"><h4>Turn detail</h4><div class="tt-receipt-mini-grid"><div>'
+        + _row("Receipt ID", _display(turn.get("turn_id")))
         + _row("Requested model", _display(model.get("requested")))
         + _row("Canonical model", _display(model.get("canonical")))
         + _row("Observed model", _display(model.get("observed")))
@@ -330,13 +335,10 @@ def render_html(receipt, mode="standard", thread_view=None):
         + f'<article class="tt-receipt" data-receipt-id="{_e(view.get("receipt_id"))}" data-mode="{_e(selected)}">'
         + '<header class="tt-receipt-head"><div>'
         + '<div class="tt-receipt-title">Turn Receipt</div>'
-        + f'<div class="tt-receipt-subtitle">{_e(view.get("disclaimer"))}</div>'
         + '</div><div class="tt-receipt-value">'
         + _display(view.get("completed_at"))
         + "</div></header>"
         + body
-        + '<footer class="tt-receipt-footer"><span>Receipt ID: '
-        + _display(view.get("receipt_id"))
-        + '</span><a href="https://turnreceipt.com/" rel="noopener">TURNRECEIPT.COM</a></footer>'
+        + '<footer class="tt-receipt-footer"><a href="https://turnreceipt.com/" rel="noopener">TurnReceipt.com</a></footer>'
         + "</article>"
     )

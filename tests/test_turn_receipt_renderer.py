@@ -115,8 +115,9 @@ class TurnReceiptRendererTests(unittest.TestCase):
         self.assertIn('"Courier New", Courier, "Liberation Mono", ui-monospace, monospace', html)
         self.assertIn("gpt-example", html)
         self.assertIn("$0.012345", html)
-        self.assertIn("TURNRECEIPT.COM", html)
-        self.assertIn("not a provider invoice", html)
+        self.assertIn(">TurnReceipt.com</a>", html)
+        self.assertNotIn("not a provider invoice", html)
+        self.assertNotIn("Receipt ID:", html)
         self.assertNotIn("Current thread aggregate", html)
         self.assertNotIn("other-example", html)
 
@@ -127,6 +128,8 @@ class TurnReceiptRendererTests(unittest.TestCase):
             thread_view=self._thread_view(),
         )
 
+        self.assertIn("Receipt ID", html)
+        self.assertIn("turn-abc123", html)
         self.assertIn("Token anatomy", html)
         self.assertIn("Pricing math", html)
         self.assertIn("Effective rates", html)
