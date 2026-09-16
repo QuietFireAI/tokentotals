@@ -11,6 +11,7 @@ class WindowsPackagingContractTests(unittest.TestCase):
         cls.gui = (ROOT / "app_gui.py").read_text(encoding="utf-8")
         cls.smoke = (ROOT / "packaging_smoke.py").read_text(encoding="utf-8")
         cls.build = (ROOT / "build.ps1").read_text(encoding="utf-8")
+        cls.workflow = (ROOT / ".github" / "workflows" / "windows-package.yml").read_text(encoding="utf-8")
 
     def test_packaged_smoke_branches_before_desktop_imports_and_forces_exit(self):
         self.assertIn('if "--smoke-test" in sys.argv:', self.gui)
@@ -46,6 +47,12 @@ class WindowsPackagingContractTests(unittest.TestCase):
         self.assertIn("Packaged smoke test timed out after 90 seconds", self.build)
         self.assertIn('packaging-smoke-trace.txt', self.build)
         self.assertIn("Write-SmokeTrace", self.build)
+
+    def test_build_bundles_and_workflow_verifies_litellm_runtime_data(self):
+        self.assertIn('--collect-data "litellm"', self.build)
+        self.assertIn('"packaging_smoke.py"', self.workflow)
+        self.assertIn('model_prices_and_context_window_backup.json', self.workflow)
+        self.assertIn('LiteLLM runtime pricing/context backup data is missing from package', self.workflow)
 
 
 if __name__ == "__main__":
