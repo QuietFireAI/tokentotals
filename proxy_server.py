@@ -10,7 +10,7 @@ if sys.stdout is None:
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w")
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import litellm
@@ -195,6 +195,7 @@ app.add_middleware(
 LAST_LATENCY_MS = 0
 THREAD_METADATA_KEY = "tokentotals_thread_id"
 RESERVATION_METADATA_KEY = "tokentotals_reservation_id"
+RECEIPT_ID_HEADER = "X-TokenTotals-Receipt-ID"
 
 litellm.suppress_debug_info = True
 
@@ -472,6 +473,20 @@ async def get_turn_receipt(thread_id: str):
     return receipt
 
 
+@app.get("/api/turn-receipt/{turn_id}")
+async def get_turn_receipt_by_id(turn_id: str):
+    key = str(turn_id).strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="turn_id must be non-empty")
+    try:
+        receipt = turn_receipt.by_id(key)
+    except turn_ledger.LedgerCorruptionError as exc:
+        raise HTTPException(status_code=500, detail=f"TokenTotals turn ledger is corrupt: {exc}")
+    if receipt is None:
+        raise HTTPException(status_code=404, detail=f"No TokenTotals Turn Receipt exists for turn '{key}'.")
+    return receipt
+
+
 @app.get("/api/turn-notice")
 async def get_turn_notice(thread_id: str = None):
     conf = config_manager.get_config()
@@ -546,7 +561,7 @@ async def serve_dashboard():
 
 
 @app.post("/v1/chat/completions")
-async def proxy_openai(request: Request):
+async def proxy_openai(request: Request, http_response: Response):
     state = config_manager.get_state()
 
     # 1. LOCAL PACING LOCK CHECK
@@ -679,6 +694,8 @@ async def proxy_openai(request: Request):
         config_manager.release_preflight_reservation(reservation_id)
         raise HTTPException(status_code=502, detail=f"Upstream Provider Error via LiteLLM: {str(e)}")
 
+    http_response.headers[RECEIPT_ID_HEADER] = reservation_id
+
     if stream:
         async def generate():
             try:
@@ -693,7 +710,7 @@ async def proxy_openai(request: Request):
                 config_manager.release_preflight_reservation(reservation_id)
                 yield "data: [DONE]\n\n"
 
-        return StreamingResponse(generate(), media_type="text/event-stream")
+        return StreamingResponse(generate(), media_type="text/event-stream", headers={RECEIPT_ID_HEADER: reservation_id})
     else:
         return response.model_dump()
 

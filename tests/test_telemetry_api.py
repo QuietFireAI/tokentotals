@@ -111,5 +111,25 @@ class TelemetryApiTests(unittest.TestCase):
         self.assertIn("bad line 9", response.json()["detail"])
 
 
+    def test_exact_turn_receipt_endpoint_returns_requested_receipt(self):
+        expected = {"schema": "tokentotals.turn_receipt", "schema_version": 1, "receipt_id": "turn-exact"}
+        with patch.object(proxy_server.turn_receipt, "by_id", return_value=expected) as mocked:
+            response = self.client.get("/api/turn-receipt/turn-exact")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), expected)
+        mocked.assert_called_once_with("turn-exact")
+
+    def test_exact_turn_receipt_endpoint_returns_404_for_unknown_turn(self):
+        with patch.object(proxy_server.turn_receipt, "by_id", return_value=None):
+            response = self.client.get("/api/turn-receipt/missing")
+        self.assertEqual(response.status_code, 404)
+
+    def test_exact_turn_receipt_endpoint_surfaces_ledger_corruption(self):
+        with patch.object(proxy_server.turn_receipt, "by_id", side_effect=turn_ledger.LedgerCorruptionError("bad line 11")):
+            response = self.client.get("/api/turn-receipt/turn-exact")
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("bad line 11", response.json()["detail"])
+
+
 if __name__ == "__main__":
     unittest.main()
