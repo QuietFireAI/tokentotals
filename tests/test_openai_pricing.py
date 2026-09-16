@@ -37,6 +37,14 @@ class OpenAIPricingTests(unittest.TestCase):
         result = pricing.calculate_openai_cost("gpt-5.6-sol", usage, "fast")
         self.assertAlmostEqual(result["total_cost_usd"], 0.048)
 
+    def test_ultrafast_is_recognized_as_unpriced_not_mapped_to_fast_or_standard(self):
+        usage = {"input_tokens": 1_000, "output_tokens": 1_000}
+        result = pricing.calculate_openai_cost("gpt-5.6-sol", usage, "ultrafast")
+        self.assertFalse(result["complete"])
+        self.assertIsNone(result["total_cost_usd"])
+        self.assertEqual(result["service_tier"], "ultrafast")
+        self.assertTrue(any("Unsupported or unverified service tier: ultrafast" in n for n in result["notes"]))
+
     def test_auto_tier_is_not_fixed_multiplier(self):
         result = pricing.calculate_openai_cost(
             "gpt-5.6-sol", {"input_tokens": 1_000, "output_tokens": 1_000}, "auto"
