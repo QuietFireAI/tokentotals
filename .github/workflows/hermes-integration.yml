@@ -5,6 +5,26 @@ on:
   workflow_dispatch:
 
 jobs:
+  tokentotals-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Compile Python sources
+        run: python -m compileall -q .
+      - name: Smoke-import live proxy
+        run: python -c "import proxy_server; print('proxy_server import OK')"
+      - name: Run full regression suite
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: timeout --signal=TERM 90s python -m unittest discover -s tests -v
+
   tokentotals-hermes-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -71,3 +91,37 @@ jobs:
           mkdir -p "$HERMES_HOME/plugins/turnreceipt"
           cp -R integrations/hermes/turnreceipt/. "$HERMES_HOME/plugins/turnreceipt/"
           hermes plugins doctor "$HERMES_HOME/plugins/turnreceipt" --ci
+
+  windows-hermes-candidate:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build and smoke-test Hermes desktop candidate
+        shell: powershell
+        run: .\build.ps1
+
+      - name: Recheck Windows packaging contract
+        run: python -m unittest tests.test_windows_packaging_contract
+
+      - name: Create candidate ZIP and record identity
+        id: candidate
+        shell: powershell
+        run: |
+          Compress-Archive -Path "dist\TokenTotals\*" -DestinationPath "TokenTotals_Hermes_Windows_candidate.zip" -Force
+          $candidate = Get-Item "TokenTotals_Hermes_Windows_candidate.zip"
+          $hash = (Get-FileHash $candidate.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "CANDIDATE_ZIP_SHA256=$hash"
+          Write-Host "CANDIDATE_ZIP_SIZE_BYTES=$($candidate.Length)"
+          "sha256=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TokenTotals-Hermes-Windows-candidate-${{ steps.candidate.outputs.sha256 }}
+          path: TokenTotals_Hermes_Windows_candidate.zip
+          if-no-files-found: error
