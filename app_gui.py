@@ -1,5 +1,18 @@
 import os
 import sys
+
+# Package verification must run before desktop/tray imports. A smoke run validates
+# bundled evidence/runtime pieces without starting GUI infrastructure or the local
+# server, which also makes a failed package phase diagnosable in headless CI.
+if "--smoke-test" in sys.argv:
+    from packaging_smoke import run_packaging_smoke_test
+
+    try:
+        run_packaging_smoke_test()
+    except BaseException:
+        os._exit(1)
+    os._exit(0)
+
 import threading
 import time
 import webbrowser
@@ -268,29 +281,6 @@ def on_setup(icon):
         "TokenTotals Local Cost Telemetry Online"
     )
 
-def packaging_smoke_test():
-    """Validate packaged runtime data without starting the tray or local server."""
-    for name in ("icon.png", "icon_green.png", "icon_yellow.png", "icon_red.png"):
-        image = load_icon_image(name)
-        image.verify()
-        image.close()
-
-    from anthropic_pricing import resolve_anthropic_model
-    from google_pricing import resolve_google_model
-    from openai_pricing import resolve_openai_model
-
-    if resolve_openai_model("gpt-5.6-sol") is None:
-        raise RuntimeError("Bundled OpenAI pricing registry is unavailable")
-    if resolve_anthropic_model("claude-sonnet-5") is None:
-        raise RuntimeError("Bundled Anthropic pricing registry is unavailable")
-    if resolve_google_model("gemini-2.5-flash") is None:
-        raise RuntimeError("Bundled Google pricing registry is unavailable")
-
-    routes = {getattr(route, "path", None) for route in app.routes}
-    for required in ("/dashboard", "/api/status", "/api/telemetry/thread"):
-        if required not in routes:
-            raise RuntimeError(f"Packaged FastAPI route missing: {required}")
-
 def main():
     threading.Thread(target=run_server, daemon=True).start()
     threading.Thread(target=monitor_state_loop, daemon=True).start()
@@ -315,11 +305,4 @@ def main():
     icon.run(setup=on_setup)
 
 if __name__ == "__main__":
-    if "--smoke-test" in sys.argv:
-        try:
-            packaging_smoke_test()
-        except BaseException:
-            os._exit(1)
-        os._exit(0)
-    else:
-        main()
+    main()
