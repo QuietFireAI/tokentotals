@@ -70,8 +70,10 @@ jobs:
         run: |
           $root = "dist\TokenTotals_QuietFireAI"
           if (-not (Test-Path "$root\TokenTotals_QuietFireAI.exe")) { throw "Packaged EXE missing" }
-          $registryFiles = Get-ChildItem -Path $root -Recurse -Filter "*_registry.json"
-          if ($registryFiles.Count -ne 3) { throw "Expected exactly three bundled pricing registries; found $($registryFiles.Count)" }
+          foreach ($registryName in @("openai_registry.json", "anthropic_registry.json", "google_registry.json")) {
+            $matches = Get-ChildItem -Path $root -Recurse -Filter $registryName
+            if ($matches.Count -ne 1) { throw "Expected exactly one bundled TokenTotals $registryName; found $($matches.Count)" }
+          }
           $iconFiles = Get-ChildItem -Path $root -Recurse -Filter "icon*.png"
           if ($iconFiles.Count -lt 4) { throw "Expected four bundled tray icon files; found $($iconFiles.Count)" }
           $liteLLMBackup = Get-ChildItem -Path $root -Recurse -Filter "model_prices_and_context_window_backup.json"
