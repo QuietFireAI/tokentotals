@@ -337,37 +337,3 @@ Think of TokenTotals like a local receipt printer attached to AI usage:
 **Question → Answer → Turn Receipt → Repeat.**
 
 For technical details, calculation rules, API routes, and implementation boundaries, see the repository README, `TURN_RECEIPTS.md`, and `CALCULATION_TRANSPARENCY.md`.
-
-
----
-
-## 15. Exporting a thread for audit
-
-The Turn Receipt chat includes an **Export CSV** button. It becomes available after the current thread has at least one settled Turn Receipt.
-
-The download is a spreadsheet-friendly CSV containing one row for each completed turn recorded in that thread. It is generated from the same canonical Turn Receipt data used by the on-screen receipts; TokenTotals does not create a second accounting calculation just for the export.
-
-The export includes fields such as:
-
-- receipt and thread IDs;
-- turn number and completion time;
-- provider and model identity;
-- available token categories and their observed/derived basis;
-- TokenTotals turn estimate, estimate status, and pricing basis;
-- running thread estimate;
-- cost-coverage status; and
-- latency when available.
-
-The audit CSV intentionally does **not** include prompt text, model answer text, provider API keys, or hidden model reasoning.
-
-A missing cost remains a blank value and changes the running coverage to partial/unavailable as appropriate. TokenTotals does not turn missing cost information into `$0`. An actual observed/recorded zero remains a real zero.
-
-Text cells are escaped before export when necessary so values beginning like spreadsheet formulas cannot execute as formulas when the CSV is opened in Excel or similar software.
-
-The current API route for the same export is:
-
-```text
-GET /api/threads/<thread_id>/turn-receipts.csv
-```
-
-The CSV is intended for ordinary spreadsheet review, accounting reconciliation, research, reimbursement records, or audit work. It remains a TokenTotals usage-estimate record; provider billing/account records remain authoritative.
