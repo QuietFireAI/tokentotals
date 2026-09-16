@@ -82,6 +82,7 @@ def run_packaging_smoke_test() -> None:
             "/api/turn-receipt",
             "/api/turn-receipt/{turn_id}",
             "/api/turn-receipt/{turn_id}/render",
+            "/api/threads/{thread_id}/turn-receipts.csv",
         ):
             if required not in routes:
                 raise RuntimeError(f"Packaged FastAPI route missing: {required}")
