@@ -15,12 +15,14 @@
     "https://developers.openai.com/api/docs/models/gpt-4o-mini",
     "https://developers.openai.com/api/docs/models/o1",
     "https://developers.openai.com/api/docs/models/o3-mini",
-    "https://openai.com/api-fast-mode/"
+    "https://openai.com/api-fast-mode/",
+    "https://openai.com/index/previewing-ultrafast/"
   ],
   "processing_notes": {
     "auto": "auto is not assigned a fixed multiplier. It follows project settings and must be resolved from response telemetry before an all-in token total is asserted.",
     "batch": "Batch pricing is a separate API processing mode rather than a service_tier response value. It is intentionally not treated as a service_tier by this registry.",
-    "hosted_tools": "Built-in or tool-specific OpenAI features may add non-token or per-call charges. The token calculator marks such responses incomplete unless those charges are separately represented."
+    "hosted_tools": "Built-in or tool-specific OpenAI features may add non-token or per-call charges. The token calculator marks such responses incomplete unless those charges are separately represented.",
+    "ultrafast": "OpenAI documents an access-controlled Ultrafast service tier for GPT-5.6 Sol and responses may report service_tier=ultrafast. No public Ultrafast token-rate table was verified for this registry, so TokenTotals must not map Ultrafast to Standard, Fast/Priority, or any guessed multiplier."
   },
   "models": {
     "gpt-6-astra": {
