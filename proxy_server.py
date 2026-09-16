@@ -21,6 +21,7 @@ import turn_notice
 import turn_receipt
 import turn_receipt_renderer
 import turn_receipt_chat_surface
+import turn_receipt_export
 from openai_pricing import (
     calculate_openai_response_cost,
     estimate_openai_input_cost,
@@ -522,6 +523,30 @@ async def render_turn_receipt(turn_id: str, mode: str = "standard"):
         thread_view=thread_view,
     )
     return HTMLResponse(content=html)
+
+
+@app.get("/api/threads/{thread_id}/turn-receipts.csv")
+async def export_thread_turn_receipts_csv(thread_id: str):
+    key = str(thread_id).strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="thread_id must be non-empty")
+    try:
+        csv_text = turn_receipt_export.thread_csv(key)
+    except turn_ledger.LedgerCorruptionError as exc:
+        raise HTTPException(status_code=500, detail=f"TokenTotals turn ledger is corrupt: {exc}")
+    if csv_text is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No TokenTotals Turn Receipts exist for thread '{key}'.",
+        )
+    return Response(
+        content=csv_text,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="TokenTotals_Thread_Receipts.csv"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @app.get("/api/turn-notice")

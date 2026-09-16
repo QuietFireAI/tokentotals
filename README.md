@@ -53,6 +53,7 @@ That last percentage describes **token-classification coverage, not invoice accu
 
 The full proof sheet documents both **metrics calculated today** and **additional metrics already calculable from the current local ledger but intentionally not surfaced yet**, with prerequisites, formulas, coverage rules, and explicit boundaries for what TokenTotals will not claim.
 
+➡️ **[Start with the plain-language User Guide →](USER_GUIDE.md)**
 ➡️ **[Read the Turn Receipt definition →](TURN_RECEIPTS.md)**  
 ➡️ **[Open the full Calculation Transparency proof sheet →](CALCULATION_TRANSPARENCY.md)**  
 ➡️ **[Challenge or improve a formula →](CONTRIBUTING.md)**  
