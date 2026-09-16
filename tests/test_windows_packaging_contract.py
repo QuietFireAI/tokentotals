@@ -48,8 +48,10 @@ class WindowsPackagingContractTests(unittest.TestCase):
         self.assertIn('packaging-smoke-trace.txt', self.build)
         self.assertIn("Write-SmokeTrace", self.build)
 
-    def test_build_bundles_and_workflow_verifies_litellm_runtime_data(self):
+    def test_build_bundles_litellm_data_and_tiktoken_encoding_plugin(self):
         self.assertIn('--collect-data "litellm"', self.build)
+        self.assertIn('--hidden-import "tiktoken_ext"', self.build)
+        self.assertIn('--hidden-import "tiktoken_ext.openai_public"', self.build)
         self.assertIn('"packaging_smoke.py"', self.workflow)
         self.assertIn('model_prices_and_context_window_backup.json', self.workflow)
         self.assertIn('LiteLLM runtime pricing/context backup data is missing from package', self.workflow)
