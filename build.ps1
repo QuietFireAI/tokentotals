@@ -20,6 +20,8 @@ python -m PyInstaller `
     --add-data "icon_yellow.png;." `
     --add-data "icon_red.png;." `
     --collect-data "litellm" `
+    --hidden-import "tiktoken_ext" `
+    --hidden-import "tiktoken_ext.openai_public" `
     --hidden-import "uvicorn.logging" `
     --hidden-import "uvicorn.loops" `
     --hidden-import "uvicorn.loops.auto" `
