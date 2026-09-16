@@ -69,8 +69,14 @@ def run_packaging_smoke_test() -> None:
             raise RuntimeError("Bundled Google pricing registry is unavailable")
         _trace("google_registry_ok")
 
+        _trace("google_auth_import_start")
+        from google.auth.credentials import TokenState
+        if TokenState is None:
+            raise RuntimeError("Bundled Google auth runtime is unavailable")
+        _trace("google_auth_imported")
+
         _trace("proxy_import_start")
-        from proxy_server import app
+        from external_surface_app import app
         _trace("proxy_imported")
 
         routes = {getattr(route, "path", None) for route in app.routes}
@@ -82,11 +88,14 @@ def run_packaging_smoke_test() -> None:
             "/api/turn-receipt",
             "/api/turn-receipt/{turn_id}",
             "/api/turn-receipt/{turn_id}/render",
+            "/api/external-turns/settle",
+            "/api/external-turns/settle/render",
         ):
             if required not in routes:
                 raise RuntimeError(f"Packaged FastAPI route missing: {required}")
         _trace("proxy_routes_ok")
         _trace("turn_receipt_surfaces_ok")
+        _trace("external_turn_routes_ok")
         _trace("complete")
     except BaseException as exc:
         try:

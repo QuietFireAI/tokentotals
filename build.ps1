@@ -20,6 +20,8 @@ python -m PyInstaller `
     --add-data "icon_yellow.png;." `
     --add-data "icon_red.png;." `
     --collect-data "litellm" `
+    --collect-submodules "google.auth" `
+    --hidden-import "google.auth.credentials" `
     --hidden-import "tiktoken_ext" `
     --hidden-import "tiktoken_ext.openai_public" `
     --hidden-import "uvicorn.logging" `

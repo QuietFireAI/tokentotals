@@ -33,7 +33,7 @@ if hasattr(sys, '_MEIPASS'):
 
 import config_manager
 import turn_notice
-from proxy_server import app
+from external_surface_app import app
 
 GLOBAL_ICON = None
 CURRENT_ICON_COLOR = "green"

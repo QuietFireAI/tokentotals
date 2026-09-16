@@ -1,0 +1,78 @@
+name: TurnReceipt Browser Extension Package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "extension/**"
+      - "external_turn_ingest.py"
+      - "external_surface_app.py"
+      - "tests/test_browser_extension_contract.py"
+      - "tests/test_external_turn_ingest.py"
+      - ".github/workflows/extension-package.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "extension/**"
+      - "external_turn_ingest.py"
+      - "external_surface_app.py"
+      - "tests/test_browser_extension_contract.py"
+      - "tests/test_external_turn_ingest.py"
+      - ".github/workflows/extension-package.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate manifest JSON
+        run: python -m json.tool extension/manifest.json > /dev/null
+
+      - name: Syntax-check extension JavaScript
+        run: |
+          node --check extension/content.js
+          node --check extension/service_worker.js
+          node --check extension/popup.js
+
+      - name: Verify extension contract tests
+        run: python -m unittest tests.test_browser_extension_contract -v
+
+      - name: Create extension ZIP
+        run: |
+          cd extension
+          zip -r ../TurnReceipt_Browser_Extension_candidate.zip .
+          cd ..
+
+      - name: Record extension ZIP identity
+        id: identity
+        shell: bash
+        run: |
+          hash=$(sha256sum TurnReceipt_Browser_Extension_candidate.zip | awk '{print $1}')
+          size=$(stat -c%s TurnReceipt_Browser_Extension_candidate.zip)
+          echo "sha256=$hash" >> "$GITHUB_OUTPUT"
+          echo "size_bytes=$size" >> "$GITHUB_OUTPUT"
+          echo "EXTENSION_ZIP_SHA256=$hash"
+          echo "EXTENSION_ZIP_SIZE_BYTES=$size"
+
+      - name: Upload extension candidate
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: TurnReceipt-Browser-Extension-candidate-${{ steps.identity.outputs.sha256 }}
+          path: TurnReceipt_Browser_Extension_candidate.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Record Actions artifact identity
+        run: |
+          echo "EXTENSION_ZIP_SHA256=${{ steps.identity.outputs.sha256 }}"
+          echo "EXTENSION_ZIP_SIZE_BYTES=${{ steps.identity.outputs.size_bytes }}"
+          echo "ACTIONS_ARTIFACT_ID=${{ steps.upload.outputs.artifact-id }}"
+          echo "ACTIONS_ARTIFACT_DIGEST=${{ steps.upload.outputs.artifact-digest }}"
+          echo "ACTIONS_ARTIFACT_URL=${{ steps.upload.outputs.artifact-url }}"
