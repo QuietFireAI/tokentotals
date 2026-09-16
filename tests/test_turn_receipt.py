@@ -188,7 +188,7 @@ class TurnReceiptTests(unittest.TestCase):
         self.assertIsNone(receipt["thread"]["estimated_cost_usd"])
         self.assertEqual(receipt["thread"]["cost_coverage"], "unavailable")
 
-    def test_standard_view_is_compact_receipt_contract(self):
+    def test_standard_view_is_turn_scoped_and_omits_thread_aggregate(self):
         receipt = turn_receipt.from_record(self._record())
         receipt["thread"] = {
             "thread_id": "thread-7",
@@ -207,11 +207,11 @@ class TurnReceiptTests(unittest.TestCase):
         self.assertEqual(view["cached_input_tokens"], 1000)
         self.assertEqual(view["output_tokens"], 400)
         self.assertEqual(view["turn_estimate_usd"], 0.012345)
-        self.assertEqual(view["thread_estimate_usd"], 0.041)
-        self.assertEqual(view["thread_turn_count"], 4)
         self.assertEqual(view["pricing_basis"], "provider_registry_complete")
         self.assertEqual(view["website"], "TurnReceipt.com")
         self.assertIn("not a provider invoice", view["disclaimer"])
+        self.assertNotIn("thread_estimate_usd", view)
+        self.assertNotIn("thread_turn_count", view)
 
     def test_for_thread_rejects_blank_and_returns_none_for_unknown_thread(self):
         with self.assertRaisesRegex(ValueError, "thread_id must be non-empty"):

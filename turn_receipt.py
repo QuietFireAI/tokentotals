@@ -125,11 +125,12 @@ def from_record(record):
 
 
 def for_thread(thread_id):
-    """Return the latest Turn Receipt plus a truthful current thread summary.
+    """Return the latest Turn Receipt plus a truthful current thread aggregate.
 
+    The compact inline receipt stays turn-scoped. This deeper object preserves the
+    thread-level total, count, and cost coverage for expanded/detail surfaces.
     The ledger's cumulative_completed_turns field is process-global, so it must not
-    be presented as a per-thread count. The thread count and cost coverage here are
-    reconstructed from the append-only ledger for the requested thread instead.
+    be presented as a per-thread count.
     """
     key = str(thread_id or "").strip()
     if not key:
@@ -162,7 +163,7 @@ def for_thread(thread_id):
 
 
 def standard_view(receipt):
-    """Return the compact, human-facing fields for the standard inline receipt."""
+    """Return the compact, turn-scoped fields for the inline receipt."""
     if not receipt:
         return None
 
@@ -170,7 +171,6 @@ def standard_view(receipt):
     model = turn.get("model") or {}
     tokens = turn.get("tokens") or {}
     cost = turn.get("cost") or {}
-    thread = receipt.get("thread") or {}
 
     def token_value(name):
         metric = tokens.get(name) or {}
@@ -186,8 +186,6 @@ def standard_view(receipt):
         "output_tokens": token_value("output_tokens"),
         "turn_estimate_usd": cost.get("estimated_usd"),
         "estimate_indicator": cost.get("indicator"),
-        "thread_estimate_usd": thread.get("estimated_cost_usd", turn.get("cumulative_thread_estimated_spend_usd")),
-        "thread_turn_count": thread.get("turn_count"),
         "pricing_basis": cost.get("basis"),
         "pricing_registry_verified_at": cost.get("registry_verified_at"),
         "disclaimer": "Independent usage estimate by TokenTotals — not a provider invoice.",
