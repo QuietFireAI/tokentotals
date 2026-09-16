@@ -30,11 +30,19 @@ TOKEN_FIELDS = (
 )
 _TOKEN_BASES = {"observed", "derived", "unavailable"}
 _MODALITIES = ("text", "image", "video", "audio")
-_TOOL_COUNTERS = (
+_TOOL_COUNT_FIELDS = (
     "web_search_requests",
     "web_fetch_requests",
     "search_query_count",
+    "maps_query_count",
+)
+_TOOL_BOOL_FIELDS = (
+    "search_used",
     "maps_used",
+)
+_TOOL_BASIS_FIELDS = (
+    "search_query_count_basis",
+    "maps_query_count_basis",
 )
 
 
@@ -367,8 +375,12 @@ def _standardize_google(completion_response, provider_result):
     server_tools = {}
     grounding = normalized.get("grounding") or {}
     if grounding.get("grounding_metadata_observed"):
-        server_tools["search_query_count"] = int(grounding.get("search_query_count", 0) or 0)
+        server_tools["search_used"] = bool(grounding.get("search_used", False))
+        server_tools["search_query_count"] = grounding.get("search_query_count")
+        server_tools["search_query_count_basis"] = grounding.get("search_query_count_basis", "unavailable")
         server_tools["maps_used"] = bool(grounding.get("maps_used", False))
+        server_tools["maps_query_count"] = grounding.get("maps_query_count")
+        server_tools["maps_query_count_basis"] = grounding.get("maps_query_count_basis", "unavailable")
     return tokens, basis, modalities, server_tools, normalized
 
 
@@ -540,9 +552,16 @@ def _sanitize_record(record):
 
     server_tools = {}
     raw_tools = record.get("server_tools") if isinstance(record.get("server_tools"), dict) else {}
-    for key in _TOOL_COUNTERS:
+    for key in _TOOL_COUNT_FIELDS:
         if key in raw_tools:
-            server_tools[key] = bool(raw_tools[key]) if key == "maps_used" else int(raw_tools[key] or 0)
+            server_tools[key] = _as_int(raw_tools.get(key))
+    for key in _TOOL_BOOL_FIELDS:
+        if key in raw_tools:
+            server_tools[key] = bool(raw_tools.get(key))
+    for key in _TOOL_BASIS_FIELDS:
+        if key in raw_tools:
+            value = raw_tools.get(key)
+            server_tools[key] = value if value in _TOKEN_BASES else "unavailable"
 
     notes = record.get("notes") if isinstance(record.get("notes"), list) else []
     cost = float(record["estimated_cost_usd"]) if record.get("estimated_cost_usd") is not None else None
