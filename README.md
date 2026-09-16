@@ -50,6 +50,29 @@ The full proof sheet documents both **metrics calculated today** and **additiona
 ➡️ **[Challenge or improve a formula →](CONTRIBUTING.md)**  
 ➡️ **[Inspect verification receipts—including failures →](archive/verification-receipts/)**
 
+### Why a Turn Receipt is different
+
+TokenTotals is deliberately **not** trying to become a full tracing, evals, routing, or enterprise-observability suite. Its unit of explanation is narrower: **the completed LLM turn**.
+
+A TokenTotals Turn Receipt is designed to answer:
+
+> **What happened on this turn, what did the provider actually expose, what did TokenTotals derive from it, what could not be established, and can I verify the arithmetic myself?**
+
+That means the receipt can place the following facts side by side instead of collapsing them into a single opaque usage or dollar number:
+
+* **provider-reported total tokens** versus **TokenTotals reconstructed total tokens**;
+* the resulting **unclassified / residual token count** when those totals do not reconcile;
+* an explicit basis for telemetry fields: **observed, derived, or unavailable**;
+* an explicit **cost basis**: complete provider-registry calculation, disclosed fallback, known list-equivalent, or unavailable;
+* the **component arithmetic** and provider pricing rule used to construct the estimate;
+* a **local append-only turn record** rather than a transient display value;
+* mixed-provider and mixed-model history without discarding the surrounding thread; and
+* a direct path from the displayed metric to the documented formula and testable assumptions behind it.
+
+**Observability and Turn Receipts can coexist.** If another system already handles routing, traces, evals, or production monitoring, TokenTotals can remain a local receipt-and-pacing layer focused on making the economics and telemetry of each routed turn inspectable.
+
+The distinction is intentional: **TokenTotals does not merely display telemetry; it shows whether the available telemetry explains itself.**
+
 ---
 
 ## 👁️ Three Ways You Stay Informed: The Look, The Hook, & The Dash
@@ -287,7 +310,7 @@ We encourage developers, researchers, and community builders to:
 * **Fork the repo** and experiment with your own custom local rules.
 * **Build custom adapters** for local LLMs (Ollama, LM Studio, vLLM).
 * **Craft your own telemetry dashboards** and share your widgets with the community.
-* **Submit PRs** to expand provider support and add new safety circuit-breaker triggers.
+* **Submit PRs** to expand provider support, telemetry normalization, pricing mechanics, and local pacing triggers.
 
 ---
 
@@ -362,5 +385,5 @@ TokenTotals is free and open-source under GPLv3. Organizations requiring differe
 
 Distributed under the **GNU General Public License v3.0 (GPLv3)**. See `LICENSE` for details.
 
-Built by **QuietFireAI**. Support independent open-source AI safety tools at:  
+Built by **QuietFireAI**. Support independent open-source AI telemetry and pacing work at:  
 ☕ [buymeacoffee.com/jeffphillips](https://buymeacoffee.com/jeffphillips)
