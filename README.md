@@ -1,7 +1,7 @@
 # 🛡️ TokenTotals by QuietFireAI
 
-> **The Local, Open-Source Airbag for AI Developers & Autonomous Agents.**  
-> *Real-time cost estimation, local pacing reminders, turn-level telemetry, and a loopback control plane for Cursor, Windsurf, VS Code, and Python agent swarms.*
+> **The Local, Open-Source Turn-Receipt & Pacing Layer for AI Developers & Autonomous Agents.**  
+> *Turn Receipts. Show Your Math. Missing Is Not Zero.*
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Local Control Plane](https://img.shields.io/badge/Security-Local%20Control%20Plane-brightgreen.svg)]()
@@ -9,6 +9,46 @@
 
 > [!IMPORTANT]
 > **Operational Scope & Liability Disclaimer:** TokenTotals is an independent developer cost calculator, real-time telemetry estimator, and local notification daemon. It calculates estimated spend from available telemetry, provider-published pricing references, and known provider-specific billing rules. TokenTotals is **not a billing mirror**, does **not** guarantee invoice-exact third-party vendor billing alignment, and does not guarantee absolute network-level traffic blocking under all operating system configurations. Users remain responsible for monitoring their direct cloud provider accounts and final provider invoices.
+
+---
+
+## 🔬 Open Turn Receipts That Show Their Work
+
+TokenTotals is an **independent, open-source information layer** for telemetry legitimately exposed through supported model-provider APIs, SDKs, and response metadata. TokenTotals does not own that telemetry and does not need private provider access to use it. It normalizes the pieces, preserves them turn by turn, applies documented pricing mechanics, reconciles what does and does not add up, and shows the arithmetic.
+
+The ingredients have often been available to software. TokenTotals' premise is simple: **if the numbers are available to the application, the person generating—and paying for—the call should be able to understand them too.**
+
+A few examples of the actual math behind a TokenTotals turn receipt:
+
+```text
+estimated_component_cost
+    = (billable_units / 1,000,000)
+    × applicable_rate_per_million
+```
+
+```text
+reconciliation_delta_tokens
+    = provider_reported_total_tokens
+    - reconstructed_total_tokens
+
+unclassified_tokens
+    = max(0, reconciliation_delta_tokens)
+```
+
+```text
+classified_token_share_pct
+    = ((provider_reported_total_tokens - unclassified_tokens)
+       / provider_reported_total_tokens)
+    × 100
+```
+
+That last percentage describes **token-classification coverage, not invoice accuracy**. TokenTotals keeps those concepts separate on purpose.
+
+The full proof sheet documents both **metrics calculated today** and **additional metrics already calculable from the current local ledger but intentionally not surfaced yet**, with prerequisites, formulas, coverage rules, and explicit boundaries for what TokenTotals will not claim.
+
+➡️ **[Open the full Calculation Transparency proof sheet →](CALCULATION_TRANSPARENCY.md)**  
+➡️ **[Challenge or improve a formula →](CONTRIBUTING.md)**  
+➡️ **[Inspect verification receipts—including failures →](archive/verification-receipts/)**
 
 ---
 
