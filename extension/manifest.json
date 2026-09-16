@@ -1,15 +1,15 @@
 {
   "manifest_version": 3,
   "name": "TurnReceipt",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Renders TokenTotals Turn Receipts inside supported AI chat surfaces.",
-  "permissions": ["storage", "scripting"],
+  "permissions": ["storage"],
   "host_permissions": [
     "http://127.0.0.1/*",
-    "http://localhost/*"
+    "http://localhost/*",
+    "https://gemini.google.com/*"
   ],
   "optional_host_permissions": [
-    "https://gemini.google.com/*",
     "https://claude.ai/*",
     "https://chatgpt.com/*"
   ],
@@ -17,6 +17,14 @@
     "service_worker": "service_worker.js",
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": ["https://gemini.google.com/*"],
+      "js": ["gemini_adapter.js"],
+      "css": ["receipt_host.css"],
+      "run_at": "document_idle"
+    }
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_title": "TurnReceipt"
