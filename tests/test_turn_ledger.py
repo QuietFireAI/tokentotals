@@ -182,6 +182,65 @@ class TurnLedgerTests(unittest.TestCase):
         self.assertEqual(tokens["reconciliation_delta_tokens"], 5)
         self.assertEqual(record["modalities"]["output"]["text"], 30)
 
+    def test_google_maps_unknown_query_count_survives_append_as_null(self):
+        response = {
+            "modelVersion": "gemini-3.8-flash",
+            "usageMetadata": {
+                "promptTokenCount": 100,
+                "candidatesTokenCount": 20,
+                "totalTokenCount": 120,
+                "promptTokensDetails": [{"modality": "TEXT", "tokenCount": 100}],
+                "candidatesTokensDetails": [{"modality": "TEXT", "tokenCount": 20}],
+            },
+        }
+        provider_result = {
+            "provider": "google",
+            "canonical_model_id": "gemini-3.8-flash",
+            "verified_at": "2026-09-15",
+            "usage": {
+                "source_shape": "google_raw",
+                "prompt_total_tokens": 100,
+                "cached_tokens": 0,
+                "tool_use_prompt_tokens": 0,
+                "thinking_tokens": 0,
+                "output_tokens_including_thinking": 20,
+                "total_tokens": 120,
+                "unattributed_tokens": 0,
+                "uncached_input_modalities": {"text": 100, "image": 0, "video": 0, "audio": 0},
+                "cached_input_modalities": {"text": 0, "image": 0, "video": 0, "audio": 0},
+                "candidate_output_modalities": {"text": 20, "image": 0, "video": 0, "audio": 0},
+                "tool_use_prompt_modalities": None,
+                "grounding": {
+                    "grounding_metadata_observed": True,
+                    "search_used": False,
+                    "search_query_count": 0,
+                    "search_query_count_basis": "derived",
+                    "maps_used": True,
+                    "maps_query_count": None,
+                    "maps_query_count_basis": "unavailable",
+                },
+            },
+            "notes": ["Exact Gemini 3 Maps search-query count unavailable."],
+        }
+        record = turn_ledger.build_turn_record(
+            turn_id="google-maps-unknown",
+            thread_id="T",
+            requested_model_id="gemini-3.8-flash",
+            completion_response=response,
+            provider_result=provider_result,
+        )
+        self.assertTrue(record["server_tools"]["maps_used"])
+        self.assertIsNone(record["server_tools"]["maps_query_count"])
+        self.assertEqual(record["server_tools"]["maps_query_count_basis"], "unavailable")
+        self.assertEqual(record["server_tools"]["search_query_count"], 0)
+
+        self.assertTrue(turn_ledger.append_turn(record))
+        stored = turn_ledger.read_turns(thread_id="T")[0]
+        self.assertTrue(stored["server_tools"]["maps_used"])
+        self.assertIsNone(stored["server_tools"]["maps_query_count"])
+        self.assertEqual(stored["server_tools"]["maps_query_count_basis"], "unavailable")
+        self.assertEqual(stored["server_tools"]["search_query_count"], 0)
+
     def test_missing_optional_telemetry_is_not_silently_zero(self):
         response = {
             "model": "gpt-4o",
