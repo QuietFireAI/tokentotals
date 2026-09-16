@@ -37,9 +37,9 @@ if (-not (Test-Path $exe)) {
 }
 
 Write-Host "`n[3/3] Running packaged smoke test..."
-& $exe --smoke-test
-if ($LASTEXITCODE -ne 0) {
-    throw "Packaged smoke test failed with exit code $LASTEXITCODE"
+$smoke = Start-Process -FilePath $exe -ArgumentList "--smoke-test" -Wait -PassThru
+if ($smoke.ExitCode -ne 0) {
+    throw "Packaged smoke test failed with exit code $($smoke.ExitCode)"
 }
 
 Write-Host "`nBuild complete and smoke-tested."
