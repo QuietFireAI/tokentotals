@@ -55,6 +55,10 @@ class WindowsPackagingContractTests(unittest.TestCase):
         self.assertIn('"packaging_smoke.py"', self.workflow)
         self.assertIn('model_prices_and_context_window_backup.json', self.workflow)
         self.assertIn('LiteLLM runtime pricing/context backup data is missing from package', self.workflow)
+        for registry_name in ("openai_registry.json", "anthropic_registry.json", "google_registry.json"):
+            self.assertIn(registry_name, self.workflow)
+        self.assertNotIn('Filter "*_registry.json"', self.workflow)
+        self.assertNotIn('Expected exactly three bundled pricing registries', self.workflow)
 
 
 if __name__ == "__main__":
