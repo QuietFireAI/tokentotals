@@ -6,6 +6,7 @@ pricing. It gives the existing per-turn presentation a stable object identity fo
 renderers, APIs, exports, and tests.
 """
 
+import receipt_pricing
 import telemetry_view
 
 
@@ -42,6 +43,11 @@ def from_record(record):
     else:
         cost["components_usd"] = {}
         cost["components_basis"] = "unavailable_for_estimate_basis"
+
+    # Derive only effective rates reproducible from the recorded component dollars
+    # and recorded billed units. This intentionally does not consult today's price
+    # registry, so an old receipt's math cannot drift when provider docs change.
+    cost["rate_provenance"] = receipt_pricing.from_turn(turn)
 
     return {
         "schema": TURN_RECEIPT_SCHEMA,
