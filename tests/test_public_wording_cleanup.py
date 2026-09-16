@@ -50,11 +50,18 @@ class PublicWordingCleanupTests(unittest.TestCase):
         calc = self.calculations.lower()
         for required in (
             "estimated_input_tokens = litellm token_counter",
-            "estimated_turn_cost = sum(all defensibly priced billing components)",
+            "estimated_turn_cost = σ(all defensibly priced billing components)",
             "cached_input_share_pct = (cached_input_tokens / input_tokens) × 100",
             "output_tokens_per_wall_second = output_tokens / (latency_ms / 1000)",
             "rank = ceil(0.95 × sample_count)",
             "combined_local_estimate = posted_local_estimated_spend + inflight_preflight_estimate",
+            "metrics already calculable from the current ledger but not yet surfaced",
+            "classified_token_share_pct = (classified_tokens / provider_reported_total_tokens) × 100",
+            "this must never be relabeled as `99.18% billing accuracy`",
+            "cache price differential — not claimed savings",
+            "retrospective burn rate",
+            "financial runway / safe amount for the next turn",
+            "invoice accuracy percentage",
         ):
             self.assertIn(required, calc)
 
