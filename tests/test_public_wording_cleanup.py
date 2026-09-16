@@ -87,8 +87,10 @@ class PublicWordingCleanupTests(unittest.TestCase):
         for text in (self.calendar_source.lower(), self.calendar_ics.lower()):
             self.assertNotIn("zero-egress", text)
             self.assertNotIn("hard $5/day ceiling", text)
+            self.assertNotIn("airbag", text)
             self.assertIn("local pacing threshold", text)
             self.assertIn("egress upstream", text)
+            self.assertIn("local turn receipts and cost pacing for ai agents", text)
 
 
 if __name__ == "__main__":
