@@ -46,7 +46,15 @@ class PublicWordingCleanupTests(unittest.TestCase):
     def test_readme_quickstart_and_math_document_match_runtime(self):
         lower = self.readme.lower()
         self.assertIn("8080` through `8089", self.readme)
+        self.assertIn("http://127.0.0.1:8080/chat", self.readme)
+        self.assertIn("/api/turn-receipt/<turn_id>", self.readme)
+        self.assertIn("/api/turn-receipt/<turn_id>/render?mode=standard", self.readme)
+        self.assertIn("/api/turn-receipt/<turn_id>/render?mode=expanded", self.readme)
         self.assertIn("/api/telemetry/thread?thread_id=<id>", self.readme)
+        self.assertIn("x-tokentotals-receipt-id", lower)
+        self.assertIn("tokentotals.exe", lower)
+        self.assertIn("standard receipt", lower)
+        self.assertIn("expanded receipt", lower)
         self.assertIn("calculation_transparency.md", lower)
         self.assertIn("the data is often there. the usable receipt usually isn't. tokentotals makes one.", lower)
 
@@ -77,6 +85,7 @@ class PublicWordingCleanupTests(unittest.TestCase):
         for required in (
             "turn_receipts.md",
             "https://tokentotals.com",
+            "https://turnreceipt.com",
             "https://turnreceipts.com",
             "support@tokentotals.com",
             "support@turnreceipts.com",
@@ -91,6 +100,12 @@ class PublicWordingCleanupTests(unittest.TestCase):
             "show the math",
             "provider account and final invoice remain authoritative",
             "does **not** claim that no person or project ever used",
+            "**standard** is the default inline presentation",
+            "**expanded** renders the same turn receipt",
+            "current thread aggregate at render time",
+            "x-tokentotals-receipt-id",
+            "fallback estimate",
+            "https://turnreceipt.com",
             "https://turnreceipts.com",
             "https://tokentotals.com",
         ):
