@@ -1,18 +1,28 @@
-const ENGINE_BASES = [
-  "http://127.0.0.1:8080",
-  "http://localhost:8080"
-];
+const ENGINE_BASES = [];
+for (let port = 8080; port <= 8089; port += 1) {
+  ENGINE_BASES.push(`http://127.0.0.1:${port}`);
+}
+
+let resolvedEngineBase = null;
 
 async function engineFetch(path, options = {}) {
+  const candidates = resolvedEngineBase
+    ? [resolvedEngineBase, ...ENGINE_BASES.filter((base) => base !== resolvedEngineBase)]
+    : ENGINE_BASES;
   let lastError = null;
-  for (const base of ENGINE_BASES) {
+
+  for (const base of candidates) {
     try {
-      return await fetch(`${base}${path}`, { cache: "no-store", ...options });
+      const response = await fetch(`${base}${path}`, { cache: "no-store", ...options });
+      // A reachable TokenTotals endpoint may legitimately return 4xx; remember
+      // the port once TCP/HTTP succeeds so later calls remain on one engine.
+      resolvedEngineBase = base;
+      return response;
     } catch (error) {
       lastError = error;
     }
   }
-  throw lastError || new Error("TokenTotals engine unavailable");
+  throw lastError || new Error("TokenTotals engine unavailable on ports 8080-8089");
 }
 
 async function fetchRenderedReceipt(receiptId, mode = "standard") {
@@ -44,8 +54,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message !== "object") return;
 
   if (message.type === "TT_ENGINE_HEALTH") {
-    engineFetch("/dashboard")
-      .then((r) => sendResponse({ ok: r.ok, status: r.status }))
+    engineFetch("/api/status")
+      .then((r) => sendResponse({ ok: r.ok, status: r.status, base: resolvedEngineBase }))
       .catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
