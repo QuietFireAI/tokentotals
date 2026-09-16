@@ -95,29 +95,42 @@ Verification receipts:
 - final runtime/dashboard/tray acceptance: **161/161 tests passed** on GitHub Actions run `35035438788`, job `104603395283`.
 - the receipt preserves the earlier dashboard acceptance failure where 155/157 passed and two stale assertions were repaired without changing working runtime behavior.
 
-### 4. Public wording cleanup
+### 4. Public wording, platform, and calculation-transparency cleanup
 
-**Status:** Next engineering item.
+**Status:** Complete and verified.
 
-Reconcile top-level presentation language with the final product boundaries:
+Current launch-facing repository/runtime surfaces now use the real product boundaries:
 
-- replace remaining `zero-egress` shorthand with the accurate local-control-plane/upstream-egress description;
-- replace launch-facing `budget`, `remaining`, `headroom`, and similar financial-clearance wording with `local estimated spend`, `Reminder Threshold`, `threshold state`, and `Turn Notice` where appropriate;
-- preserve backward-compatible internal/API field names only where changing them would unnecessarily break existing clients, while keeping launch-facing copy neutral; and
-- preserve the fact that TokenTotals does not know the user's provider balance, subscription/plan credits, negotiated pricing, or authoritative remaining account funds.
+- `zero-egress` shorthand was removed from current README/runtime/launch-calendar copy in favor of the accurate local-control-plane/upstream-egress description;
+- launch-facing financial-clearance language was replaced with `local estimated spend`, `local pacing threshold`, threshold state, and Turn Notice language;
+- the README platform badge now states the currently shipped desktop truth: **Windows desktop** rather than unverified macOS/Linux desktop support;
+- the duplicate Key Features dashboard sales block was removed while the real wired localhost dashboard remains documented and accessible;
+- Quickstart now documents the current 8080-8089 port fallback behavior;
+- the append-only local turn telemetry section explicitly explains that providers often expose useful usage ingredients, while TokenTotals turns those supported fields into a normalized local turn-by-turn history rather than claiming access to hidden provider data;
+- `CALCULATION_TRANSPARENCY.md` documents the formulas behind current TokenTotals-derived metrics; and
+- `CONTRIBUTING.md` provides a reproducible evidence path for community corrections to math, provider rules, telemetry interpretation, or derived metrics.
 
-The accurate network boundary is: TokenTotals' control plane and state are local/loopback and it does not require a TokenTotals-operated telemetry SaaS, while permitted requests still egress to the selected upstream model provider.
+Backward-compatible internal/API field names remain where removing them would break clients, but current presentation does not treat those names as provider balances or authoritative funds remaining.
+
+Verification receipt:
+
+- `archive/verification-receipts/2026-09-15_public-wording-cleanup-recheck.md`
+- final acceptance before the contribution-path documentation commit: **166/166 tests passed** on GitHub Actions run `35037727736`, job `104610494205`.
+- the receipt preserves the earlier opaque/stuck runs and the watchdog failure that isolated a flaky cross-thread FastAPI `TestClient` test; that test was replaced with deterministic async ASGI concurrency without weakening the reservation invariant.
+
+**Manual external item:** the GitHub repository description still contains stale `Zero-egress` / `budget alerts` wording because the connected GitHub application used for this work does not expose repository-administration metadata mutation. Change that description manually before public drop.
 
 ### 5. Final release reconciliation and proof pass
 
-**Status:** Required before drop.
+**Status:** Next engineering item; required before drop.
 
-After the remaining runtime work:
+Final pass:
 
 - rerun the complete regression suite on a clean runner;
 - verify OpenAI, Anthropic, and Google/Gemini provider registries/calculators against their then-current official public documentation;
-- recheck README, whitepaper, dashboard, model catalog, pricing mechanics matrix, configuration, runtime behavior, ledger schema, and Turn Notice copy for drift;
+- recheck README, whitepaper, dashboard, model catalog, pricing mechanics matrix, configuration, runtime behavior, ledger schema, calculation transparency, contribution guidance, and Turn Notice copy for drift;
 - review build/release packaging and clean-install startup behavior;
+- confirm the Windows-only desktop claim matches the actual packaged artifact and do not claim macOS/Linux desktop support until separately built/tested;
 - preserve final verification receipts, including unfavorable findings and repaired failures rather than sanitizing history;
 - do not claim invoice-exact billing, provider-account entitlement, or remaining provider funds.
 
@@ -151,4 +164,4 @@ This track is intentionally held back until the delivery methodology is strong e
 
 ## Completed hardening milestones
 
-The repository's verification receipts under `archive/verification-receipts/` are the evidence source for completed work, including provider-specific pricing engines, removal of the legacy pricing sync and machine-specific fallback, runtime model-catalog hardening, retirement of automatic model substitution, public pricing-document reconciliation, dashboard truthfulness, concurrent post-response accounting, in-flight preflight reservation, high-precision local spend accumulation, the append-only local turn telemetry ledger, thread telemetry presentation API, and opt-in Turn Notice dashboard/tray presentation.
+The repository's verification receipts under `archive/verification-receipts/` are the evidence source for completed work, including provider-specific pricing engines, removal of the legacy pricing sync and machine-specific fallback, runtime model-catalog hardening, retirement of automatic model substitution, public pricing-document reconciliation, dashboard truthfulness, concurrent post-response accounting, in-flight preflight reservation, high-precision local spend accumulation, the append-only local turn telemetry ledger, thread telemetry presentation API, opt-in Turn Notice dashboard/tray presentation, public wording/platform cleanup, and calculation transparency.
