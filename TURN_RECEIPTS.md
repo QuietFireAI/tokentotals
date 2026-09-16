@@ -11,6 +11,8 @@
 
 A **Turn Receipt** is an inspectable record of one completed AI turn that separates observed telemetry from derived calculations, preserves unavailable information as unavailable, records the pricing/accounting basis used, and makes the resulting arithmetic checkable.
 
+This document formalizes the term **Turn Receipt** for the TokenTotals project and its integrations. The term refers to the receipt object and evidence contract described here; it does not imply ownership of ordinary uses of the words “turn” or “receipt.”
+
 For the Hermes launch, the intended experience is:
 
 > **use Hermes normally → Hermes answer → Turn Receipt directly beneath that answer**
