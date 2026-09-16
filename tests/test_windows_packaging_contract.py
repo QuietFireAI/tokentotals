@@ -97,7 +97,8 @@ class WindowsPackagingContractTests(unittest.TestCase):
         self.assertIn('TokenTotals-Windows-candidate-${{ steps.candidate_identity.outputs.sha256 }}', self.workflow)
 
     def test_release_identity_metadata_changes_trigger_windows_package_proof(self):
-        self.assertGreaterEqual(self.workflow.count('"CITATION.cff"'), 2)
+        for release_path in ('"README.md"', '"TURN_RECEIPTS.md"', '"CITATION.cff"'):
+            self.assertGreaterEqual(self.workflow.count(release_path), 2)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,8 @@ on:
       - "requirements.txt"
       - "requirements-build.txt"
       - "build.ps1"
+      - "README.md"
+      - "TURN_RECEIPTS.md"
       - "CITATION.cff"
       - ".github/workflows/windows-package.yml"
   pull_request:
@@ -49,6 +51,8 @@ on:
       - "requirements.txt"
       - "requirements-build.txt"
       - "build.ps1"
+      - "README.md"
+      - "TURN_RECEIPTS.md"
       - "CITATION.cff"
       - ".github/workflows/windows-package.yml"
   workflow_dispatch:
