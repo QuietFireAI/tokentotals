@@ -8,7 +8,15 @@ The product behavior is:
 
 > **Use Hermes normally. When the answer finishes, the matching Turn Receipt appears directly beneath that answer.**
 
-The TokenTotals built-in `/chat` page is a reference/test harness. Browser-extension work is experimental. Neither substitutes for the Hermes launch gate.
+The TokenTotals built-in `/chat` page is a reference/test harness. Browser-extension work is experimental/testing work. Neither substitutes for the Hermes launch gate.
+
+## Why Hermes became the launch path
+
+TokenTotals' initial integration/testing concept used frontier-model/browser workflows. That work helped prove the core receipt machinery, but continuing to validate those surfaces at the project's evidence standard became **too cost-intensive on our end**.
+
+The project therefore changed the launch dependency rather than lowering the proof bar. Hermes offers a cleaner host for first release because it exposes stable turn/request identities and documented observer telemetry. This lets TokenTotals test actual simple turns, retries, tools, and multi-call behavior without making expensive frontier-browser testing the condition for launch.
+
+The earlier browser/frontier work remains a valid testing/reference track and may continue later. The sequence is now **Hermes first, OpenClaw next, browser/frontier adapters as continuing work rather than a launch blocker**.
 
 ## Current status
 
@@ -186,3 +194,5 @@ The installed Hermes version must be checked/revalidated before release because 
 ## After Hermes
 
 OpenClaw is the next first-class integration target. Its lifecycle/aggregation semantics will be tested independently rather than assumed equivalent to Hermes.
+
+Browser/frontier integrations remain continuing research/testing work after those first-class agent integrations are established.
