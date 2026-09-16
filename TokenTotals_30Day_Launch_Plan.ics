@@ -7,71 +7,71 @@ X-WR-CALNAME:TokenTotals Hermes-First Launch Plan
 X-WR-TIMEZONE:America/New_York
 BEGIN:VEVENT
 UID:tokentotals-hermes-userzero@quietfireai.com
-DTSTAMP:20260916T220000Z
+DTSTAMP:20260916T230000Z
 DTSTART:20260917T090000
 DTEND:20260917T120000
 SUMMARY:TokenTotals Hermes: User-Zero Live Receipt Proof
-DESCRIPTION:Run TokenTotals with the TurnReceipt Hermes plugin in normal Hermes. Launch gate is a normal Hermes prompt and answer followed directly by the matching Turn Receipt. Preserve any failure. Browser/frontier testing is not the launch gate.
+DESCRIPTION:Run TokenTotals with the TurnReceipt Hermes plugin in normal Hermes. Launch gate is a normal Hermes prompt and answer followed directly by the matching Turn Receipt. Preserve any failure. Browser/frontier testing is not the launch gate. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 END:VEVENT
 BEGIN:VEVENT
 UID:tokentotals-hermes-hardening@quietfireai.com
-DTSTAMP:20260916T220000Z
+DTSTAMP:20260916T230000Z
 DTSTART:20260918T090000
 DTEND:20260918T120000
 SUMMARY:TokenTotals Hermes: User-Zero Hardening and Recheck
-DESCRIPTION:Repair only demonstrated user-zero defects using diagnose - one repair - recheck - archive evidence. Re-run simple turn multi-call turn plugin-disable and TokenTotals-unavailable tests.
+DESCRIPTION:Repair only demonstrated user-zero defects using diagnose - one repair - recheck - archive evidence. Re-run simple turn, multi-call turn, plugin-disable, and TokenTotals-unavailable tests. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 END:VEVENT
 BEGIN:VEVENT
 UID:tokentotals-hermes-releasegate@quietfireai.com
-DTSTAMP:20260916T220000Z
+DTSTAMP:20260916T230000Z
 DTSTART:20260919T100000
 DTEND:20260919T120000
 SUMMARY:TokenTotals Hermes: Release Gate
-DESCRIPTION:Promote only after live Hermes answer-to-receipt proof Windows package proof regression tests and documentation reconciliation are all green. Do not substitute CI or TokenTotals slash-chat for the live gate.
+DESCRIPTION:Promote only after live Hermes answer-to-receipt proof, Windows package proof, regression tests, and documentation reconciliation are all green. Do not substitute CI or TokenTotals slash-chat for the live gate. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 END:VEVENT
 BEGIN:VEVENT
 UID:tokentotals-hermes-demo@quietfireai.com
-DTSTAMP:20260916T220000Z
+DTSTAMP:20260916T230000Z
 DTSTART:20260920T100000
 DTEND:20260920T120000
 SUMMARY:TokenTotals Hermes: Record Real Launch Demo
-DESCRIPTION:Record a real Hermes session showing ordinary prompt ordinary answer and Turn Receipt directly below it. No canned or hard-wired demo path. Show Expanded detail only after the basic receipt is visibly settled.
+DESCRIPTION:Record a real Hermes session showing ordinary prompt, ordinary answer, and Turn Receipt directly below it. No canned or hard-wired demo path. Show Expanded detail only after the basic receipt is visibly settled. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 END:VEVENT
 BEGIN:VEVENT
 UID:tokentotals-hermes-publicdrop@quietfireai.com
-DTSTAMP:20260916T220000Z
+DTSTAMP:20260916T230000Z
 DTSTART:20260922T100000
 DTEND:20260922T120000
 SUMMARY:TokenTotals Hermes: Public Drop
-DESCRIPTION:Publish the Hermes-first release only if the live acceptance gate is proven. Position TokenTotals as the local accounting engine and Turn Receipt integration for Hermes. State browser/frontier work as continuing testing/reference work.
+DESCRIPTION:Publish the Hermes-first release only if the live acceptance gate is proven. Position TokenTotals as the local accounting engine and Turn Receipt integration for Hermes. State browser/frontier work as continuing testing/reference work. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 END:VEVENT
 BEGIN:VEVENT
 UID:tokentotals-openclaw-start@quietfireai.com
-DTSTAMP:20260916T220000Z
+DTSTAMP:20260916T230000Z
 DTSTART:20260924T100000
 DTEND:20260924T120000
 SUMMARY:TokenTotals: Begin OpenClaw Integration
-DESCRIPTION:Start the next first-class adapter after Hermes proof. Test stable turn correlation multi-call/tool loops retries subagents where exposed and one top-level Turn Receipt with inspectable children.
+DESCRIPTION:Start the next first-class adapter after Hermes proof. Test stable turn correlation, multi-call/tool loops, retries, subagents where exposed, and one top-level Turn Receipt with inspectable children. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 END:VEVENT
 BEGIN:VEVENT
 UID:tokentotals-browser-revisit@quietfireai.com
-DTSTAMP:20260916T220000Z
+DTSTAMP:20260916T230000Z
 DTSTART:20261001T100000
 DTEND:20261001T110000
 SUMMARY:TokenTotals: Review Browser/Frontier Testing Track
-DESCRIPTION:Reassess browser/frontier integrations only after Hermes/OpenClaw evidence and available project resources justify renewed testing. Initial browser work remains preserved as testing/reference work; it is not a launch dependency.
+DESCRIPTION:Reassess browser/frontier integrations only after Hermes/OpenClaw evidence and available project resources justify renewed testing. Initial browser work remains preserved as testing/reference work; it is not a launch dependency. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
 STATUS:CONFIRMED
 TRANSP:OPAQUE
 END:VEVENT
