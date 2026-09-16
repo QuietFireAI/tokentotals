@@ -118,21 +118,32 @@ Verification receipt:
 - final acceptance before the contribution-path documentation commit: **166/166 tests passed** on GitHub Actions run `35037727736`, job `104610494205`.
 - the receipt preserves the earlier opaque/stuck runs and the watchdog failure that isolated a flaky cross-thread FastAPI `TestClient` test; that test was replaced with deterministic async ASGI concurrency without weakening the reservation invariant.
 
-**Manual external item:** the GitHub repository description still contains stale `Zero-egress` / `budget alerts` wording because the connected GitHub application used for this work does not expose repository-administration metadata mutation. Change that description manually before public drop.
+**External repository metadata closeout:** the GitHub About description was manually changed to `🛡️  Turn receipts for AI`, the stale `zero-egress` topic was removed, and the historical v2.5 release body now carries a pre-hardening warning. Renaming that historical release's old title remains an optional clarity cleanup, not a launch-runtime requirement.
 
 ### 5. Final release reconciliation and proof pass
 
-**Status:** Next engineering item; required before drop.
+**Status:** Complete and verified for the engineering release candidate. Public tagging/publication remains a separate deliberate release action.
 
-Final pass:
+Final pass completed:
 
-- rerun the complete regression suite on a clean runner;
-- verify OpenAI, Anthropic, and Google/Gemini provider registries/calculators against their then-current official public documentation;
-- recheck README, whitepaper, dashboard, model catalog, pricing mechanics matrix, configuration, runtime behavior, ledger schema, calculation transparency, contribution guidance, and Turn Notice copy for drift;
-- review build/release packaging and clean-install startup behavior;
-- confirm the Windows-only desktop claim matches the actual packaged artifact and do not claim macOS/Linux desktop support until separately built/tested;
-- preserve final verification receipts, including unfavorable findings and repaired failures rather than sanitizing history;
-- do not claim invoice-exact billing, provider-account entitlement, or remaining provider funds.
+- reran the complete regression suite on a clean GitHub Actions runner;
+- retained the same-day provider-specific pricing-engine verification receipts as the source of truth for OpenAI, Anthropic, and Google/Gemini mechanics, with no provider calculator redesign introduced during packaging closeout;
+- rechecked README, dashboard/runtime wording, platform claim, Quickstart/build path, model/pricing boundaries, ledger/telemetry behavior, calculation transparency, and Turn Notice copy for drift;
+- added a dedicated Windows package workflow and exercised the actual PyInstaller output rather than treating source-level tests as package proof;
+- discovered and repaired separate packaged-runtime defects involving smoke-process termination, missing LiteLLM runtime data, and tiktoken plugin discovery;
+- preserved the red Windows attempts and their diagnoses in the final verification receipt;
+- verified that the packaged executable loads its assets and TokenTotals registries, imports the proxy runtime, and exposes the expected localhost routes;
+- verified exact package requirements, then created and uploaded a smoke-tested Windows candidate ZIP;
+- retained the Windows-only desktop claim; macOS/Linux desktop packaging remains unclaimed; and
+- preserved the boundaries that TokenTotals does not claim invoice-exact billing, provider-account entitlement, or remaining provider funds.
+
+Final package proof:
+
+- Windows workflow run `35046049359`, job `104635972189`: **success** across build, packaged smoke, file verification, ZIP creation, and artifact upload.
+- candidate artifact `TokenTotals-Windows-candidate`, artifact ID `6151997384`, SHA-256 `1f672af62f047f2a2952d5cd7e7d362d271c42c770557040f028e48ea928f33b`.
+- final verification receipt: `archive/verification-receipts/2026-09-15_final-release-reconciliation-and-windows-package-recheck.md`.
+
+The receipt/roadmap closeout commits themselves must also remain green in normal regression CI. A public release tag is intentionally **not** created by this roadmap closeout; tagging/publication should occur only as an explicit release action from a green commit.
 
 ## Post-drop / Community Labs
 
@@ -164,4 +175,4 @@ This track is intentionally held back until the delivery methodology is strong e
 
 ## Completed hardening milestones
 
-The repository's verification receipts under `archive/verification-receipts/` are the evidence source for completed work, including provider-specific pricing engines, removal of the legacy pricing sync and machine-specific fallback, runtime model-catalog hardening, retirement of automatic model substitution, public pricing-document reconciliation, dashboard truthfulness, concurrent post-response accounting, in-flight preflight reservation, high-precision local spend accumulation, the append-only local turn telemetry ledger, thread telemetry presentation API, opt-in Turn Notice dashboard/tray presentation, public wording/platform cleanup, and calculation transparency.
+The repository's verification receipts under `archive/verification-receipts/` are the evidence source for completed work, including provider-specific pricing engines, removal of the legacy pricing sync and machine-specific fallback, runtime model-catalog hardening, retirement of automatic model substitution, public pricing-document reconciliation, dashboard truthfulness, concurrent post-response accounting, in-flight preflight reservation, high-precision local spend accumulation, the append-only local turn telemetry ledger, thread telemetry presentation API, opt-in Turn Notice dashboard/tray presentation, public wording/platform cleanup, calculation transparency, and the final Windows package/release-candidate proof pass.
