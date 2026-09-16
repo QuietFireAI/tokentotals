@@ -5,7 +5,15 @@
 **Current status:** pre-release candidate pending live user-zero proof.  
 **Primary launch surface:** Hermes Agent on Windows.  
 **Next planned surface:** OpenClaw.  
-**TokenTotals `/chat`:** engineering/reference surface only.
+**TokenTotals `/chat` and browser/frontier integrations:** engineering/reference/testing tracks only.
+
+## Why the launch moved to Hermes
+
+TokenTotals' initial testing concept used browser/frontier-model workflows. That work proved important pieces of the receipt machinery, but continuing to validate that path at the required proof standard became **too cost-intensive for the project on our end**.
+
+Rather than keep spending against an expensive test surface or lower the evidence bar, the launch path moved to Hermes, where stable turn/request identifiers and documented usage hooks give TokenTotals a cleaner integration target.
+
+The earlier browser/frontier work remains part of the project and may continue later. It is now a **testing/reference track**, not the launch dependency.
 
 ## 1. What you are installing
 
@@ -122,7 +130,7 @@ hermes chat
 
 Ask **any ordinary question you choose**. Do not use a canned TokenTotals phrase unless you want to.
 
-Examples are deliberately unnecessary: the integration is supposed to work for a normal Hermes turn, not a demo prompt.
+The integration is supposed to work for a normal Hermes turn, not a demo prompt.
 
 ### The pass condition
 
@@ -295,7 +303,7 @@ For the Hermes launch these are **testing/reference surfaces only**.
 
 `/chat` is useful for controlled testing of TokenTotals' accounting engine, renderer and provider plumbing. It is not where a Hermes user is expected to move their conversation.
 
-Browser extensions remain experimental because consumer AI websites may not expose the same stable transaction/usage telemetry Hermes exposes. They are not part of the Hermes launch promise.
+The browser/frontier-model path was the project's initial test concept. It remains useful research, but sustained validation there became too cost-intensive for the project's current resources. Work can continue later without blocking the Hermes launch.
 
 ## 17. Launch acceptance
 
