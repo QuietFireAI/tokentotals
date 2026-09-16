@@ -162,6 +162,18 @@ def for_thread(thread_id):
     return receipt
 
 
+def by_id(turn_id):
+    """Return the exact turn-scoped receipt for one stable TokenTotals turn ID."""
+    key = str(turn_id or "").strip()
+    if not key:
+        raise ValueError("turn_id must be non-empty")
+
+    for record in reversed(turn_ledger.read_turns()):
+        if str(record.get("turn_id") or "") == key:
+            return from_record(record)
+    return None
+
+
 def standard_view(receipt):
     """Return the compact, turn-scoped fields for the inline receipt."""
     if not receipt:

@@ -213,6 +213,26 @@ class TurnReceiptTests(unittest.TestCase):
         self.assertNotIn("thread_estimate_usd", view)
         self.assertNotIn("thread_turn_count", view)
 
+    def test_by_id_returns_exact_turn_scoped_receipt(self):
+        first = self._record()
+        first["turn_id"] = "turn-first"
+        second = self._record()
+        second["turn_id"] = "turn-second"
+
+        with patch.object(turn_receipt.turn_ledger, "read_turns", return_value=[first, second]):
+            receipt = turn_receipt.by_id("turn-first")
+
+        self.assertEqual(receipt["receipt_id"], "turn-first")
+        self.assertEqual(receipt["turn"]["turn_id"], "turn-first")
+        self.assertNotIn("thread", receipt)
+
+    def test_by_id_rejects_blank_and_returns_none_for_unknown_turn(self):
+        with self.assertRaisesRegex(ValueError, "turn_id must be non-empty"):
+            turn_receipt.by_id("   ")
+
+        with patch.object(turn_receipt.turn_ledger, "read_turns", return_value=[self._record()]):
+            self.assertIsNone(turn_receipt.by_id("missing"))
+
     def test_for_thread_rejects_blank_and_returns_none_for_unknown_thread(self):
         with self.assertRaisesRegex(ValueError, "thread_id must be non-empty"):
             turn_receipt.for_thread("   ")
