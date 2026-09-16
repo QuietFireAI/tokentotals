@@ -18,8 +18,9 @@ jobs:
           fetch-depth: 0
 
       - name: Apply exact Turn Receipt API patch
-        shell: python
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
 
           proxy_path = Path('proxy_server.py')
@@ -47,6 +48,7 @@ jobs:
           test_path.write_text(tests, encoding='utf-8')
 
           Path('.github/workflows/_turn_receipt_api_patch.yml').unlink()
+          PY
 
       - name: Verify patch shape
         run: |
