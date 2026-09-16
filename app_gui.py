@@ -316,6 +316,10 @@ def main():
 
 if __name__ == "__main__":
     if "--smoke-test" in sys.argv:
-        packaging_smoke_test()
+        try:
+            packaging_smoke_test()
+        except BaseException:
+            os._exit(1)
+        os._exit(0)
     else:
         main()
