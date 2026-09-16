@@ -43,7 +43,7 @@ GitHub Actions regression run:
 - regression result: **176/176 tests passed**
 - unittest timing: `Ran 176 tests in 0.763s` — `OK`
 
-Later documentation/packaging-contract commits are rechecked again after this receipt/roadmap closeout; that final docs-closeout run is recorded below once green.
+The receipt/roadmap documentation closeout was then independently rechecked on a later clean runner; that evidence appears in the final section below.
 
 ## Windows packaging failure chain
 
@@ -187,10 +187,23 @@ The provider invoice/account record remains authoritative. TokenTotals records a
 
 ## Release-candidate verdict
 
-The Windows desktop release-candidate path is now **verified end to end in GitHub Actions**: package build, packaged-runtime smoke, required-file verification, ZIP creation, and artifact upload all pass.
+The Windows desktop release-candidate path is **verified end to end in GitHub Actions**: package build, packaged-runtime smoke, required-file verification, ZIP creation, and artifact upload all pass.
 
-The repository's launch proof can be closed after the receipt/roadmap documentation commits themselves receive a final green regression run. Public tagging/publication remains a separate deliberate release action.
+The launch-critical engineering/proof roadmap is closed for the release candidate. Public tagging/publication remains a separate deliberate release action.
 
 ## Final documentation-closeout CI
 
-Pending the receipt/roadmap commits. This section must be updated with the final green run before this receipt is treated as closed.
+The receipt plus roadmap closeout were checked on a clean GitHub Actions runner:
+
+- workflow: `TokenTotals Regression Tests`
+- run: **`35046663526`**
+- job: **`104637843227`**
+- head commit: **`d2b5ffe4df21797d92edfb2c4337ea9d7aa4c0b1`**
+- dependency install: passed
+- source compilation: passed
+- clean `proxy_server` smoke import: passed
+- regression result: **176/176 tests passed**
+- unittest timing: `Ran 176 tests in 0.779s` — `OK`
+- overall job conclusion: **success**
+
+This final evidence-fill edit to the receipt is documentation-only and is itself subject to the normal push-triggered regression workflow. The current branch should not be treated as the final green head until that follow-up run succeeds.
