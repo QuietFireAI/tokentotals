@@ -6,6 +6,30 @@ TokenTotals is now organized around one launch requirement rather than a collect
 
 The first launch surface is **Hermes Agent**. OpenClaw is next. The built-in TokenTotals browser chat and browser-extension work remain engineering/reference tracks and do not define launch success.
 
+## Why the roadmap changed
+
+The project's initial testing concept focused on frontier-model/browser workflows. That work proved important accounting and rendering components, but continuing to validate that path at the required evidence standard became **too cost-intensive for the project on our end**.
+
+The project therefore chose to change the launch dependency rather than lower the proof standard or keep spending against an expensive test surface. Hermes became the launch target because its documented observer lifecycle exposes stable transaction identities and normalized usage telemetry. That gives TokenTotals a better environment for proving the real product behavior.
+
+The earlier browser/frontier work remains a testing/reference track and may continue. It is no longer allowed to block launch.
+
+The resulting sequence is:
+
+```text
+initial frontier/browser testing
+        ↓
+core receipt machinery established
+        ↓
+frontier testing becomes too cost-intensive for sustained launch validation
+        ↓
+Hermes launch integration
+        ↓
+OpenClaw integration
+        ↓
+continued browser/frontier adapter work when justified
+```
+
 ## Current launch sequence
 
 ### 1. Hermes integration candidate
@@ -89,7 +113,7 @@ Likely post-proof hardening areas include:
 
 ### 4. Hermes launch documentation and release
 
-**Status:** documentation being rewritten now; public release waits for the live gate.
+**Status:** documentation rewritten around Hermes; public release waits for the live gate.
 
 Launch-facing documentation must describe Hermes as the primary surface.
 
@@ -100,7 +124,7 @@ The user journey is not “move your conversation into TokenTotals.” It is:
 Launch materials must not claim support beyond what has been proven. In particular:
 
 - browser `/chat` is a reference harness, not the product destination;
-- consumer-site browser extensions are experimental;
+- browser/frontier integrations are continuing testing/research work;
 - provider account/invoice records remain authoritative;
 - missing telemetry remains unavailable; and
 - green automated tests are not described as live product proof.
@@ -130,7 +154,7 @@ Lobster is useful as a workflow stress case because retries, branches and workfl
 
 The test question is whether one workflow-level receipt with child transactions remains understandable and defensible.
 
-### 7. Browser surfaces
+### 7. Browser/frontier surfaces
 
 **Status:** experimental/testing track; not launch-critical.
 
@@ -141,9 +165,7 @@ TokenTotals retains two browser-oriented surfaces:
 
 The built-in client remains useful for deterministic engine/provider/renderer testing.
 
-The extension track can prove placement in a provider-owned page, but each consumer site must be evaluated separately for same-turn telemetry and stable correlation. A receipt-looking UI inserted beneath an answer does not count as complete accounting if the underlying usage evidence is unavailable.
-
-Browser work should resume after Hermes/OpenClaw proof unless it directly supports a test or demonstrated demand.
+The browser/frontier track can continue when resources and telemetry evidence justify it. A receipt-looking UI inserted beneath an answer does not count as complete accounting if the underlying usage evidence is unavailable.
 
 ## Core engine work that remains valid
 
@@ -190,7 +212,7 @@ OpenClaw integration/proof
         ↓
 Lobster stress test
         ↓
-optional browser/provider-site experiments
+continued browser/frontier experiments when justified
 ```
 
 That order can change only because new evidence changes the engineering decision—not because an easier proxy makes the project look further along.
