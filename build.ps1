@@ -8,12 +8,12 @@ Write-Host "`n[1/3] Installing pinned build dependencies..."
 python -m pip install --upgrade pip
 python -m pip install -r requirements-build.txt
 
-Write-Host "`n[2/3] Building TokenTotals_QuietFireAI..."
+Write-Host "`n[2/3] Building TokenTotals..."
 python -m PyInstaller `
     --noconfirm `
     --clean `
     --windowed `
-    --name "TokenTotals_QuietFireAI" `
+    --name "TokenTotals" `
     --add-data "pricing;pricing" `
     --add-data "icon.png;." `
     --add-data "icon_green.png;." `
@@ -34,7 +34,7 @@ python -m PyInstaller `
     --hidden-import "uvicorn.lifespan.on" `
     app_gui.py
 
-$exe = Join-Path $PSScriptRoot "dist\TokenTotals_QuietFireAI\TokenTotals_QuietFireAI.exe"
+$exe = Join-Path $PSScriptRoot "dist\TokenTotals\TokenTotals.exe"
 if (-not (Test-Path $exe)) {
     throw "Build completed without expected executable: $exe"
 }
@@ -66,4 +66,4 @@ if ($smoke.ExitCode -ne 0) {
 }
 
 Write-Host "`nBuild complete and smoke-tested."
-Write-Host "Output: dist\TokenTotals_QuietFireAI\"
+Write-Host "Output: dist\TokenTotals\TokenTotals.exe"

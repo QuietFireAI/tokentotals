@@ -74,10 +74,19 @@ def run_packaging_smoke_test() -> None:
         _trace("proxy_imported")
 
         routes = {getattr(route, "path", None) for route in app.routes}
-        for required in ("/dashboard", "/api/status", "/api/telemetry/thread"):
+        for required in (
+            "/dashboard",
+            "/chat",
+            "/api/status",
+            "/api/telemetry/thread",
+            "/api/turn-receipt",
+            "/api/turn-receipt/{turn_id}",
+            "/api/turn-receipt/{turn_id}/render",
+        ):
             if required not in routes:
                 raise RuntimeError(f"Packaged FastAPI route missing: {required}")
         _trace("proxy_routes_ok")
+        _trace("turn_receipt_surfaces_ok")
         _trace("complete")
     except BaseException as exc:
         try:

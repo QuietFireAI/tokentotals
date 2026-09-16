@@ -10,7 +10,12 @@ on:
       - "config_manager.py"
       - "turn_ledger.py"
       - "turn_notice.py"
+      - "turn_receipt.py"
+      - "receipt_pricing.py"
+      - "turn_receipt_renderer.py"
+      - "turn_receipt_chat_surface.py"
       - "telemetry_view.py"
+      - "runtime_model_catalog.py"
       - "openai_pricing.py"
       - "anthropic_pricing.py"
       - "google_pricing.py"
@@ -30,7 +35,12 @@ on:
       - "config_manager.py"
       - "turn_ledger.py"
       - "turn_notice.py"
+      - "turn_receipt.py"
+      - "receipt_pricing.py"
+      - "turn_receipt_renderer.py"
+      - "turn_receipt_chat_surface.py"
       - "telemetry_view.py"
+      - "runtime_model_catalog.py"
       - "openai_pricing.py"
       - "anthropic_pricing.py"
       - "google_pricing.py"
@@ -70,8 +80,8 @@ jobs:
       - name: Verify packaged files
         shell: powershell
         run: |
-          $root = "dist\TokenTotals_QuietFireAI"
-          if (-not (Test-Path "$root\TokenTotals_QuietFireAI.exe")) { throw "Packaged EXE missing" }
+          $root = "dist\TokenTotals"
+          if (-not (Test-Path "$root\TokenTotals.exe")) { throw "Packaged EXE missing" }
           foreach ($registryName in @("openai_registry.json", "anthropic_registry.json", "google_registry.json")) {
             $matches = Get-ChildItem -Path $root -Recurse -Filter $registryName
             if ($matches.Count -ne 1) { throw "Expected exactly one bundled TokenTotals $registryName; found $($matches.Count)" }
@@ -83,7 +93,7 @@ jobs:
 
       - name: Create candidate ZIP
         shell: powershell
-        run: Compress-Archive -Path "dist\TokenTotals_QuietFireAI\*" -DestinationPath "TokenTotals_Windows_candidate.zip" -Force
+        run: Compress-Archive -Path "dist\TokenTotals\*" -DestinationPath "TokenTotals_Windows_candidate.zip" -Force
 
       - name: Record candidate ZIP identity
         id: candidate_identity
