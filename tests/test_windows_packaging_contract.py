@@ -21,7 +21,12 @@ class WindowsPackagingContractTests(unittest.TestCase):
         self.assertIn("os._exit(0)", self.gui)
 
         smoke_branch = self.gui.index('if "--smoke-test" in sys.argv:')
-        for desktop_import in ("import winsound", "import pystray", "import tkinter as tk", "from proxy_server import app"):
+        for desktop_import in (
+            "import winsound",
+            "import pystray",
+            "import tkinter as tk",
+            "from external_surface_app import app",
+        ):
             self.assertLess(smoke_branch, self.gui.index(desktop_import))
 
     def test_packaging_smoke_traces_assets_registries_and_receipt_routes(self):
@@ -33,13 +38,18 @@ class WindowsPackagingContractTests(unittest.TestCase):
             '_trace("openai_registry_ok")',
             '_trace("anthropic_registry_ok")',
             '_trace("google_registry_ok")',
+            '_trace("google_auth_import_start")',
+            '_trace("google_auth_imported")',
             '_trace("proxy_import_start")',
             '"/chat"',
             '"/api/turn-receipt"',
             '"/api/turn-receipt/{turn_id}"',
             '"/api/turn-receipt/{turn_id}/render"',
+            '"/api/external-turns/settle"',
+            '"/api/external-turns/settle/render"',
             '_trace("proxy_routes_ok")',
             '_trace("turn_receipt_surfaces_ok")',
+            '_trace("external_turn_routes_ok")',
             '_trace("complete")',
             'error:{type(exc).__name__}:{exc}',
         ):
@@ -59,8 +69,10 @@ class WindowsPackagingContractTests(unittest.TestCase):
         self.assertIn('packaging-smoke-trace.txt', self.build)
         self.assertIn("Write-SmokeTrace", self.build)
 
-    def test_build_bundles_litellm_data_and_tiktoken_encoding_plugin(self):
+    def test_build_bundles_litellm_data_google_auth_and_tiktoken_encoding_plugin(self):
         self.assertIn('--collect-data "litellm"', self.build)
+        self.assertIn('--collect-submodules "google.auth"', self.build)
+        self.assertIn('--hidden-import "google.auth.credentials"', self.build)
         self.assertIn('--hidden-import "tiktoken_ext"', self.build)
         self.assertIn('--hidden-import "tiktoken_ext.openai_public"', self.build)
         self.assertIn('"packaging_smoke.py"', self.workflow)
@@ -84,6 +96,8 @@ class WindowsPackagingContractTests(unittest.TestCase):
             '"turn_receipt_renderer.py"',
             '"turn_receipt_chat_surface.py"',
             '"runtime_model_catalog.py"',
+            '"external_turn_ingest.py"',
+            '"external_surface_app.py"',
         ):
             self.assertGreaterEqual(self.workflow.count(runtime_path), 2)
 
