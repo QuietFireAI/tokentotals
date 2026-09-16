@@ -3,6 +3,7 @@
   const SETTLE_DELAY_MS = 1400;
   const seenElements = new WeakSet();
   let scanTimer = null;
+  let lastLocation = location.href;
 
   const SITE = (() => {
     const host = location.hostname;
@@ -92,16 +93,19 @@
     return `${SITE.surface}:${location.pathname}${location.search}`;
   }
 
-  function elementIdentity(element, index) {
-    const attrs = [
-      "data-message-id", "data-turn-id", "data-testid", "id"
-    ];
-    for (const name of attrs) {
+  async function digestText(value) {
+    const bytes = new TextEncoder().encode(String(value));
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function elementIdentity(element, index, userText, answerText) {
+    for (const name of ["data-message-id", "data-turn-id", "id"]) {
       const value = element.getAttribute?.(name);
       if (value && String(value).trim()) return `${SITE.surface}:${name}:${value}`;
     }
-    const text = cleanText(element);
-    return `${SITE.surface}:dom:${index}:${text.slice(0, 180)}`;
+    const material = `${threadIdentity()}\n${index}\n${userText}\n${answerText}`;
+    return `${SITE.surface}:dom-sha256:${await digestText(material)}`;
   }
 
   function detectModel() {
@@ -136,15 +140,41 @@
     const host = document.createElement("div");
     host.className = HOST_CLASS;
     host.dataset.turnreceiptState = "settling";
+    host.dataset.turnreceiptMode = "standard";
+    host.title = "Click the receipt to toggle Standard / Expanded detail";
     host.textContent = "Settling Turn Receipt…";
     answer.insertAdjacentElement("afterend", host);
     return host;
+  }
+
+  async function requestReceipt(host, payload, mode) {
+    host.dataset.turnreceiptState = "settling";
+    const requestPayload = {...payload, receipt_mode: mode};
+    let result;
+    try {
+      result = await chrome.runtime.sendMessage({type: "TT_SETTLE_EXTERNAL_TURN", payload: requestPayload});
+    } catch (error) {
+      result = {status: "error", error: String(error)};
+    }
+
+    if (result?.status === "ready" && result.html) {
+      host.innerHTML = result.html;
+      host.dataset.turnreceiptState = "ready";
+      host.dataset.turnreceiptMode = mode;
+      host.dataset.receiptId = result.receipt_id || "";
+      return true;
+    }
+
+    host.dataset.turnreceiptState = result?.status || "unavailable";
+    host.innerHTML = `<div class="tt-external-receipt-unavailable">Turn Receipt unavailable — ${escapeText(result?.error || "local TokenTotals engine did not settle this turn")}</div>`;
+    return false;
   }
 
   async function settle(answer, index) {
     if (!answer.isConnected || seenElements.has(answer)) return;
     const answerText = cleanText(answer);
     if (!answerText) return;
+    const userText = closestPreviousUserText(answer);
     seenElements.add(answer);
 
     const host = hostFor(answer);
@@ -153,30 +183,21 @@
       provider: SITE.provider,
       model_id: detectModel(),
       external_thread_id: threadIdentity(),
-      external_turn_id: elementIdentity(answer, index),
+      external_turn_id: await elementIdentity(answer, index, userText, answerText),
       completed_at: new Date().toISOString(),
-      visible_user_text: closestPreviousUserText(answer),
-      visible_assistant_text: answerText,
-      receipt_mode: "standard"
+      visible_user_text: userText,
+      visible_assistant_text: answerText
     };
 
-    let result;
-    try {
-      result = await chrome.runtime.sendMessage({type: "TT_SETTLE_EXTERNAL_TURN", payload});
-    } catch (error) {
-      result = {status: "error", error: String(error)};
-    }
-
-    if (result?.status === "ready" && result.html) {
-      // HTML is produced by TokenTotals' escaping renderer, not by provider prose.
-      host.innerHTML = result.html;
-      host.dataset.turnreceiptState = "ready";
-      host.dataset.receiptId = result.receipt_id || "";
-      return;
-    }
-
-    host.dataset.turnreceiptState = result?.status || "unavailable";
-    host.innerHTML = `<div class="tt-external-receipt-unavailable">Turn Receipt unavailable — ${escapeText(result?.error || "local TokenTotals engine did not settle this turn")}</div>`;
+    const ready = await requestReceipt(host, payload, "standard");
+    if (!ready || host.dataset.turnreceiptToggleBound === "1") return;
+    host.dataset.turnreceiptToggleBound = "1";
+    host.addEventListener("click", async (event) => {
+      if (event.target.closest?.("a,button,input,select,textarea")) return;
+      if (host.dataset.turnreceiptState === "settling") return;
+      const nextMode = host.dataset.turnreceiptMode === "expanded" ? "standard" : "expanded";
+      await requestReceipt(host, payload, nextMode);
+    });
   }
 
   function escapeText(value) {
@@ -185,7 +206,21 @@
     }[char]));
   }
 
+  function baselineCurrentPage() {
+    const assistants = queryAll(SITE.assistantSelectors);
+    const keepLastCandidate = isGenerating() && assistants.length > 0;
+    assistants.forEach((answer, index) => {
+      if (keepLastCandidate && index === assistants.length - 1) return;
+      seenElements.add(answer);
+    });
+  }
+
   function scan() {
+    if (location.href !== lastLocation) {
+      lastLocation = location.href;
+      baselineCurrentPage();
+      return;
+    }
     if (isGenerating()) return;
     const assistants = queryAll(SITE.assistantSelectors);
     assistants.forEach((answer, index) => {
@@ -201,6 +236,8 @@
     clearTimeout(scanTimer);
     scanTimer = setTimeout(scan, 350);
   }
+
+  baselineCurrentPage();
 
   const observer = new MutationObserver(scheduleScan);
   observer.observe(document.documentElement, {
