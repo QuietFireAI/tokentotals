@@ -1,0 +1,69 @@
+name: Publish TokenTotals v2.6.0
+
+on:
+  push:
+    branches: ["publish-v2.6.0"]
+    paths:
+      - ".github/workflows/_publish_v2_6_0.yml"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: QuietFireAI/tokentotals
+      RELEASE_SHA: ef72901a4b72ee3145c1a0fc628c01b2973ff526
+      SOURCE_RUN: "35112692018"
+      ARTIFACT_NAME: TokenTotals-Windows-candidate-b0d813331eb7418625db8216cf20850b93d4d9f81bb4117c0ad2d49667e8cc48
+      EXPECTED_SHA256: b0d813331eb7418625db8216cf20850b93d4d9f81bb4117c0ad2d49667e8cc48
+      EXPECTED_SIZE: "83685797"
+    steps:
+      - name: Checkout publisher branch
+        uses: actions/checkout@v4
+
+      - name: Download proven Windows candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifact
+          gh run download "$SOURCE_RUN" --repo "$REPO" --name "$ARTIFACT_NAME" --dir release-artifact
+          test -f release-artifact/TokenTotals_Windows_candidate.zip
+
+      - name: Verify and rename release asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="release-artifact/TokenTotals_Windows_candidate.zip"
+          actual_hash="$(sha256sum "$candidate" | awk '{print $1}')"
+          actual_size="$(stat -c%s "$candidate")"
+          echo "candidate_sha256=$actual_hash"
+          echo "candidate_size_bytes=$actual_size"
+          test "$actual_hash" = "$EXPECTED_SHA256"
+          test "$actual_size" = "$EXPECTED_SIZE"
+          mv "$candidate" release-artifact/TokenTotals_Windows_v2.6.0.zip
+
+      - name: Publish exact-SHA release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v2.6.0 --repo "$REPO" >/dev/null 2>&1; then
+            echo "v2.6.0 already exists; refusing to create a second release"
+            exit 1
+          fi
+          gh release create v2.6.0 \
+            release-artifact/TokenTotals_Windows_v2.6.0.zip \
+            --repo "$REPO" \
+            --target "$RELEASE_SHA" \
+            --title "TokenTotals v2.6.0 — Turn Receipts for AI" \
+            --notes-file RELEASE_NOTES_v2.6.0.md
+
+      - name: Verify published release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view v2.6.0 --repo "$REPO" --json tagName,name,url,isDraft,isPrerelease,targetCommitish,assets
