@@ -13,6 +13,9 @@ class PublicWordingCleanupTests(unittest.TestCase):
         cls.calendar_source = (ROOT / "generate_launch_calendar.py").read_text(encoding="utf-8-sig")
         cls.calendar_ics = (ROOT / "TokenTotals_30Day_Launch_Plan.ics").read_text(encoding="utf-8")
         cls.calculations = (ROOT / "CALCULATION_TRANSPARENCY.md").read_text(encoding="utf-8")
+        cls.turn_receipts = (ROOT / "TURN_RECEIPTS.md").read_text(encoding="utf-8")
+        cls.contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+        cls.citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
 
     def test_readme_uses_real_network_boundary(self):
         text = self.readme.lower()
@@ -64,6 +67,40 @@ class PublicWordingCleanupTests(unittest.TestCase):
             "invoice accuracy percentage",
         ):
             self.assertIn(required, calc)
+
+    def test_turn_receipt_definition_and_public_surfaces_are_preserved(self):
+        readme = self.readme.lower()
+        definition = self.turn_receipts.lower()
+        contributing = self.contributing.lower()
+        citation = self.citation.lower()
+
+        for required in (
+            "turn_receipts.md",
+            "https://tokentotals.com",
+            "https://turnreceipts.com",
+            "support@tokentotals.com",
+            "support@turnreceipts.com",
+            "support@quietfireai.com",
+        ):
+            self.assertIn(required, readme)
+
+        for required in (
+            "formalizes the term **turn receipt**",
+            "observed is not derived",
+            "missing is not zero",
+            "show the math",
+            "provider account and final invoice remain authoritative",
+            "does **not** claim that no person or project ever used",
+            "https://turnreceipts.com",
+            "https://tokentotals.com",
+        ):
+            self.assertIn(required, definition)
+
+        self.assertIn("turn_receipts.md", contributing)
+        self.assertIn("support@turnreceipts.com", contributing)
+        self.assertIn("support@tokentotals.com", contributing)
+        self.assertIn('title: "tokentotals: turn receipts for ai"', citation)
+        self.assertIn('repository-code: "https://github.com/quietfireai/tokentotals"', citation)
 
     def test_proxy_user_messages_do_not_claim_card_or_account_protection(self):
         text = self.proxy.lower()

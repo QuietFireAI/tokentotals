@@ -5,7 +5,13 @@ authors:
     given-names: "Jeff"
     orcid: "https://orcid.org/0009-0000-1375-1725"
     affiliation: "QuietFireAI"
-title: "TokenTotals: Turn receipts for AI"
+title: "TokenTotals: Turn Receipts for AI"
 version: 2.6.0
-url: "https://github.com/QuietFireAI/TokenTotals"
+url: "https://tokentotals.com"
+repository-code: "https://github.com/QuietFireAI/TokenTotals"
+keywords:
+  - "Turn Receipt"
+  - "AI telemetry"
+  - "LLM cost estimation"
+  - "token accounting"
 license: "GPL-3.0-only"
