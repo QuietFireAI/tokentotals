@@ -190,6 +190,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-TokenTotals-Receipt-ID"],
 )
 
 LAST_LATENCY_MS = 0
