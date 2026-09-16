@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TokenTotals — Turn Receipt UI Prototype</title>
+  <style>
+    :root {
+      --page:#f7f7f8;
+      --panel:#ffffff;
+      --ink:#202123;
+      --muted:#6b7280;
+      --line:#e5e7eb;
+      --soft:#f3f4f6;
+      --green:#15803d;
+      --green-bg:#f0fdf4;
+      --blue:#1d4ed8;
+      --amber:#92400e;
+      --amber-bg:#fffbeb;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0;
+      background:var(--page);
+      color:var(--ink);
+      font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .shell { max-width:860px; margin:0 auto; min-height:100vh; background:var(--panel); }
+    .topbar {
+      height:58px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:0 24px;
+      border-bottom:1px solid var(--line);
+      font-weight:650;
+    }
+    .mark {
+      width:28px; height:28px; border-radius:8px;
+      background:#111827; color:#fff; display:grid; place-items:center;
+      font-weight:800; font-size:14px;
+    }
+    .chat { padding:34px 24px 64px; }
+    .turn { max-width:720px; margin:0 auto; }
+    .assistant {
+      display:grid;
+      grid-template-columns:32px 1fr;
+      gap:14px;
+      align-items:start;
+    }
+    .avatar {
+      width:32px; height:32px; border-radius:50%; background:#111827; color:white;
+      display:grid; place-items:center; font-size:13px; font-weight:800;
+    }
+    .answer { line-height:1.62; font-size:16px; padding-top:2px; }
+    .answer p { margin:0 0 14px; }
+    .receipt-wrap { margin:20px 0 0 46px; }
+    .receipt {
+      border:1px solid #d9dde4;
+      border-radius:14px;
+      background:#fff;
+      box-shadow:0 1px 2px rgba(0,0,0,.04);
+      overflow:hidden;
+    }
+    .receipt-head {
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      align-items:flex-start;
+      padding:16px 18px 14px;
+      border-bottom:1px solid var(--line);
+    }
+    .title { font-size:16px; font-weight:760; display:flex; gap:8px; align-items:center; }
+    .subtitle { color:var(--muted); font-size:12px; margin-top:3px; }
+    .status {
+      white-space:nowrap;
+      display:inline-flex; gap:6px; align-items:center;
+      font-size:12px; font-weight:700; color:var(--green);
+      background:var(--green-bg); border:1px solid #bbf7d0;
+      border-radius:999px; padding:5px 9px;
+    }
+    .dot { width:7px; height:7px; background:#16a34a; border-radius:50%; }
+    .grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:0 28px;
+      padding:8px 18px;
+    }
+    .row {
+      display:flex;
+      justify-content:space-between;
+      gap:18px;
+      padding:9px 0;
+      border-bottom:1px solid #f0f1f3;
+      font-size:13px;
+    }
+    .label { color:var(--muted); }
+    .value { text-align:right; font-weight:650; }
+    .basis { font-weight:500; color:var(--muted); font-size:11px; margin-left:4px; }
+    .summary {
+      display:flex;
+      justify-content:space-between;
+      gap:18px;
+      align-items:center;
+      padding:13px 18px;
+      background:#fafafa;
+      border-top:1px solid var(--line);
+      font-size:13px;
+    }
+    .thread strong { font-size:14px; }
+    .domain a { color:#374151; text-decoration:none; font-weight:700; }
+    .domain a:hover { text-decoration:underline; }
+    .details { border-top:1px solid var(--line); }
+    summary {
+      cursor:pointer; list-style:none;
+      padding:11px 18px; color:#4b5563; font-size:12px; font-weight:700;
+      user-select:none;
+    }
+    summary::-webkit-details-marker { display:none; }
+    .detail-body {
+      padding:0 18px 14px;
+      display:grid; grid-template-columns:1fr 1fr; gap:10px 24px;
+      font-size:12px; color:#4b5563;
+    }
+    .detail-item { display:flex; justify-content:space-between; gap:16px; }
+    .note {
+      margin:12px 0 0 46px;
+      font-size:11px; color:#9ca3af;
+    }
+    @media (max-width:680px) {
+      .grid, .detail-body { grid-template-columns:1fr; }
+      .receipt-wrap, .note { margin-left:0; }
+      .receipt-head { flex-direction:column; }
+      .status { align-self:flex-start; }
+      .summary { align-items:flex-start; flex-direction:column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar"><span class="mark">TT</span> TokenTotals — Turn Receipt prototype</div>
+    <section class="chat">
+      <div class="turn">
+        <div class="assistant">
+          <div class="avatar">AI</div>
+          <div class="answer">
+            <p>This is placeholder model-response text. In the real integration, the provider's response remains unchanged.</p>
+            <p>TokenTotals settles the completed turn separately and renders the Turn Receipt immediately beneath it.</p>
+          </div>
+        </div>
+
+        <div class="receipt-wrap">
+          <article class="receipt" aria-label="Turn Receipt prototype">
+            <header class="receipt-head">
+              <div>
+                <div class="title">🧾 Turn Receipt</div>
+                <div class="subtitle">Independent usage estimate generated by TokenTotals</div>
+              </div>
+              <div class="status"><span class="dot"></span><span id="pacing">Below Local Threshold</span></div>
+            </header>
+
+            <div class="grid">
+              <div>
+                <div class="row"><span class="label">Model</span><span class="value" id="model"></span></div>
+                <div class="row"><span class="label">Provider</span><span class="value" id="provider"></span></div>
+                <div class="row"><span class="label">Turn estimate</span><span class="value" id="cost"></span></div>
+                <div class="row"><span class="label">Pricing basis</span><span class="value" id="pricingBasis"></span></div>
+              </div>
+              <div>
+                <div class="row"><span class="label">Input</span><span class="value" id="input"></span></div>
+                <div class="row"><span class="label">Cached input</span><span class="value" id="cached"></span></div>
+                <div class="row"><span class="label">Output</span><span class="value" id="output"></span></div>
+                <div class="row"><span class="label">Residual</span><span class="value" id="residual"></span></div>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="thread">Thread estimate <strong id="threadCost"></strong> · <span id="turnCount"></span></div>
+              <div class="domain"><a href="https://turnreceipt.com/">TurnReceipt.com</a></div>
+            </div>
+
+            <details class="details">
+              <summary>Show receipt details</summary>
+              <div class="detail-body">
+                <div class="detail-item"><span>Receipt ID</span><strong id="receiptId"></strong></div>
+                <div class="detail-item"><span>Completed</span><strong id="completed"></strong></div>
+                <div class="detail-item"><span>Registry verified</span><strong id="verified"></strong></div>
+                <div class="detail-item"><span>Estimate status</span><strong id="estimateStatus"></strong></div>
+                <div class="detail-item"><span>Input basis</span><strong id="inputBasis"></strong></div>
+                <div class="detail-item"><span>Output basis</span><strong id="outputBasis"></strong></div>
+              </div>
+            </details>
+          </article>
+        </div>
+        <div class="note">Prototype only — sample values. Final UI must render the canonical Turn Receipt object; missing data remains unavailable rather than becoming zero.</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Illustrative object shaped from fields TokenTotals already exposes today.
+    // These values are deliberately sample data, not a live provider transaction.
+    const receipt = {
+      receipt_id: "tr_demo_000147",
+      completed_at: "2026-09-16T00:18:42-04:00",
+      pacing_state: "Below Local Threshold",
+      provider: "google",
+      model: "gemini-example-model",
+      estimated_cost_usd: 0.0870,
+      cost_basis: "provider_registry_complete",
+      estimate_complete: true,
+      registry_verified_at: "2026-09-09",
+      tokens: {
+        input: { value: 34521, basis: "observed" },
+        cached_input: { value: 32768, basis: "observed" },
+        output: { value: 400, basis: "observed" },
+        residual: { value: 0, basis: "derived" }
+      },
+      thread: { estimated_cost_usd: 7.4925, turn_count: 147 }
+    };
+
+    const fmtInt = v => v == null ? "Unavailable" : Number(v).toLocaleString();
+    const fmtUsd = v => v == null ? "Unavailable" : "$" + Number(v).toFixed(4);
+    const basis = obj => obj && obj.value != null ? `${fmtInt(obj.value)} <span class="basis">${obj.basis}</span>` : "Unavailable";
+
+    document.getElementById("pacing").textContent = receipt.pacing_state;
+    document.getElementById("model").textContent = receipt.model;
+    document.getElementById("provider").textContent = receipt.provider;
+    document.getElementById("cost").textContent = fmtUsd(receipt.estimated_cost_usd);
+    document.getElementById("pricingBasis").textContent = receipt.cost_basis;
+    document.getElementById("input").innerHTML = basis(receipt.tokens.input);
+
+    const cache = receipt.tokens.cached_input;
+    const input = receipt.tokens.input;
+    const cachePct = cache.value != null && input.value > 0 ? (cache.value / input.value * 100).toFixed(2) + "%" : null;
+    document.getElementById("cached").innerHTML = cache.value == null ? "Unavailable" : `${fmtInt(cache.value)} · ${cachePct} <span class="basis">${cache.basis}</span>`;
+
+    document.getElementById("output").innerHTML = basis(receipt.tokens.output);
+    document.getElementById("residual").innerHTML = basis(receipt.tokens.residual);
+    document.getElementById("threadCost").textContent = fmtUsd(receipt.thread.estimated_cost_usd);
+    document.getElementById("turnCount").textContent = receipt.thread.turn_count + " turns";
+    document.getElementById("receiptId").textContent = receipt.receipt_id;
+    document.getElementById("completed").textContent = receipt.completed_at;
+    document.getElementById("verified").textContent = receipt.registry_verified_at;
+    document.getElementById("estimateStatus").textContent = receipt.estimate_complete ? "complete" : "incomplete";
+    document.getElementById("inputBasis").textContent = receipt.tokens.input.basis;
+    document.getElementById("outputBasis").textContent = receipt.tokens.output.basis;
+  </script>
+</body>
+</html>
