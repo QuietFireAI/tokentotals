@@ -60,6 +60,15 @@ class WindowsPackagingContractTests(unittest.TestCase):
         self.assertNotIn('Filter "*_registry.json"', self.workflow)
         self.assertNotIn('Expected exactly three bundled pricing registries', self.workflow)
 
+    def test_workflow_separates_candidate_zip_identity_from_actions_artifact_identity(self):
+        self.assertIn('Get-FileHash $candidate.FullName -Algorithm SHA256', self.workflow)
+        self.assertIn('CANDIDATE_ZIP_SHA256=', self.workflow)
+        self.assertIn('CANDIDATE_ZIP_SIZE_BYTES=', self.workflow)
+        self.assertIn('id: upload_candidate', self.workflow)
+        self.assertIn('steps.upload_candidate.outputs.artifact-id', self.workflow)
+        self.assertIn('steps.upload_candidate.outputs.artifact-digest', self.workflow)
+        self.assertIn('TokenTotals-Windows-candidate-${{ steps.candidate_identity.outputs.sha256 }}', self.workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -83,10 +83,32 @@ jobs:
         shell: powershell
         run: Compress-Archive -Path "dist\TokenTotals_QuietFireAI\*" -DestinationPath "TokenTotals_Windows_candidate.zip" -Force
 
+      - name: Record candidate ZIP identity
+        id: candidate_identity
+        shell: powershell
+        run: |
+          $candidate = Get-Item "TokenTotals_Windows_candidate.zip"
+          $hash = (Get-FileHash $candidate.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $size = $candidate.Length
+          "sha256=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "size_bytes=$size" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "CANDIDATE_ZIP_SHA256=$hash"
+          Write-Host "CANDIDATE_ZIP_SIZE_BYTES=$size"
+
       - name: Upload smoke-tested candidate
+        id: upload_candidate
         uses: actions/upload-artifact@v4
         with:
-          name: TokenTotals-Windows-candidate
+          name: TokenTotals-Windows-candidate-${{ steps.candidate_identity.outputs.sha256 }}
           path: TokenTotals_Windows_candidate.zip
           if-no-files-found: error
           retention-days: 14
+
+      - name: Record Actions artifact identity
+        shell: powershell
+        run: |
+          Write-Host "CANDIDATE_ZIP_SHA256=${{ steps.candidate_identity.outputs.sha256 }}"
+          Write-Host "CANDIDATE_ZIP_SIZE_BYTES=${{ steps.candidate_identity.outputs.size_bytes }}"
+          Write-Host "ACTIONS_ARTIFACT_ID=${{ steps.upload_candidate.outputs.artifact-id }}"
+          Write-Host "ACTIONS_ARTIFACT_DIGEST=${{ steps.upload_candidate.outputs.artifact-digest }}"
+          Write-Host "ACTIONS_ARTIFACT_URL=${{ steps.upload_candidate.outputs.artifact-url }}"
