@@ -1,52 +1,93 @@
-# External Surface Integration
+# Browser / External Surface Integration — Experimental Track
 
-This work exists to restore the original Turn Receipt product requirement:
+This document no longer defines the TokenTotals launch path.
 
-> Use the AI where you already use it. When the answer finishes, the Turn Receipt appears directly beneath that answer.
+**Launch surface:** Hermes Agent  
+**Next first-class integration:** OpenClaw  
+**Browser work:** experimental/reference testing only
 
-`/chat` is a controlled reference client and test harness. It is not sufficient evidence that the external-surface product requirement is complete.
+## Why this track still exists
 
-## Acceptance gate
+The original product requirement remains useful beyond Hermes:
 
-The product is not launch-ready until a surface TokenTotals does not own demonstrates all of the following in one real transaction:
+> use the AI where you already use it; when the answer finishes, the matching Turn Receipt appears directly beneath that answer.
 
-1. user sends one normal prompt in the existing AI/agent interface;
-2. provider/agent answer remains unchanged;
-3. one Turn Receipt appears directly beneath that exact answer;
-4. no second LLM generation call is made to create the receipt;
-5. receipt identity correlates to the same external turn, not a timing guess;
-6. telemetry fields are only marked observed when actually supplied by the surface;
-7. missing telemetry remains unavailable, never fake zero;
-8. deterministic TokenTotals pricing/accounting produces the receipt;
-9. receipt ID, ledger record, thread aggregate, dashboard and export reconcile;
-10. reload, duplicate event, multiple tabs and new-thread cases do not cross-bind receipts;
-11. disabling the extension leaves the provider UI working normally;
-12. the path survives a clean Windows restart/install test.
+Hermes gives TokenTotals a strong telemetry/correlation contract for proving that idea first.
 
-## Architecture
+Consumer browser sites are different. They may allow DOM placement while exposing only partial—or no—same-turn usage telemetry. Therefore browser work must not be used to make a stronger accounting claim than the underlying evidence supports.
 
-Existing provider/agent surface -> privacy-limited telemetry probe -> exact external turn correlation -> localhost `POST /api/external-turn` -> canonical TokenTotals ledger record -> existing receipt renderer -> receipt inserted after the exact answer element.
+## Built-in `/chat`
 
-The extension is responsible for observation, correlation and placement. TokenTotals remains responsible for pricing, provenance, missing-data semantics, ledgering and rendering.
+TokenTotals' built-in `/chat` page is a controlled reference client.
+
+It is useful for testing:
+
+- provider plumbing;
+- canonical receipt creation;
+- receipt settlement;
+- exact TokenTotals-owned receipt IDs;
+- Standard/Expanded rendering; and
+- missing-data behavior.
+
+It is **not** the Hermes launch destination and does not satisfy the Hermes product gate.
+
+## Browser extension track
+
+The experimental extension architecture can:
+
+- observe permitted page/runtime signals;
+- communicate with the localhost TokenTotals engine;
+- render a receipt container beneath a matching answer element; and
+- request canonical TokenTotals receipt rendering.
+
+That proves placement is technically possible. It does not prove that a consumer site exposes sufficient accounting telemetry.
+
+## Hard evidence rule
+
+A provider-site browser adapter may only label a field observed when that exact field is legitimately exposed to the adapter for the same transaction.
+
+If a site exposes:
+
+- stable turn/message IDs but no token usage, token fields remain unavailable;
+- token usage but no defensible pricing dimension, cost remains unavailable/partial;
+- no stable identity connecting telemetry to the visible answer, settlement must not rely on timing proximity alone.
+
+A receipt-shaped UI is not proof of accounting.
 
 ## Privacy boundary
 
-The external ingest contract intentionally excludes prompt text, answer text, API keys, cookies, authorization headers and hidden reasoning. The browser probe whitelists usage/model/correlation fields and discards ordinary response content.
+Experimental browser probes must exclude ordinary conversation content and credentials from the TokenTotals accounting payload.
 
-## Current hard boundary
+The intended whitelist is limited to defensible transaction metadata such as:
 
-Chrome/Edge MV3 can inject scripts into supported pages and communicate with localhost. DOM placement is therefore technically feasible.
+- stable response/turn/request IDs;
+- provider/model identity;
+- numeric usage counters;
+- pricing-relevant tier/mode information where explicitly exposed; and
+- timing/status metadata required for correlation.
 
-A provider-owned consumer chat page does not necessarily expose API-grade token/cost telemetry. The implementation must inspect each surface separately. When same-turn usage fields are absent, TokenTotals must not invent them. A visually inserted receipt with unavailable fields is truthful; a complete cost receipt is only possible when sufficient telemetry is actually observable or the provider/host supplies it.
+Prompt text, answer text, API keys, cookies, authorization headers and hidden reasoning are not accounting inputs merely because a page happens to contain them.
 
-The extension does not use timing proximity alone to claim exact-turn identity. If a stable response/message/turn ID cannot be correlated between DOM and observed telemetry, it refuses settlement until a stronger adapter exists.
+## Experimental acceptance gate
 
-## Adapter order
+If browser-provider work resumes, an adapter is not complete until one real transaction proves:
 
-1. telemetry-rich external/agent surfaces first for a full accounting proof;
-2. Gemini web telemetry/DOM probe;
-3. ChatGPT web telemetry/DOM probe;
-4. Claude web telemetry/DOM probe;
-5. additional IDE/agent adapters.
+1. normal provider-site prompt;
+2. normal answer remains unchanged;
+3. receipt appears under that exact answer;
+4. no second model call creates the receipt;
+5. stable same-turn identity exists;
+6. observed fields are actually observed;
+7. missing fields remain unavailable;
+8. deterministic TokenTotals accounting produces the receipt; and
+9. reload/concurrency/new-thread behavior does not cross-bind receipts.
 
-A selector or endpoint is not considered stable because another project once used it. Every adapter requires live evidence before release.
+## Priority
+
+Browser work is currently behind:
+
+1. Hermes live proof and launch hardening;
+2. OpenClaw integration/proof; and
+3. Lobster workflow stress testing.
+
+It may move forward sooner only when it directly supports a concrete test or new evidence makes it the stronger integration path.
