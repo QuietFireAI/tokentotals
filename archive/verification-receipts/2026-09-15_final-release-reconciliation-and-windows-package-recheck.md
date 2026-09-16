@@ -32,6 +32,31 @@ The stale `zero-egress` repository topic was removed.
 
 The historical v2.5 release body now carries a pre-hardening warning. Its old release title can still be renamed separately for clarity; that cosmetic historical-title change is not a runtime/package acceptance condition.
 
+## Post-closeout artifact-identity reconciliation
+
+A later release-preparation audit found that the original candidate-artifact block in this receipt had treated the release-candidate ZIP and GitHub Actions' uploaded artifact wrapper as though they were one object. That was an evidence-record defect, not a demonstrated runtime/package defect. The original values are intentionally preserved below as historical record, but **they are superseded and must not be used as the current candidate identity**.
+
+The workflow was repaired so it now records the inner candidate ZIP SHA-256 and byte size before upload, then separately records the GitHub Actions artifact ID and artifact digest after upload. A regression test locks that separation in source.
+
+Revalidation on the repaired workflow:
+
+- source head: `495eb30b6e26bdf0dd6b48a3f522de06254c6ec3`
+- Linux regression run: `35048613981`
+- Linux regression job: `104643880073`
+- regression result: **177/177 tests passed** (`Ran 177 tests in 0.746s` — `OK`)
+- Windows workflow run: `35048614019`
+- Windows job: `104643880026`
+- Windows conclusion: **success** across build, packaged smoke, file verification, ZIP creation, candidate identity recording, artifact upload, and artifact identity recording
+- inner candidate file: `TokenTotals_Windows_candidate.zip`
+- inner candidate size: **83,661,751 bytes**
+- inner candidate SHA-256: **`fdd36a2b44029f5577560cd1a88c7ea942ca1d0f074d7942817fb880339c526e`**
+- GitHub Actions artifact name: `TokenTotals-Windows-candidate-fdd36a2b44029f5577560cd1a88c7ea942ca1d0f074d7942817fb880339c526e`
+- GitHub Actions artifact ID: **`10427982768`**
+- GitHub Actions artifact wrapper size: **82,673,019 bytes**
+- GitHub Actions artifact digest: **`sha256:3834450401c94d4ac04c5127c8f1137bb639644a9c7bb0935a72a78e56b2c297`**
+
+The differing inner ZIP hash/size and Actions artifact digest/size are expected because `actions/upload-artifact` packages the supplied candidate ZIP into its own downloadable artifact archive. The corrected workflow now makes those identities explicit instead of conflating them.
+
 ## Linux regression evidence
 
 GitHub Actions regression run:
@@ -140,9 +165,11 @@ Every release-candidate package gate passed:
 
 The successful packaged smoke proves that the built executable can enter the package smoke path and, in that packaged environment, load the required icon assets, load the three TokenTotals pricing registries, initialize enough of the bundled LiteLLM/tiktoken runtime for `proxy_server` to import, and verify the expected localhost proxy/dashboard/API routes.
 
-## Candidate artifact evidence
+## Candidate artifact evidence — original record, superseded
 
-Uploaded GitHub Actions artifact:
+**Superseded by the post-closeout artifact-identity reconciliation above. The values in this historical block must not be used as the current candidate identity.**
+
+Uploaded GitHub Actions artifact as originally recorded:
 
 - name: **`TokenTotals-Windows-candidate`**
 - artifact ID: **`6151997384`**
@@ -152,7 +179,7 @@ Uploaded GitHub Actions artifact:
 - source head SHA: **`5d0cd7f5f246a15a6d8f10e0190151e607d9e457`**
 - artifact state when checked: not expired
 
-This is a CI release-candidate artifact, not evidence that a public GitHub release/tag has been created.
+This block is retained to show what was originally recorded and later corrected; it is not current release evidence.
 
 ## Packaging regressions now locked in source
 
@@ -164,8 +191,9 @@ The repository now carries automated checks that require:
 - phase-trace output on smoke failure;
 - bundled LiteLLM runtime data;
 - bundled tiktoken OpenAI encoding plugin support;
-- exact presence of all three TokenTotals pricing registry files; and
-- the Windows packaging workflow to include the package-smoke source in its path trigger.
+- exact presence of all three TokenTotals pricing registry files;
+- the Windows packaging workflow to include the package-smoke source in its path trigger; and
+- release identity metadata changes in `CITATION.cff` to trigger Windows package proof.
 
 These checks convert the discovered packaging failures into permanent regression coverage rather than one-off CI fixes.
 
@@ -187,7 +215,7 @@ The provider invoice/account record remains authoritative. TokenTotals records a
 
 ## Release-candidate verdict
 
-The Windows desktop release-candidate path is **verified end to end in GitHub Actions**: package build, packaged-runtime smoke, required-file verification, ZIP creation, and artifact upload all pass.
+The Windows desktop release-candidate path is **verified end to end in GitHub Actions**: package build, packaged-runtime smoke, required-file verification, candidate identity recording, ZIP creation, artifact upload, and separate Actions artifact identity recording all pass.
 
 The launch-critical engineering/proof roadmap is closed for the release candidate. Public tagging/publication remains a separate deliberate release action.
 
@@ -206,4 +234,4 @@ The receipt plus roadmap closeout were checked on a clean GitHub Actions runner:
 - unittest timing: `Ran 176 tests in 0.779s` — `OK`
 - overall job conclusion: **success**
 
-This final evidence-fill edit to the receipt is documentation-only and is itself subject to the normal push-triggered regression workflow. The current branch should not be treated as the final green head until that follow-up run succeeds.
+A later artifact-identity reconciliation is documented above and supersedes the original candidate-artifact identity block. The release-metadata reconciliation commit that incorporates this correction must itself pass the normal regression and Windows package gates before it is selected for public tagging.

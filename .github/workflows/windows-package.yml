@@ -19,6 +19,7 @@ on:
       - "requirements.txt"
       - "requirements-build.txt"
       - "build.ps1"
+      - "CITATION.cff"
       - ".github/workflows/windows-package.yml"
   pull_request:
     branches: [main]
@@ -38,6 +39,7 @@ on:
       - "requirements.txt"
       - "requirements-build.txt"
       - "build.ps1"
+      - "CITATION.cff"
       - ".github/workflows/windows-package.yml"
   workflow_dispatch:
 

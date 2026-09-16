@@ -134,16 +134,24 @@ Final pass completed:
 - preserved the red Windows attempts and their diagnoses in the final verification receipt;
 - verified that the packaged executable loads its assets and TokenTotals registries, imports the proxy runtime, and exposes the expected localhost routes;
 - verified exact package requirements, then created and uploaded a smoke-tested Windows candidate ZIP;
+- repaired the release-evidence workflow so the inner candidate ZIP identity is recorded separately from the GitHub Actions artifact-wrapper identity;
 - retained the Windows-only desktop claim; macOS/Linux desktop packaging remains unclaimed; and
 - preserved the boundaries that TokenTotals does not claim invoice-exact billing, provider-account entitlement, or remaining provider funds.
 
-Final package proof:
+Current package proof after artifact-identity reconciliation:
 
-- Windows workflow run `35046049359`, job `104635972189`: **success** across build, packaged smoke, file verification, ZIP creation, and artifact upload.
-- candidate artifact `TokenTotals-Windows-candidate`, artifact ID `6151997384`, SHA-256 `1f672af62f047f2a2952d5cd7e7d362d271c42c770557040f028e48ea928f33b`.
+- source head: `495eb30b6e26bdf0dd6b48a3f522de06254c6ec3`.
+- Linux regression run `35048613981`, job `104643880073`: **177/177 tests passed**.
+- Windows workflow run `35048614019`, job `104643880026`: **success** across build, packaged smoke, file verification, ZIP creation, candidate identity recording, artifact upload, and artifact identity recording.
+- inner candidate file `TokenTotals_Windows_candidate.zip`: **83,661,751 bytes**, SHA-256 **`fdd36a2b44029f5577560cd1a88c7ea942ca1d0f074d7942817fb880339c526e`**.
+- GitHub Actions artifact `TokenTotals-Windows-candidate-fdd36a2b44029f5577560cd1a88c7ea942ca1d0f074d7942817fb880339c526e`: artifact ID **`10427982768`**, wrapper size **82,673,019 bytes**, artifact digest **`sha256:3834450401c94d4ac04c5127c8f1137bb639644a9c7bb0935a72a78e56b2c297`**.
 - final verification receipt: `archive/verification-receipts/2026-09-15_final-release-reconciliation-and-windows-package-recheck.md`.
 
-The receipt/roadmap closeout commits themselves must also remain green in normal regression CI. A public release tag is intentionally **not** created by this roadmap closeout; tagging/publication should occur only as an explicit release action from a green commit.
+The earlier roadmap/receipt values that treated one artifact ID/size/hash as though they identified both the inner release ZIP and the Actions wrapper are superseded by the reconciled evidence above. The receipt preserves that earlier record and marks it non-authoritative rather than deleting it.
+
+The intended next public version is **v2.6.0**. `CITATION.cff` carries that intended version but does not claim a release date before publication. Release-identity metadata changes are now required to trigger Windows package proof.
+
+A public release tag is intentionally **not** created by this roadmap closeout; tagging/publication should occur only as an explicit release action from a commit that is green in both normal regression CI and Windows package proof.
 
 ## Post-drop / Community Labs
 
@@ -175,4 +183,4 @@ This track is intentionally held back until the delivery methodology is strong e
 
 ## Completed hardening milestones
 
-The repository's verification receipts under `archive/verification-receipts/` are the evidence source for completed work, including provider-specific pricing engines, removal of the legacy pricing sync and machine-specific fallback, runtime model-catalog hardening, retirement of automatic model substitution, public pricing-document reconciliation, dashboard truthfulness, concurrent post-response accounting, in-flight preflight reservation, high-precision local spend accumulation, the append-only local turn telemetry ledger, thread telemetry presentation API, opt-in Turn Notice dashboard/tray presentation, public wording/platform cleanup, calculation transparency, and the final Windows package/release-candidate proof pass.
+The repository's verification receipts under `archive/verification-receipts/` are the evidence source for completed work, including provider-specific pricing engines, removal of the legacy pricing sync and machine-specific fallback, runtime model-catalog hardening, retirement of automatic model substitution, public pricing-document reconciliation, dashboard truthfulness, concurrent post-response accounting, in-flight preflight reservation, high-precision local spend accumulation, the append-only local turn telemetry ledger, thread telemetry presentation API, opt-in Turn Notice dashboard/tray presentation, public wording/platform cleanup, calculation transparency, artifact-identity reconciliation, and the final Windows package/release-candidate proof pass.
