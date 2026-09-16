@@ -2,6 +2,8 @@
 
 TokenTotals is built around inspectable telemetry, explicit arithmetic, and preserved evidence. Contributions are welcome, especially corrections that make a calculation, provider rule, telemetry interpretation, or failure boundary more accurate.
 
+TokenTotals uses **Turn Receipt** as the project term for its per-turn evidence construct. Before changing receipt semantics, field meaning, or public terminology, read [`TURN_RECEIPTS.md`](TURN_RECEIPTS.md). Contributions may extend the implementation, but should preserve the distinction between **observed**, **derived**, and **unavailable** data and should not turn a best-effort estimate into an invoice-exact claim.
+
 ## Math and metric review
 
 Start with `CALCULATION_TRANSPARENCY.md`. It documents the formulas currently used for derived metrics, including cost components, token reconstruction, cache share, residual tokens, coverage, turn statistics, pacing calculations, and Turn Notice comparisons.
@@ -44,6 +46,11 @@ Provider invoices and authoritative account records remain the final billing aut
 
 ## Where to look
 
+Turn Receipt definition and terminology:
+
+- `TURN_RECEIPTS.md`
+- https://turnreceipts.com
+
 Calculation documentation:
 
 - `CALCULATION_TRANSPARENCY.md`
@@ -76,3 +83,5 @@ Receipts intentionally preserve failed tests, stale assumptions, and repaired de
 ## Pull requests
 
 Keep changes narrow when possible. For a calculation change, update the implementation, its regression test, and the relevant documentation together. Do not rewrite historical verification receipts to make an earlier result look better; add a new receipt or follow-up evidence instead.
+
+For terminology/documentation questions, contact `support@turnreceipts.com`. For TokenTotals product support, use `support@tokentotals.com`. QuietFireAI general contact remains `support@quietfireAI.com`.
