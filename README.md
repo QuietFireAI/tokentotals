@@ -7,11 +7,23 @@
 **Launch target:** Hermes Agent on Windows  
 **Status:** pre-release candidate pending user-zero live proof  
 **Next integration after Hermes:** OpenClaw  
-**Browser `/chat` and browser-extension work:** reference/testing only, not the launch product
+**Browser `/chat` and browser-extension work:** reference/testing tracks, not the launch product
 
 - Product: https://tokentotals.com
 - Receipt: https://turnreceipt.com
 - Turn Receipt reference: https://turnreceipts.com
+
+## Project evolution
+
+TokenTotals began by testing the Turn Receipt concept against frontier-model/browser workflows. That work was useful: it proved the accounting engine, canonical receipt object, pricing logic, ledger, renderer, settlement behavior, and a browser/reference presentation path.
+
+It also exposed two practical launch problems. First, repeated frontier-model testing was too resource-intensive for the project's current budget. Second, consumer browser surfaces do not consistently expose the same stable same-turn telemetry that an accounting product needs. A receipt-looking UI is not enough if the underlying transaction evidence cannot be defended.
+
+For those reasons, the **launch focus pivoted to Hermes Agent**. Hermes exposes stable turn/request identities and normalized observer telemetry, giving TokenTotals a cleaner path to an actual in-workflow Turn Receipt.
+
+The earlier browser work is **not being presented as the launch product and is not being erased**. It remains a testing/reference track and may continue after Hermes and OpenClaw establish the core integration pattern.
+
+This is a scope and resource decision, not a claim that browser integrations are impossible.
 
 ## What TokenTotals is
 
@@ -152,17 +164,17 @@ The normal test path is:
 
 The test prompt is not hard-wired. Any normal Hermes prompt should exercise the integration.
 
-## Browser surfaces are not the launch claim
+## Browser surfaces are testing/reference work
 
-TokenTotals retains a built-in `/chat` page and experimental browser-integration work because they are useful engineering tools.
+TokenTotals retains a built-in `/chat` page and experimental browser-integration work because they are useful engineering tools and may become future integrations.
 
 They are **not** the Hermes launch experience and they do not satisfy the Hermes product gate.
 
-The built-in `/chat` surface is a controlled reference client used to test the TokenTotals engine, receipt renderer, settlement behavior, Standard/Expanded presentation, and provider plumbing.
+The built-in `/chat` surface is a controlled reference client used to test the TokenTotals engine, receipt renderer, settlement behavior, Standard/Expanded presentation, and provider plumbing. It is not the intended user destination.
 
-The browser-extension track is experimental. Consumer websites do not necessarily expose API-grade same-turn telemetry, so browser work must be tested surface by surface and must never invent unavailable data.
+The browser-extension track remains research/testing work. Consumer websites do not necessarily expose API-grade same-turn telemetry, and repeated frontier-model testing is expensive for a small project. Browser work therefore resumes when there is a defensible telemetry path and resources to test it properly.
 
-See [`EXTERNAL_SURFACE_INTEGRATION.md`](EXTERNAL_SURFACE_INTEGRATION.md) for that experimental track.
+See [`EXTERNAL_SURFACE_INTEGRATION.md`](EXTERNAL_SURFACE_INTEGRATION.md) for that research track.
 
 ## OpenClaw is next
 
@@ -218,4 +230,4 @@ The standard is narrower and testable:
 
 ## License
 
-TokenTotals is licensed under GNU GPLv3.
+GNU GPLv3.
