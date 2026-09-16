@@ -1,0 +1,17 @@
+.tt-external-receipt-host {
+  display: block;
+  margin: 10px 0 18px;
+  max-width: 760px;
+  clear: both;
+}
+
+.tt-external-receipt-host .tt-receipt {
+  margin: 0;
+}
+
+.tt-external-receipt-unavailable {
+  border-top: 1px dashed #c9cdd3;
+  padding: 9px 2px;
+  color: #6b7280;
+  font: 11px "Courier New", Courier, monospace;
+}
