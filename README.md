@@ -7,7 +7,7 @@
 **Launch target:** Hermes Agent on Windows  
 **Status:** pre-release candidate pending user-zero live proof  
 **Next integration after Hermes:** OpenClaw  
-**Browser `/chat` and browser-extension work:** reference/testing tracks, not the launch product
+**TokenTotals `/chat` and browser-extension work:** reference/testing tracks, not the launch product
 
 - Product: https://tokentotals.com
 - Receipt: https://turnreceipt.com
@@ -15,15 +15,31 @@
 
 ## Project evolution
 
-TokenTotals began by testing the Turn Receipt concept against frontier-model/browser workflows. That work was useful: it proved the accounting engine, canonical receipt object, pricing logic, ledger, renderer, settlement behavior, and a browser/reference presentation path.
+TokenTotals' **initial testing concept** used frontier-model/browser workflows to prove the Turn Receipt idea end to end. That work was useful: it exercised the accounting engine, canonical receipt object, pricing logic, ledger, renderer, settlement behavior, and an initial browser/reference presentation path.
 
-It also exposed two practical launch problems. First, repeated frontier-model testing was too resource-intensive for the project's current budget. Second, consumer browser surfaces do not consistently expose the same stable same-turn telemetry that an accounting product needs. A receipt-looking UI is not enough if the underlying transaction evidence cannot be defended.
+The limiting factor was practical, not conceptual: **continuing to validate the browser/frontier-model path at the evidence standard required by TokenTotals became too cost-intensive for this project on our end.** Rather than lower the proof standard, rely on brittle assumptions, or keep spending against an expensive test surface, the launch path was deliberately pivoted to **Hermes Agent**.
 
-For those reasons, the **launch focus pivoted to Hermes Agent**. Hermes exposes stable turn/request identities and normalized observer telemetry, giving TokenTotals a cleaner path to an actual in-workflow Turn Receipt.
+Hermes gives TokenTotals a much cleaner integration environment: stable turn/request identities, documented observer hooks, normalized usage telemetry, and room to test simple turns, retries, tools, and multi-call agent behavior without depending on a closed consumer web UI.
 
-The earlier browser work is **not being presented as the launch product and is not being erased**. It remains a testing/reference track and may continue after Hermes and OpenClaw establish the core integration pattern.
+The browser/frontier work is **not abandoned and is not being rewritten as a failure**. It remains an initial testing/reference concept and can continue as resources and defensible telemetry paths allow. It is simply no longer the launch dependency.
 
-This is a scope and resource decision, not a claim that browser integrations are impossible.
+The current sequence is therefore:
+
+```text
+Initial browser/frontier testing
+        ↓
+accounting + receipt machinery proven in controlled surfaces
+        ↓
+resource/cost boundary reached for rigorous frontier testing
+        ↓
+Hermes-first launch integration
+        ↓
+OpenClaw integration next
+        ↓
+browser/frontier work may continue as a later adapter track
+```
+
+This is a resource-allocation and evidence-quality decision, not a claim that browser integrations are impossible.
 
 ## What TokenTotals is
 
@@ -172,9 +188,9 @@ They are **not** the Hermes launch experience and they do not satisfy the Hermes
 
 The built-in `/chat` surface is a controlled reference client used to test the TokenTotals engine, receipt renderer, settlement behavior, Standard/Expanded presentation, and provider plumbing. It is not the intended user destination.
 
-The browser-extension track remains research/testing work. Consumer websites do not necessarily expose API-grade same-turn telemetry, and repeated frontier-model testing is expensive for a small project. Browser work therefore resumes when there is a defensible telemetry path and resources to test it properly.
+The browser/frontier track is best understood as the project's **initial test concept**. It helped prove the underlying receipt machinery, but sustained frontier-model validation became too cost-intensive for the project to keep using as the primary launch path. Work on that track can continue later; it is no longer the thing that has to succeed before TokenTotals can launch.
 
-See [`EXTERNAL_SURFACE_INTEGRATION.md`](EXTERNAL_SURFACE_INTEGRATION.md) for that research track.
+See [`EXTERNAL_SURFACE_INTEGRATION.md`](EXTERNAL_SURFACE_INTEGRATION.md) for that testing/research track.
 
 ## OpenClaw is next
 
