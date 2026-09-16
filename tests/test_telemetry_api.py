@@ -69,5 +69,47 @@ class TelemetryApiTests(unittest.TestCase):
         self.assertIn("bad line 2", response.json()["detail"])
 
 
+    def test_turn_receipt_endpoint_returns_canonical_receipt(self):
+        expected = {
+            "schema": "tokentotals.turn_receipt",
+            "schema_version": 1,
+            "receipt_id": "turn-3",
+            "thread": {"thread_id": "thread-1", "turn_count": 3},
+        }
+        with patch.object(proxy_server.turn_receipt, "for_thread", return_value=expected) as mocked:
+            response = self.client.get("/api/turn-receipt", params={"thread_id": "thread-1"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), expected)
+        mocked.assert_called_once_with("thread-1")
+
+    def test_turn_receipt_endpoint_rejects_blank_thread_id(self):
+        with patch.object(proxy_server.turn_receipt, "for_thread") as mocked:
+            response = self.client.get("/api/turn-receipt", params={"thread_id": "   "})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "thread_id must be non-empty")
+        mocked.assert_not_called()
+
+    def test_turn_receipt_endpoint_returns_404_for_unknown_thread(self):
+        with patch.object(proxy_server.turn_receipt, "for_thread", return_value=None):
+            response = self.client.get("/api/turn-receipt", params={"thread_id": "missing"})
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("No TokenTotals Turn Receipt exists", response.json()["detail"])
+
+    def test_turn_receipt_endpoint_surfaces_ledger_corruption(self):
+        with patch.object(
+            proxy_server.turn_receipt,
+            "for_thread",
+            side_effect=turn_ledger.LedgerCorruptionError("bad line 9"),
+        ):
+            response = self.client.get("/api/turn-receipt", params={"thread_id": "thread-1"})
+
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("turn ledger is corrupt", response.json()["detail"])
+        self.assertIn("bad line 9", response.json()["detail"])
+
+
 if __name__ == "__main__":
     unittest.main()
