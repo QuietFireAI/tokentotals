@@ -76,6 +76,35 @@ class TurnReceiptTests(unittest.TestCase):
         self.assertTrue(receipt["turn"]["cost"]["complete"])
         self.assertEqual(receipt["turn"]["cost"]["basis"], "provider_registry_complete")
         self.assertEqual(receipt["turn"]["cost"]["components_usd"]["output"], 0.01)
+        self.assertEqual(receipt["turn"]["cost"]["components_basis"], "same_as_estimate")
+
+    def test_receipt_hides_provider_components_when_total_uses_litellm_fallback(self):
+        record = self._record()
+        record["estimated_cost_usd"] = 0.031
+        record["cost_basis"] = "litellm_response_cost_fallback"
+        record["estimate_complete"] = False
+        record["pricing_components_usd"] = {
+            "input": 0.002345,
+            "output": 0.010000,
+        }
+
+        receipt = turn_receipt.from_record(record)
+        cost = receipt["turn"]["cost"]
+        self.assertEqual(cost["estimated_usd"], 0.031)
+        self.assertEqual(cost["basis"], "litellm_response_cost_fallback")
+        self.assertEqual(cost["components_usd"], {})
+        self.assertEqual(cost["components_basis"], "unavailable_for_estimate_basis")
+
+    def test_known_list_equivalent_keeps_matching_components_but_stays_incomplete(self):
+        record = self._record()
+        record["cost_basis"] = "known_list_equivalent"
+        record["estimate_complete"] = False
+
+        receipt = turn_receipt.from_record(record)
+        cost = receipt["turn"]["cost"]
+        self.assertEqual(cost["components_basis"], "same_as_estimate")
+        self.assertEqual(cost["components_usd"]["input"], 0.002345)
+        self.assertFalse(cost["complete"])
 
     def test_receipt_preserves_missing_and_explicit_zero_semantics(self):
         receipt = turn_receipt.from_record(self._record())

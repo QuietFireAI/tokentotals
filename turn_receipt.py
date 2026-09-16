@@ -12,6 +12,10 @@ import telemetry_view
 TURN_RECEIPT_SCHEMA = "tokentotals.turn_receipt"
 TURN_RECEIPT_SCHEMA_VERSION = 1
 TURN_RECEIPT_KIND = "completed_turn_usage_estimate"
+_COMPONENT_ALIGNED_COST_BASES = {
+    "provider_registry_complete",
+    "known_list_equivalent",
+}
 
 
 def from_record(record):
@@ -26,6 +30,18 @@ def from_record(record):
     receipt_id = str(turn.get("turn_id") or "").strip()
     if not receipt_id:
         raise ValueError("Turn Receipt requires a non-empty turn_id")
+
+    # Provider calculator components are only presented as the arithmetic behind
+    # the receipt total when that total came from the same provider reconstruction.
+    # A LiteLLM response_cost fallback can be useful, but its internal rate/component
+    # basis is not exposed here, so provider components must not masquerade as the
+    # math that produced that fallback total.
+    cost = turn.get("cost") or {}
+    if cost.get("basis") in _COMPONENT_ALIGNED_COST_BASES:
+        cost["components_basis"] = "same_as_estimate"
+    else:
+        cost["components_usd"] = {}
+        cost["components_basis"] = "unavailable_for_estimate_basis"
 
     return {
         "schema": TURN_RECEIPT_SCHEMA,
