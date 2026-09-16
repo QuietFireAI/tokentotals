@@ -24,7 +24,7 @@ class WindowsPackagingContractTests(unittest.TestCase):
         for desktop_import in ("import winsound", "import pystray", "import tkinter as tk", "from proxy_server import app"):
             self.assertLess(smoke_branch, self.gui.index(desktop_import))
 
-    def test_packaging_smoke_traces_assets_registries_and_proxy_routes(self):
+    def test_packaging_smoke_traces_assets_registries_and_receipt_routes(self):
         for required in (
             '_trace("entry")',
             '_trace("pil_import_start")',
@@ -34,11 +34,22 @@ class WindowsPackagingContractTests(unittest.TestCase):
             '_trace("anthropic_registry_ok")',
             '_trace("google_registry_ok")',
             '_trace("proxy_import_start")',
+            '"/chat"',
+            '"/api/turn-receipt"',
+            '"/api/turn-receipt/{turn_id}"',
+            '"/api/turn-receipt/{turn_id}/render"',
             '_trace("proxy_routes_ok")',
+            '_trace("turn_receipt_surfaces_ok")',
             '_trace("complete")',
             'error:{type(exc).__name__}:{exc}',
         ):
             self.assertIn(required, self.smoke)
+
+    def test_build_script_uses_stable_simple_executable_name(self):
+        self.assertIn('--name "TokenTotals"', self.build)
+        self.assertIn('dist\\TokenTotals\\TokenTotals.exe', self.build)
+        self.assertNotIn('TokenTotals_QuietFireAI', self.build)
+        self.assertIn('Output: dist\\TokenTotals\\TokenTotals.exe', self.build)
 
     def test_build_script_bounds_smoke_wait_and_prints_phase_trace(self):
         self.assertIn('Start-Process -FilePath $exe -ArgumentList "--smoke-test" -WorkingDirectory $PSScriptRoot -PassThru', self.build)
@@ -59,6 +70,22 @@ class WindowsPackagingContractTests(unittest.TestCase):
             self.assertIn(registry_name, self.workflow)
         self.assertNotIn('Filter "*_registry.json"', self.workflow)
         self.assertNotIn('Expected exactly three bundled pricing registries', self.workflow)
+
+    def test_workflow_packages_stable_exe_from_simplified_folder(self):
+        self.assertIn('$root = "dist\\TokenTotals"', self.workflow)
+        self.assertIn('$root\\TokenTotals.exe', self.workflow)
+        self.assertIn('Compress-Archive -Path "dist\\TokenTotals\\*"', self.workflow)
+        self.assertNotIn('TokenTotals_QuietFireAI', self.workflow)
+
+    def test_receipt_runtime_changes_trigger_windows_package_proof(self):
+        for runtime_path in (
+            '"turn_receipt.py"',
+            '"receipt_pricing.py"',
+            '"turn_receipt_renderer.py"',
+            '"turn_receipt_chat_surface.py"',
+            '"runtime_model_catalog.py"',
+        ):
+            self.assertGreaterEqual(self.workflow.count(runtime_path), 2)
 
     def test_workflow_separates_candidate_zip_identity_from_actions_artifact_identity(self):
         self.assertIn('Get-FileHash $candidate.FullName -Algorithm SHA256', self.workflow)
