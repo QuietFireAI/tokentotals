@@ -1,14 +1,15 @@
-# 🛡️ TokenTotals by QuietFireAI
+# TokenTotals
 
-> **The Local, Open-Source Turn-Receipt & Pacing Layer for AI Developers & Autonomous Agents.**  
-> *Turn Receipts. Show Your Math. Missing Is Not Zero.*
+> **Turn Receipts for AI.**
+> A Turn Receipt for every completed AI turn.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Local Control Plane](https://img.shields.io/badge/Security-Local%20Control%20Plane-brightgreen.svg)]()
 [![Desktop](https://img.shields.io/badge/Desktop-Windows-lightgrey.svg)]()
 
-🌐 **Product:** [TokenTotals.com](https://tokentotals.com)  
-🧾 **Turn Receipt reference:** [TurnReceipts.com](https://turnreceipts.com)
+🌐 **Product:** [TokenTotals.com](https://tokentotals.com)
+🧾 **Individual Turn Receipt:** [TurnReceipt.com](https://turnreceipt.com)
+📚 **Turn Receipt reference:** [TurnReceipts.com](https://turnreceipts.com)
 
 > [!IMPORTANT]
 > **Operational Scope & Liability Disclaimer:** TokenTotals is an independent developer cost calculator, real-time telemetry estimator, and local notification daemon. It calculates estimated spend from available telemetry, provider-published pricing references, and known provider-specific billing rules. TokenTotals is **not a billing mirror**, does **not** guarantee invoice-exact third-party vendor billing alignment, and does not guarantee absolute network-level traffic blocking under all operating system configurations. Users remain responsible for monitoring their direct cloud provider accounts and final provider invoices.
@@ -82,44 +83,44 @@ The distinction is intentional: **TokenTotals does not merely display telemetry;
 
 ---
 
-## 👁️ Three Ways You Stay Informed: The Look, The Hook, & The Dash
+## 🧾 The Turn Receipt Experience
 
-TokenTotals surfaces real-time cost telemetry and local pacing state where you work:
-
-### 1. 🚦 The Look (Glanceable System Tray Icon)
-* 🟢 **Green "T":** Below the configured local pacing threshold.
-* 🟡 **Amber "T":** Near the configured local pacing threshold.
-* 🔴 **Red "T":** Local pacing threshold reached / new requests routed through TokenTotals are locally paused until acknowledged or the local threshold is changed.
-
-The traffic light describes **TokenTotals' local pacing state**. It does not mean the provider has approved, rejected, or measured your remaining account funds.
-
-### 2. 🪝 The Hook (Turn-by-Turn Chat Telemetry Badge)
-A client integration can render TokenTotals telemetry in its own working context. An illustrative shape is:
+TokenTotals includes a local chat surface where each completed answer is followed by its own Turn Receipt in the conversation flow:
 
 ```text
-🟢 Status: Below Local Threshold | Posted Estimate: ~$0.42 / $10.00 threshold | Thread: ~$0.08
-🤖 Requested Model: <provider-model-id>
-📊 Turn Estimate: ~$0.0006 | Estimate Status: complete / incomplete
-💾 Observed Cache / Thinking / Tool Details: <when exposed by provider telemetry>
-ℹ️ Pricing Basis: TokenTotals provider registry verified <date>
+Question → Answer → Turn Receipt → Repeat
 ```
 
-The values above are illustrative UI copy, not a live pricing snapshot. Runtime calculations use the versioned provider registries and the telemetry actually available for each request.
-
-### 3. 📊 The Dash (Localhost Web Dashboard)
-The dashboard is wired directly into the local FastAPI runtime. The server exposes `/`, `/dashboard`, `/dashboard/`, and `/dashboard.html`; the Windows tray opens the configured local dashboard automatically.
-
-With the default port, visit:
+With the default port, open:
 
 ```text
-http://127.0.0.1:8080/dashboard
+http://127.0.0.1:8080/chat
 ```
 
-The dashboard shows posted local estimated spend, in-flight preflight estimates, local pacing-threshold state, Turn Notice configuration, latest-turn telemetry, and mixed-model thread telemetry where available.
+The model answer remains the model answer. TokenTotals does **not** silently append telemetry to the provider response body. Each routed request receives a server-owned receipt identifier, returned as the `X-TokenTotals-Receipt-ID` response header. The chat surface uses that exact identifier to retrieve and render the corresponding receipt beneath the answer after settlement. This avoids guessing which concurrent turn was "latest."
+
+**Standard receipt** is the default compact view. It stays turn-scoped and emphasizes the fields most useful at a glance: provider/model identity, key token counts, estimated turn cost, estimate status/basis, pricing-registry verification date, and receipt ID.
+
+**Expanded receipt** renders the same canonical Turn Receipt with deeper telemetry and pricing detail. Where available, it adds observed/derived/unavailable basis labels, reconciliation fields, pricing components, reproducible effective rates, and the **current thread aggregate at render time** including turn count, cumulative estimated cost coverage, and model mix.
+
+The display mode is a user preference. Switching Standard ↔ Expanded changes presentation only; it does not create a second calculator or alter the underlying receipt.
+
+When TokenTotals cannot perform its normal reconstruction, the receipt says so. A secondary cost source is visibly marked **Fallback estimate** and may be higher or lower than the provider invoice. An unavailable cost remains unavailable rather than becoming `$0`.
+
+Any example values or UI snippets in this README are **illustrative UI copy, not a live pricing snapshot**. Runtime receipts use the telemetry available for that request and the versioned pricing basis recorded by TokenTotals.
+
+### Supporting local surfaces
+
+The tray and dashboard remain useful supporting surfaces rather than the primary receipt experience:
+
+* **Tray:** glanceable local pacing state and Turn Notice behavior.
+* **Dashboard:** deeper local diagnostics, posted/in-flight estimates, and thread/model aggregate telemetry.
+
+The dashboard is available at `/dashboard` on the configured local port. The traffic-light state describes TokenTotals' **local pacing threshold**, not provider-account clearance or authoritative funds remaining.
 
 ---
 
-## 💥 The Problem: The "$400 Morning Surprise"
+## The Problem: AI Usage Is Easy to Accumulate and Hard to Inspect
 
 If you build with AI agents (Cursor Composer, Claude Code, CrewAI, AutoGen, or custom LangChain swarms), a recursive reasoning loop, retry storm, or unexpectedly large request can continue consuming provider resources while you are away from your desk.
 
@@ -212,22 +213,28 @@ For the exact arithmetic behind TokenTotals-derived metrics—including prefligh
 ### 1. Run the Windows Desktop Runtime
 The current desktop application is Windows-specific. `app_gui.py` uses Windows runtime facilities, and TokenTotals does not currently claim a validated macOS or Linux desktop release.
 
-Download the current Windows release when available, unzip it, and run the TokenTotals executable.
+Download the current Windows release when available, unzip it, and run **`TokenTotals.exe`**.
 
 A green `T` appears in the system tray and the local proxy starts on the configured port. The default is `8080`.
 
 If the configured port is already occupied, the desktop runtime searches `8080` through `8089` for an available port and saves the selected port back to `~/.tokentotals/config.json`. The tray's **Open Web Dashboard** action always opens the configured port.
 
-### 2. Confirm the Local Dashboard
-From the tray, choose **Open Web Dashboard**. With the default port, the address is:
+### 2. Open the Turn Receipt Chat
+
+With the default port, open:
 
 ```text
-http://127.0.0.1:8080/dashboard
+http://127.0.0.1:8080/chat
 ```
 
-If TokenTotals selected a different port, use the port stored in `~/.tokentotals/config.json`.
+Choose a model from TokenTotals' runtime registry, enter the provider/API credential required for that upstream request, and send a message. The chat page keeps that key only in the current page session; TokenTotals does not intentionally write API keys into the Turn Receipt ledger.
 
-### 3. Configure Your Client
+Choose **Standard receipt** for the compact default or **Expanded receipt** for deeper turn detail and the current thread aggregate. The receipt appears directly beneath the completed answer.
+
+The dashboard remains available at `http://127.0.0.1:8080/dashboard` for diagnostic and aggregate views. If TokenTotals selected another port, use the configured port stored in `~/.tokentotals/config.json`.
+
+### 3. Configure an External Client
+
 Use the same configured port for the OpenAI-compatible base URL:
 
 ```text
@@ -255,19 +262,29 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="gpt-4o",
+    model="<provider-model-id>",
     messages=[{"role": "user", "content": "Hello world"}]
 )
 ```
 
-### 4. Verify Telemetry
-After a completed TokenTotals-routed turn, the local runtime can expose:
+### 4. Verify Receipts and Telemetry
+
+A successful TokenTotals-routed completion returns the server-owned receipt identifier in the response header:
 
 ```text
+X-TokenTotals-Receipt-ID: <turn_id>
+```
+
+After the turn settles, the local runtime exposes the canonical object and both render modes:
+
+```text
+GET /api/turn-receipt/<turn_id>
+GET /api/turn-receipt/<turn_id>/render?mode=standard
+GET /api/turn-receipt/<turn_id>/render?mode=expanded
 GET /api/telemetry/thread?thread_id=<id>
 ```
 
-and the dashboard renders the normalized presentation object rather than reading the raw ledger directly.
+The standard and expanded HTML are renderings of the same canonical Turn Receipt. The expanded rendering can add the current thread aggregate; the dashboard consumes the normalized presentation APIs rather than reading arbitrary provider response content.
 
 ---
 
