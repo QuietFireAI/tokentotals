@@ -1,4 +1,4 @@
-﻿import datetime
+import datetime
 import argparse
 import sys
 from pathlib import Path
@@ -20,7 +20,7 @@ def generate_ics(start_date_str="2026-09-22", output_path="TokenTotals_30Day_Lau
         {
             "day_offset": 3,
             "title": "🚀 TokenTotals: Hacker News 'Show HN' Launch",
-            "desc": "Phase 2: Post 'Show HN: TokenTotals - An open-source, local airbag for Cursor and AI agents' at 8:00 AM ET. Monitor comments and engage with the community.",
+            "desc": "Phase 2: Post 'Show HN: TokenTotals - Local turn receipts and cost pacing for AI agents' at 8:00 AM ET. Monitor comments and engage with the community.",
             "duration_hours": 3,
             "time": "08:00"
         },
