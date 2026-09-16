@@ -1,0 +1,71 @@
+name: TokenTotals Hermes Integration
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tokentotals-hermes-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install TokenTotals test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run Hermes integration unit tests
+        run: |
+          python -m unittest \
+            tests.test_hermes_turn_ingest \
+            tests.test_hermes_plugin_contract \
+            tests.test_turn_receipt_terminal
+
+      - name: Compile Hermes integration sources
+        run: |
+          python -m py_compile \
+            hermes_evidence_store.py \
+            hermes_turn_ingest.py \
+            hermes_turn_api.py \
+            turn_receipt_terminal.py \
+            app_gui_hermes.py \
+            integrations/hermes/turnreceipt/__init__.py
+
+      - name: Build standalone Hermes plugin artifact
+        run: |
+          cd integrations/hermes
+          zip -r "$GITHUB_WORKSPACE/TurnReceipt_Hermes_Plugin.zip" turnreceipt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TurnReceipt-Hermes-plugin
+          path: TurnReceipt_Hermes_Plugin.zip
+          if-no-files-found: error
+
+  hermes-upstream-doctor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned Hermes upstream
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "git+https://github.com/NousResearch/hermes-agent.git@d5b3cad7b98b3bcd157ea8b585759b0bb4fb8a6d"
+
+      - name: Install plugin into isolated Hermes home
+        run: |
+          export HERMES_HOME="$RUNNER_TEMP/hermes-home"
+          mkdir -p "$HERMES_HOME/plugins/turnreceipt"
+          cp -R integrations/hermes/turnreceipt/. "$HERMES_HOME/plugins/turnreceipt/"
+          hermes plugins doctor "$HERMES_HOME/plugins/turnreceipt" --ci
