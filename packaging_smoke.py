@@ -34,7 +34,7 @@ def _resource_path(relative_path: str) -> Path:
 
 
 def run_packaging_smoke_test() -> None:
-    """Validate bundled assets, provider registries, and FastAPI routes."""
+    """Validate bundled assets, provider registries, provider runtime deps, and FastAPI routes."""
     try:
         _trace("entry")
 
@@ -50,6 +50,12 @@ def run_packaging_smoke_test() -> None:
             with Image.open(path) as image:
                 image.verify()
             _trace(f"icon_ok:{name}")
+
+        _trace("google_auth_import_start")
+        from google.auth.credentials import TokenState
+        if TokenState is None:
+            raise RuntimeError("Bundled Google auth runtime is unavailable")
+        _trace("google_auth_imported")
 
         _trace("pricing_import_start")
         from anthropic_pricing import resolve_anthropic_model
