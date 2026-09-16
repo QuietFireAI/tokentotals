@@ -11,5 +11,18 @@
     "https://chatgpt.com/*"
   ],
   "background": {"service_worker": "service_worker.js", "type": "module"},
-  "action": {"default_popup": "popup.html", "default_title": "TurnReceipt"}
+  "action": {"default_popup": "popup.html", "default_title": "TurnReceipt"},
+  "content_scripts": [
+    {
+      "matches": ["https://gemini.google.com/*", "https://claude.ai/*", "https://chatgpt.com/*"],
+      "js": ["telemetry_probe.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://gemini.google.com/*", "https://claude.ai/*", "https://chatgpt.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
 }
