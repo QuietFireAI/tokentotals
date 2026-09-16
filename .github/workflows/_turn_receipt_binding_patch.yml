@@ -1,0 +1,123 @@
+name: Turn Receipt binding patch work
+
+on:
+  push:
+    branches:
+      - turn-receipt-binding-work
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'chore: stage exact Turn Receipt binding patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Apply exact receipt binding patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one anchor, found {count}')
+              return text.replace(old, new, 1)
+
+          # 1) Canonical exact-receipt lookup by stable turn ID.
+          path = Path('turn_receipt.py')
+          text = path.read_text(encoding='utf-8')
+          anchor = '''\n\ndef standard_view(receipt):\n'''
+          block = '''\n\ndef by_id(turn_id):\n    """Return the exact turn-scoped receipt for one stable TokenTotals turn ID."""\n    key = str(turn_id or "").strip()\n    if not key:\n        raise ValueError("turn_id must be non-empty")\n\n    for record in reversed(turn_ledger.read_turns()):\n        if str(record.get("turn_id") or "") == key:\n            return from_record(record)\n    return None\n\n\ndef standard_view(receipt):\n'''
+          text = replace_once(text, anchor, block, 'turn_receipt by_id')
+          path.write_text(text, encoding='utf-8')
+
+          # 2) Turn Receipt unit coverage for exact lookup.
+          path = Path('tests/test_turn_receipt.py')
+          text = path.read_text(encoding='utf-8')
+          anchor = '''    def test_for_thread_rejects_blank_and_returns_none_for_unknown_thread(self):\n'''
+          block = '''    def test_by_id_returns_exact_turn_scoped_receipt(self):\n        first = self._record()\n        first["turn_id"] = "turn-first"\n        second = self._record()\n        second["turn_id"] = "turn-second"\n\n        with patch.object(turn_receipt.turn_ledger, "read_turns", return_value=[first, second]):\n            receipt = turn_receipt.by_id("turn-first")\n\n        self.assertEqual(receipt["receipt_id"], "turn-first")\n        self.assertEqual(receipt["turn"]["turn_id"], "turn-first")\n        self.assertNotIn("thread", receipt)\n\n    def test_by_id_rejects_blank_and_returns_none_for_unknown_turn(self):\n        with self.assertRaisesRegex(ValueError, "turn_id must be non-empty"):\n            turn_receipt.by_id("   ")\n\n        with patch.object(turn_receipt.turn_ledger, "read_turns", return_value=[self._record()]):\n            self.assertIsNone(turn_receipt.by_id("missing"))\n\n    def test_for_thread_rejects_blank_and_returns_none_for_unknown_thread(self):\n'''
+          text = replace_once(text, anchor, block, 'turn receipt exact lookup tests')
+          path.write_text(text, encoding='utf-8')
+
+          # 3) Expose exact receipt endpoint and bind every successful response to its turn ID.
+          path = Path('proxy_server.py')
+          text = path.read_text(encoding='utf-8')
+          text = replace_once(
+              text,
+              'from fastapi import FastAPI, Request, HTTPException\n',
+              'from fastapi import FastAPI, Request, Response, HTTPException\n',
+              'fastapi Response import',
+          )
+          text = replace_once(
+              text,
+              'RESERVATION_METADATA_KEY = "tokentotals_reservation_id"\n',
+              'RESERVATION_METADATA_KEY = "tokentotals_reservation_id"\nRECEIPT_ID_HEADER = "X-TokenTotals-Receipt-ID"\n',
+              'receipt header constant',
+          )
+          route_anchor = '''    return receipt\n\n\n@app.get("/api/turn-notice")\n'''
+          route_block = '''    return receipt\n\n\n@app.get("/api/turn-receipt/{turn_id}")\nasync def get_turn_receipt_by_id(turn_id: str):\n    key = str(turn_id).strip()\n    if not key:\n        raise HTTPException(status_code=400, detail="turn_id must be non-empty")\n    try:\n        receipt = turn_receipt.by_id(key)\n    except turn_ledger.LedgerCorruptionError as exc:\n        raise HTTPException(\n            status_code=500,\n            detail=f"TokenTotals turn ledger is corrupt: {exc}",\n        )\n    if receipt is None:\n        raise HTTPException(\n            status_code=404,\n            detail=f"No TokenTotals Turn Receipt exists for turn '{key}'.",\n        )\n    return receipt\n\n\n@app.get("/api/turn-notice")\n'''
+          text = replace_once(text, route_anchor, route_block, 'exact receipt route')
+          text = replace_once(
+              text,
+              'async def proxy_openai(request: Request):\n',
+              'async def proxy_openai(request: Request, http_response: Response):\n',
+              'proxy response injection',
+          )
+          upstream_anchor = '''    except Exception as e:\n        config_manager.release_preflight_reservation(reservation_id)\n        raise HTTPException(status_code=502, detail=f"Upstream Provider Error via LiteLLM: {str(e)}")\n\n    if stream:\n'''
+          upstream_block = '''    except Exception as e:\n        config_manager.release_preflight_reservation(reservation_id)\n        raise HTTPException(status_code=502, detail=f"Upstream Provider Error via LiteLLM: {str(e)}")\n\n    # The server-owned reservation ID is also the durable Turn Receipt ID. Bind\n    # the provider response to that exact receipt without altering model content.\n    http_response.headers[RECEIPT_ID_HEADER] = reservation_id\n\n    if stream:\n'''
+          text = replace_once(text, upstream_anchor, upstream_block, 'response receipt binding')
+          text = replace_once(
+              text,
+              '        return StreamingResponse(generate(), media_type="text/event-stream")\n',
+              '        return StreamingResponse(\n            generate(),\n            media_type="text/event-stream",\n            headers={RECEIPT_ID_HEADER: reservation_id},\n        )\n',
+              'stream receipt header',
+          )
+          path.write_text(text, encoding='utf-8')
+
+          # 4) Exact receipt API coverage.
+          path = Path('tests/test_telemetry_api.py')
+          text = path.read_text(encoding='utf-8')
+          anchor = '''\n\nif __name__ == "__main__":\n    unittest.main()\n'''
+          block = '''\n\n    def test_exact_turn_receipt_endpoint_returns_requested_receipt(self):\n        expected = {\n            "schema": "tokentotals.turn_receipt",\n            "schema_version": 1,\n            "receipt_id": "turn-exact",\n        }\n        with patch.object(proxy_server.turn_receipt, "by_id", return_value=expected) as mocked:\n            response = self.client.get("/api/turn-receipt/turn-exact")\n\n        self.assertEqual(response.status_code, 200)\n        self.assertEqual(response.json(), expected)\n        mocked.assert_called_once_with("turn-exact")\n\n    def test_exact_turn_receipt_endpoint_returns_404_for_unknown_turn(self):\n        with patch.object(proxy_server.turn_receipt, "by_id", return_value=None):\n            response = self.client.get("/api/turn-receipt/missing")\n\n        self.assertEqual(response.status_code, 404)\n        self.assertIn("No TokenTotals Turn Receipt exists for turn", response.json()["detail"])\n\n    def test_exact_turn_receipt_endpoint_surfaces_ledger_corruption(self):\n        with patch.object(\n            proxy_server.turn_receipt,\n            "by_id",\n            side_effect=turn_ledger.LedgerCorruptionError("bad line 11"),\n        ):\n            response = self.client.get("/api/turn-receipt/turn-exact")\n\n        self.assertEqual(response.status_code, 500)\n        self.assertIn("turn ledger is corrupt", response.json()["detail"])\n        self.assertIn("bad line 11", response.json()["detail"])\n'''
+          text = replace_once(text, anchor, block + anchor, 'exact receipt API tests')
+          path.write_text(text, encoding='utf-8')
+
+          # 5) Successful non-streaming and streaming responses expose the exact ID
+          # without rewriting model content.
+          Path('tests/test_turn_receipt_binding.py').write_text(r'''import tempfile\nimport unittest\nfrom pathlib import Path\nfrom unittest.mock import patch\n\nfrom fastapi.testclient import TestClient\n\nimport config_manager\nimport proxy_server\n\n\nclass _FakeResponse:\n    def model_dump(self):\n        return {"ok": True}\n\n\nclass _FakeChunk:\n    def model_dump_json(self):\n        return '{"chunk":true}'\n\n\nasync def _fake_stream():\n    yield _FakeChunk()\n\n\nclass TurnReceiptBindingTests(unittest.TestCase):\n    def setUp(self):\n        self.tempdir = tempfile.TemporaryDirectory()\n        self.addCleanup(self.tempdir.cleanup)\n        app_dir = Path(self.tempdir.name) / ".tokentotals"\n        self.paths = patch.multiple(\n            config_manager,\n            APP_DIR=app_dir,\n            CONFIG_FILE=app_dir / "config.json",\n            STATE_FILE=app_dir / "state.json",\n        )\n        self.paths.start()\n        self.addCleanup(self.paths.stop)\n        with config_manager._DATA_LOCK:\n            config_manager._INFLIGHT_RESERVATIONS.clear()\n            config_manager._SETTLED_RESERVATION_IDS.clear()\n        self.addCleanup(self._clear_ephemeral_state)\n        config_manager.init_files()\n        conf = config_manager.get_config()\n        conf["daily_budget_limit_usd"] = 100.0\n        config_manager.save_config(conf)\n        self.client = TestClient(proxy_server.app)\n\n    def _clear_ephemeral_state(self):\n        with config_manager._DATA_LOCK:\n            config_manager._INFLIGHT_RESERVATIONS.clear()\n            config_manager._SETTLED_RESERVATION_IDS.clear()\n\n    def test_nonstream_response_header_matches_server_owned_receipt_id(self):\n        captured = {}\n\n        async def upstream(**kwargs):\n            captured.update(kwargs)\n            return _FakeResponse()\n\n        with patch.object(proxy_server, "preflight_input_estimate", return_value=(0.01, "test")), \\\n             patch.object(proxy_server.litellm, "acompletion", side_effect=upstream):\n            response = self.client.post(\n                "/v1/chat/completions",\n                headers={"authorization": "Bearer test", "x-thread-id": "thread-binding"},\n                json={\n                    "model": "gpt-4o",\n                    "messages": [{"role": "user", "content": "hello"}],\n                },\n            )\n\n        receipt_id = response.headers.get("x-tokentotals-receipt-id")\n        self.assertTrue(receipt_id)\n        self.assertEqual(\n            receipt_id,\n            captured["litellm_metadata"][proxy_server.RESERVATION_METADATA_KEY],\n        )\n        self.assertEqual(response.json(), {"ok": True})\n\n    def test_stream_response_header_matches_server_owned_receipt_id(self):\n        captured = {}\n\n        async def upstream(**kwargs):\n            captured.update(kwargs)\n            return _fake_stream()\n\n        with patch.object(proxy_server, "preflight_input_estimate", return_value=(0.01, "test")), \\\n             patch.object(proxy_server.litellm, "acompletion", side_effect=upstream):\n            response = self.client.post(\n                "/v1/chat/completions",\n                headers={"authorization": "Bearer test", "x-thread-id": "thread-binding"},\n                json={\n                    "model": "gpt-4o",\n                    "messages": [{"role": "user", "content": "hello"}],\n                    "stream": True,\n                },\n            )\n\n        receipt_id = response.headers.get("x-tokentotals-receipt-id")\n        self.assertTrue(receipt_id)\n        self.assertEqual(\n            receipt_id,\n            captured["litellm_metadata"][proxy_server.RESERVATION_METADATA_KEY],\n        )\n        self.assertIn('data: {"chunk":true}', response.text)\n        self.assertIn('data: [DONE]', response.text)\n\n\nif __name__ == "__main__":\n    unittest.main()\n''', encoding='utf-8')
+          PY
+
+      - name: Verify patch shape
+        run: |
+          git diff --check
+          python -m compileall -q proxy_server.py turn_receipt.py tests/test_turn_receipt.py tests/test_telemetry_api.py tests/test_turn_receipt_binding.py
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Smoke-import live proxy
+        run: python -c "import proxy_server; print('proxy_server import OK')"
+
+      - name: Run full regression suite
+        run: timeout --signal=TERM 90s python -m unittest discover -s tests -v
+
+      - name: Commit proven binding files and remove helper
+        if: success()
+        run: |
+          rm .github/workflows/_turn_receipt_binding_patch.yml
+          git config user.name "QuietFireAI"
+          git config user.email "211976194+QuietFireAI@users.noreply.github.com"
+          git add proxy_server.py turn_receipt.py tests/test_turn_receipt.py tests/test_telemetry_api.py tests/test_turn_receipt_binding.py .github/workflows/_turn_receipt_binding_patch.yml
+          git commit -m "feat: bind responses to exact Turn Receipt IDs"
+          git push origin HEAD:turn-receipt-binding-work
