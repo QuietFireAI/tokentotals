@@ -8,7 +8,6 @@ but is never written to the ledger. Missing provider telemetry stays unavailable
 from __future__ import annotations
 
 import hashlib
-import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -16,6 +15,7 @@ from typing import Any
 import litellm
 from fastapi import APIRouter, HTTPException
 
+import telemetry_view
 import turn_ledger
 import turn_receipt
 import turn_receipt_renderer
@@ -234,7 +234,12 @@ async def external_turn_settle_and_render(payload: dict):
     if mode not in {"standard", "expanded"}:
         raise HTTPException(status_code=400, detail="receipt_mode must be standard or expanded")
     result = settle_external_turn(payload)
-    html = turn_receipt_renderer.render_html(result["receipt"], mode=mode)
+    thread_view = telemetry_view.thread_view(result["thread_id"]) if mode == "expanded" else None
+    html = turn_receipt_renderer.render_html(
+        result["receipt"],
+        mode=mode,
+        thread_view=thread_view,
+    )
     return {
         "receipt_id": result["receipt_id"],
         "thread_id": result["thread_id"],
