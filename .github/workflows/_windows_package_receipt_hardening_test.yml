@@ -1,0 +1,50 @@
+name: Windows package receipt hardening work
+
+on:
+  push:
+    branches:
+      - windows-package-receipt-hardening
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Compile and import
+        run: |
+          python -m compileall -q .
+          python -c "import proxy_server; print('proxy_server import OK')"
+      - name: Full regression suite
+        run: timeout --signal=TERM 90s python -m unittest discover -s tests -v
+
+  windows-package:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+      - name: Build and smoke-test package
+        shell: powershell
+        run: .\build.ps1
+      - name: Verify stable executable identity
+        shell: powershell
+        run: |
+          $root = "dist\TokenTotals"
+          if (-not (Test-Path "$root\TokenTotals.exe")) { throw "TokenTotals.exe missing" }
+          if (Test-Path "dist\TokenTotals_QuietFireAI") { throw "Legacy package directory unexpectedly exists" }
+          Write-Host "PACKAGED_EXE=$root\TokenTotals.exe"
