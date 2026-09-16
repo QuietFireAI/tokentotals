@@ -1,0 +1,10 @@
+name: turnreceipt
+version: "0.1.0"
+description: "TokenTotals Turn Receipt integration for Hermes observer hooks."
+author: QuietFireAI
+hooks:
+  - pre_llm_call
+  - post_api_request
+  - api_request_error
+  - post_llm_call
+  - on_session_finalize

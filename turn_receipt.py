@@ -18,6 +18,10 @@ _COMPONENT_ALIGNED_COST_BASES = {
     "provider_registry_complete",
     "known_list_equivalent",
 }
+_COMPLETE_ESTIMATE_BASES = {
+    "provider_registry_complete",
+    "hermes_child_transaction_sum_complete",
+}
 
 
 def _estimate_indicator(cost):
@@ -25,13 +29,13 @@ def _estimate_indicator(cost):
     complete = bool(cost.get("complete", False))
     amount = cost.get("estimated_usd")
 
-    if basis == "provider_registry_complete" and complete:
+    if basis in _COMPLETE_ESTIMATE_BASES and complete:
         return {
-            "status": "provider_reconstruction",
+            "status": "provider_reconstruction" if basis == "provider_registry_complete" else "transaction_sum",
             "level": "normal",
             "label": "TokenTotals estimate",
             "message": (
-                "Calculated from the provider telemetry and TokenTotals pricing basis available for this turn. "
+                "Calculated deterministically from the telemetry and TokenTotals pricing basis available for this turn. "
                 "This is still an independent estimate, not the provider invoice."
             ),
         }

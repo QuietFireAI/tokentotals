@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 Write-Host "========================================="
-Write-Host " TokenTotals Windows Build               "
+Write-Host " TokenTotals Hermes Windows Build        "
 Write-Host "========================================="
 
 Write-Host "`n[1/3] Installing pinned build dependencies..."
@@ -24,8 +24,10 @@ python -m PyInstaller `
     --hidden-import "google.auth.credentials" `
     --hidden-import "tiktoken_ext" `
     --hidden-import "tiktoken_ext.openai_public" `
-    --hidden-import "external_turn_api" `
-    --hidden-import "external_turn_ingest" `
+    --hidden-import "hermes_evidence_store" `
+    --hidden-import "hermes_turn_ingest" `
+    --hidden-import "hermes_turn_api" `
+    --hidden-import "turn_receipt_terminal" `
     --hidden-import "uvicorn.logging" `
     --hidden-import "uvicorn.loops" `
     --hidden-import "uvicorn.loops.auto" `
@@ -36,7 +38,7 @@ python -m PyInstaller `
     --hidden-import "uvicorn.protocols.websockets.auto" `
     --hidden-import "uvicorn.lifespan" `
     --hidden-import "uvicorn.lifespan.on" `
-    app_gui_external.py
+    app_gui_hermes.py
 
 $exe = Join-Path $PSScriptRoot "dist\TokenTotals\TokenTotals.exe"
 if (-not (Test-Path $exe)) {

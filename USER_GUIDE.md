@@ -1,339 +1,329 @@
-# TokenTotals User Guide
+# TokenTotals — Hermes User Guide
 
-> **Turn Receipts for AI — explained without requiring a developer background.**
+> **Launch experience:** use Hermes normally; after a completed Hermes answer, TokenTotals places the matching Turn Receipt directly beneath it.
 
-TokenTotals is a local Windows application that sits between a supported AI client and the selected AI provider. It records privacy-limited usage telemetry for completed turns and turns that information into an independent **Turn Receipt**.
+**Current status:** pre-release candidate pending live user-zero proof.  
+**Primary launch surface:** Hermes Agent on Windows.  
+**Next planned surface:** OpenClaw.  
+**TokenTotals `/chat` and browser/frontier integrations:** engineering/reference/testing tracks only.
 
-A Turn Receipt is **not a provider invoice**. It is TokenTotals' record of what it could observe, derive, reconcile, and estimate for that turn. Provider billing/account records remain authoritative.
+## Why the launch moved to Hermes
 
----
+TokenTotals' initial testing concept used browser/frontier-model workflows. That work proved important pieces of the receipt machinery, but continuing to validate that path at the required proof standard became **too cost-intensive for the project on our end**.
 
-## 1. What TokenTotals does
+Rather than keep spending against an expensive test surface or lower the evidence bar, the launch path moved to Hermes, where stable turn/request identifiers and documented usage hooks give TokenTotals a cleaner integration target.
 
-When you send a supported AI request through TokenTotals, the basic flow is:
+The earlier browser/frontier work remains part of the project and may continue later. It is now a **testing/reference track**, not the launch dependency.
 
-```text
-Your question
-   ↓
-TokenTotals local proxy
-   ↓
-Selected AI provider/model
-   ↓
-Normal model answer
-   ↓
-Turn Receipt for that completed turn
-```
+## 1. What you are installing
 
-The model's answer is not rewritten to add receipt text. TokenTotals keeps the normal answer intact and associates a separate receipt with the completed turn.
+The Hermes launch uses two local pieces:
 
-In the built-in TokenTotals chat surface, that looks like:
+1. **TokenTotals for Windows** — the local receipt/accounting engine.
+2. **TurnReceipt Hermes plugin** — observes Hermes' documented turn/request lifecycle telemetry and binds one receipt to the completed Hermes turn.
+
+You continue using Hermes as Hermes. TokenTotals is not a replacement chat client.
 
 ```text
-Question
-Answer
+Hermes prompt
+   ↓
+Hermes model/tool work
+   ↓
+Hermes answer
+   ↓
 TURN RECEIPT
-
-Question
-Answer
-TURN RECEIPT
+   ↓
+TurnReceipt.com
 ```
 
-The deeper/expanded view can also show aggregate information for the current thread.
+The model does not write the receipt. TokenTotals calculates it from available usage evidence and its deterministic pricing/accounting logic. No second model call is required merely to calculate or render the receipt.
 
----
+## 2. Before you start
 
-## 2. Starting TokenTotals on Windows
+For the current pre-release candidate you need:
 
-1. Download the Windows ZIP from the TokenTotals GitHub release.
-2. Extract the ZIP to a folder of your choice.
-3. Run `TokenTotals.exe`.
-4. TokenTotals starts a local service on your own computer, normally beginning at:
+- Windows 10 or Windows 11;
+- a working Hermes installation and provider/model configuration;
+- the TokenTotals Hermes Windows candidate ZIP; and
+- the TurnReceipt Hermes plugin ZIP.
 
-   `http://127.0.0.1:8080`
+Hermes supports native Windows. A WSL install is not required for the CLI test path.
 
-   If that port is already occupied, TokenTotals checks ports `8080` through `8089` for an available local port.
-5. A TokenTotals tray icon appears in the Windows notification area.
+If Hermes is already installed and working, do not reinstall it just for TokenTotals.
 
-TokenTotals binds its local control surface to `127.0.0.1` (your own computer). Requests that you deliberately route through TokenTotals can still go from TokenTotals to the selected upstream AI provider.
+## 3. Start TokenTotals
 
----
+1. Extract the TokenTotals Hermes candidate ZIP into its own folder.
+2. Run `TokenTotals.exe`.
+3. If Windows SmartScreen appears for the unsigned pre-release candidate, record exactly what Windows shows before choosing whether to continue.
+4. Confirm the TokenTotals tray icon appears.
+5. Leave TokenTotals running while using Hermes.
 
-## 3. Opening the chat and dashboard
+TokenTotals runs its local service on loopback. It normally starts at `127.0.0.1:8080` and can use another port in the `8080-8089` range if needed.
 
-### Turn Receipt Chat
+You do **not** need to open TokenTotals `/chat` to use the Hermes integration.
 
-Open:
+## 4. Install the Hermes plugin
 
-`http://127.0.0.1:8080/chat`
+Hermes user plugins live under the active Hermes home in a `plugins` directory. On native Windows the normal Hermes home is under `%LOCALAPPDATA%\hermes`.
 
-Use the actual port shown by TokenTotals if it selected a different port.
-
-The chat surface lets you:
-
-- choose a model from the local TokenTotals model registry;
-- enter the provider API key needed for that model;
-- choose **Standard receipt** or **Expanded receipt**;
-- begin a new thread; and
-- send a message through TokenTotals.
-
-The API key entered on this page is kept in the page session for sending the request. TokenTotals does not write that API key into the Turn Receipt ledger.
-
-### Dashboard
-
-Open:
-
-`http://127.0.0.1:8080/dashboard`
-
-The dashboard is a deeper diagnostic/control surface. It is useful for local pacing, Turn Notices, current thread telemetry, and detailed accounting information.
-
-You can also double-click or use the TokenTotals tray icon to open the dashboard.
-
----
-
-## 4. Standard vs. Expanded receipts
-
-### Standard receipt
-
-Standard is the default compact display. It is intended to answer the immediate questions:
-
-- Which provider/model handled this turn?
-- How many input, cached-input, and output tokens were recorded when available?
-- What is TokenTotals' estimated cost for this turn?
-- What pricing/estimate status applies?
-- What is the receipt ID?
-
-### Expanded receipt
-
-Expanded shows the same canonical Turn Receipt with more detail. Depending on what the provider exposes, it can include:
-
-- observed vs. derived token values;
-- reasoning/thinking tokens;
-- cache write/create tokens;
-- tool-related usage;
-- residual/unclassified tokens;
-- reconciliation information;
-- component cost math and effective rates when reproducible;
-- requested/canonical/observed model identity;
-- estimate completeness and provenance; and
-- current aggregate information for the thread.
-
-Changing Standard/Expanded changes the **presentation**, not the underlying accounting. TokenTotals does not calculate two different receipts.
-
-Your receipt display preference is stored locally by the browser for the TokenTotals chat page.
-
----
-
-## 5. What the estimate labels mean
-
-TokenTotals deliberately shows uncertainty instead of hiding it.
-
-### `TokenTotals estimate`
-
-TokenTotals had enough provider telemetry and pricing information to perform its normal provider reconstruction for the turn.
-
-It is still an independent estimate, not the provider invoice.
-
-### `Fallback estimate`
-
-TokenTotals did not have enough telemetry for its normal reconstruction and used a secondary cost source.
-
-The fallback amount may be **higher or lower** than the provider's eventual invoice.
-
-### `List-equivalent estimate`
-
-TokenTotals could reconstruct a known public list-equivalent portion, but account-specific or unobservable adjustments may exist.
-
-### `Incomplete estimate`
-
-TokenTotals recorded an amount, but at least one pricing or telemetry dimension remains unresolved.
-
-### `Cost unavailable`
-
-TokenTotals does not have a defensible cost estimate for that turn.
-
-**Unavailable does not mean zero.** TokenTotals does not silently convert missing information into `$0.00`.
-
----
-
-## 6. Observed, derived, and unavailable
-
-Expanded receipts distinguish the basis of telemetry values.
-
-- **Observed** — reported by the provider/response telemetry available to TokenTotals.
-- **Derived** — calculated from other defensible observed values.
-- **Unavailable** — TokenTotals cannot establish the value from the information available to it.
-
-This distinction matters. A neat-looking zero can be more misleading than an honest blank/unavailable value.
-
----
-
-## 7. Thread totals
-
-Each Turn Receipt is bound to one completed turn by a stable TokenTotals receipt/turn ID.
-
-The deeper thread view can aggregate completed receipts for the conversation and report information such as:
-
-- number of completed turns;
-- cumulative estimated thread cost;
-- how many turns have usable cost estimates;
-- complete vs. partial cost coverage; and
-- model/provider mix and deeper telemetry where available.
-
-A thread aggregate is still based on TokenTotals estimates. It is not a provider account balance.
-
----
-
-## 8. Local pacing threshold
-
-TokenTotals includes an optional local pacing control. The default local threshold is currently `$10.00` per local daily state period unless the user changes the configuration.
-
-This threshold is **not** your provider's spending limit, account balance, credit balance, or authorization to spend.
-
-It only controls new requests that are routed through this TokenTotals process.
-
-### Tray colors
-
-- **Green** — below the configured local warning threshold.
-- **Yellow** — nearing the configured local pacing threshold.
-- **Red** — the TokenTotals local pacing lock is active.
-
-The default warning point is `75%` of the configured local pacing threshold.
-
-### `+$5 Local Threshold`
-
-The tray/dashboard quick-boost control raises the TokenTotals local pacing threshold by `$5.00`.
-
-It does **not** add money or credit to a provider account.
-
-### When the local pacing lock is active
-
-TokenTotals pauses new requests routed through this local proxy until the user acknowledges/unlocks it or changes the local threshold.
-
-It does not stop:
-
-- requests sent directly to a provider outside TokenTotals;
-- provider work that was already in flight; or
-- provider-account billing outside the TokenTotals proxy.
-
----
-
-## 9. Turn Notice
-
-Turn Notice is an optional per-turn local reminder.
-
-When enabled, you choose a positive dollar threshold. TokenTotals can then notify you when a turn estimate reaches the configured reminder level.
-
-Turn Notice is **not** a provider spending authorization, provider warning, or provider-account balance.
-
-If you do not want Turn Notice, leave it disabled or use the dashboard's **Disable** control.
-
----
-
-## 10. New Thread
-
-The **New thread** button in TokenTotals chat:
-
-- clears the visible TokenTotals chat transcript in that page;
-- starts a new local thread ID; and
-- starts a new thread aggregate for subsequent receipts.
-
-It does not erase previously written Turn Receipt ledger records.
-
----
-
-## 11. What TokenTotals stores locally
-
-TokenTotals keeps its local application files under:
+The final plugin folder must contain both:
 
 ```text
-%USERPROFILE%\.tokentotals
+plugin.yaml
+__init__.py
 ```
 
-Important files include local configuration/state and the append-only Turn Receipt ledger.
+and should be installed as the `turnreceipt` plugin directory under the active Hermes plugin path.
 
-The Turn Receipt ledger is intentionally privacy-limited. It is designed around usage/accounting telemetry rather than conversation content.
+If your plugin ZIP extracts into an extra wrapper directory, make sure the actual `turnreceipt` folder—not the wrapper ZIP folder—is what ends up in Hermes' `plugins` directory.
 
-TokenTotals does **not** intentionally put the following into the Turn Receipt ledger:
+## 5. Ask Hermes to validate the plugin
+
+Open a new PowerShell or Windows Terminal and run Hermes' own plugin doctor against the installed TurnReceipt plugin.
+
+Example shape:
+
+```powershell
+hermes plugins doctor "$env:LOCALAPPDATA\hermes\plugins\turnreceipt" --ci
+```
+
+If your Hermes home differs, use the path Hermes is actually using.
+
+### Expected result
+
+Plugin Doctor should finish successfully without registration errors.
+
+### If it fails
+
+Stop there. Save the entire output. Do not manually edit plugin Python files or install random dependencies to make the test pass.
+
+A failed Plugin Doctor run is a product/test failure to diagnose, not something the user is expected to repair.
+
+## 6. Enable TurnReceipt in Hermes
+
+Run:
+
+```powershell
+hermes plugins enable turnreceipt
+```
+
+Then verify it appears in Hermes' plugin listing:
+
+```powershell
+hermes plugins list
+```
+
+### Expected result
+
+`turnreceipt` is visible and enabled.
+
+If Hermes asks for explicit consent/activation, use the normal Hermes plugin workflow. TokenTotals does not bypass Hermes' plugin permission model.
+
+## 7. Run the real product test
+
+Start normal Hermes chat:
+
+```powershell
+hermes chat
+```
+
+Ask **any ordinary question you choose**. Do not use a canned TokenTotals phrase unless you want to.
+
+The integration is supposed to work for a normal Hermes turn, not a demo prompt.
+
+### The pass condition
+
+For the same turn you should see:
+
+```text
+[normal Hermes answer]
+
+TURN RECEIPT
+----------------------------------------
+Provider               ...
+Model                  ...
+Input tokens           ...
+Cached input           ... or Unavailable
+Output tokens          ...
+Turn estimate          ... or Unavailable
+...
+----------------------------------------
+TurnReceipt.com
+```
+
+The exact fields depend on what the Hermes/provider transaction exposes.
+
+**The receipt must appear directly after the matching Hermes answer.**
+
+A ledger entry somewhere else, a TokenTotals dashboard update, `/chat`, or a green CI run does not substitute for this behavior.
+
+## 8. Run three different turns
+
+After the first turn succeeds, run at least two more unrelated prompts.
+
+The goal is to verify that:
+
+- each Hermes answer receives its own receipt;
+- values can differ naturally from turn to turn;
+- receipt placement stays with the correct answer; and
+- a previous receipt is not reused or duplicated.
+
+There is no hard-wired test phrase or expected canned token/cost value.
+
+## 9. Test a multi-call/tool turn
+
+After simple turns work, ask Hermes to perform an ordinary task that causes a tool loop or more than one provider API request.
+
+The intended accounting model is:
+
+```text
+one human Hermes turn
+  ├─ provider request 1
+  ├─ provider request 2
+  └─ provider request 3
+        ↓
+one top-level Turn Receipt
+```
+
+TokenTotals prices successful child provider transactions individually when it has sufficient telemetry, then sums them into the top-level Hermes turn receipt.
+
+Failed/retried API attempts remain failure evidence; they do not become invented successful child charges.
+
+## 10. Standard and Expanded modes
+
+The default is **Standard**.
+
+Standard is the compact receipt intended to live directly beneath the answer.
+
+To request deeper terminal detail for development/testing, set:
+
+```powershell
+$env:HERMES_TURNRECEIPT_MODE = "expanded"
+```
+
+Start a new Hermes process after changing the environment variable.
+
+Expanded uses the same canonical receipt object. It can expose deeper usage/reconciliation information and the number/details of child API transactions where available.
+
+Switching display mode does not trigger another model call and does not recalculate the model answer.
+
+## 11. What the receipt labels mean
+
+**TokenTotals estimate** means TokenTotals had enough telemetry/pricing information for the applicable deterministic accounting path.
+
+**Incomplete / partial estimate** means some cost can be reconstructed but one or more dimensions remain unresolved.
+
+**Cost unavailable** means TokenTotals cannot establish a defensible amount for that turn.
+
+Unavailable is not zero.
+
+A Turn Receipt is an independent estimate. It is not the provider invoice, provider account balance, or provider spending authorization.
+
+## 12. Privacy boundary
+
+The Hermes plugin's TokenTotals accounting payload excludes:
 
 - prompt text;
-- model answer text;
-- provider API keys; or
-- hidden model reasoning.
+- assistant answer text;
+- conversation history;
+- tool arguments/results;
+- API keys;
+- cookies;
+- authorization headers; and
+- hidden reasoning content.
 
-The built-in chat page necessarily holds the current visible conversation in that browser page while you use it so it can send the conversational context on subsequent turns. That is separate from the Turn Receipt ledger.
+For exact answer-to-receipt placement, the current CLI adapter can hash the answer in memory and use that digest only as a short-lived binding key. The answer text itself is not sent to TokenTotals or written into the Hermes evidence store by this integration.
 
----
+TokenTotals' local application data remains under the user's TokenTotals data directory, normally `%USERPROFILE%\.tokentotals`.
 
-## 12. How to stop TokenTotals
+## 13. What to do when something fails
 
-### Stop it now
+For user-zero testing, use this rule:
 
-Use the TokenTotals tray icon and choose:
+> **First unexpected behavior: stop, preserve it, report it.**
 
-**Exit**
+Do not repair around the product by:
 
-That stops the TokenTotals desktop process and its local proxy.
+- editing plugin Python files;
+- pip-installing guessed dependencies into Hermes;
+- changing Hermes source;
+- copying receipts manually;
+- switching to TokenTotals `/chat` to claim success; or
+- inventing missing telemetry.
 
-**Closing the browser tab does not stop TokenTotals.** The tray process is the application.
+Useful evidence is:
 
-### Stop routing another app through TokenTotals
+- screenshot;
+- exact command entered;
+- complete error text;
+- whether TokenTotals was still running;
+- whether `turnreceipt` showed enabled; and
+- which Hermes/provider/model you were using.
 
-If you previously configured an IDE, script, or other AI client to use the TokenTotals localhost/base URL, restore that client's provider/base-URL configuration to the original provider setting.
+Failures are part of the validation record.
 
-TokenTotals cannot intercept calls that you do not route through it.
+## 14. Clean disable test
 
-### Remove the Windows ZIP application
+Disable the integration:
 
-The ZIP release is portable rather than a traditional system installer.
+```powershell
+hermes plugins disable turnreceipt
+```
 
-1. Exit TokenTotals from the tray.
-2. Delete the extracted TokenTotals application folder if you no longer want the executable.
+Start a fresh Hermes process and send a normal prompt.
 
-Your local TokenTotals history/settings under `%USERPROFILE%\.tokentotals` remain unless **you** choose to delete that folder as well.
+### Expected result
 
-Deleting that local data folder removes local TokenTotals records/settings stored there. Do this only if you no longer need those records.
+Hermes behaves normally and no Turn Receipt appears.
 
----
+This proves the integration is additive rather than required for Hermes to function.
 
-## 13. Common questions
+Re-enable afterward with:
 
-### Is the Turn Receipt my provider bill?
+```powershell
+hermes plugins enable turnreceipt
+```
 
-No. It is an independent TokenTotals usage estimate/evidence record. The provider's billing/account record remains authoritative.
+## 15. TokenTotals unavailable test
 
-### Why does my TokenTotals estimate differ from another tool?
+With the plugin enabled, stop TokenTotals and start a fresh Hermes session.
 
-Different tools may have different telemetry, pricing tables, timing, model mappings, account-specific information, or fallback behavior. TokenTotals is designed to expose its basis and uncertainty instead of hiding those differences.
+### Expected result
 
-### Why is a field unavailable instead of zero?
+Hermes should still answer normally. The receipt cannot settle because the local TokenTotals engine is unavailable, but the integration must not break the model answer.
 
-Because TokenTotals cannot prove it was zero. Missing telemetry and observed zero are not the same fact.
+Restart TokenTotals before continuing receipt tests.
 
-### Why does a receipt take a moment to appear?
+## 16. Browser/reference surfaces
 
-The model answer can finish before all post-response accounting has settled. TokenTotals binds the answer to a server-owned receipt ID and retrieves the settled receipt when it becomes available.
+TokenTotals still contains a built-in browser page at `/chat` and experimental browser-extension work.
 
-### Does Expanded mode cost more?
+For the Hermes launch these are **testing/reference surfaces only**.
 
-No additional model call is required merely to expand an already generated Turn Receipt. It is another rendering of the same local receipt data.
+`/chat` is useful for controlled testing of TokenTotals' accounting engine, renderer and provider plumbing. It is not where a Hermes user is expected to move their conversation.
 
-### Can I use TokenTotals without the built-in chat page?
+The browser/frontier-model path was the project's initial test concept. It remains useful research, but sustained validation there became too cost-intensive for the project's current resources. Work can continue later without blocking the Hermes launch.
 
-Yes. TokenTotals exposes an OpenAI-compatible local proxy and Turn Receipt APIs for compatible clients/integrations. The built-in `/chat` page is the simplest way to see the receipt-in-conversation experience.
+## 17. Launch acceptance
 
----
+The Hermes build can be promoted from candidate only after a real clean-machine run demonstrates all of the following:
 
-## 14. The simplest mental model
+- ordinary Hermes prompt;
+- ordinary Hermes answer unchanged;
+- matching Turn Receipt directly beneath that answer;
+- stable same-turn correlation;
+- no extra model generation for the receipt;
+- missing telemetry left unavailable;
+- simple and multi-call turns reconcile with Hermes observer evidence;
+- plugin disable leaves Hermes normal;
+- TokenTotals failure does not break Hermes; and
+- restart/new turns do not cross-bind receipts.
 
-Think of TokenTotals like a local receipt printer attached to AI usage:
+Until that behavior is demonstrated, this documentation calls the build a **candidate**, not a finished release.
 
-- the AI provider still provides the service;
-- TokenTotals observes the usage information legitimately available to it;
-- TokenTotals keeps the model answer separate;
-- TokenTotals calculates what it can defend;
-- TokenTotals labels what it cannot defend; and
-- after the turn, TokenTotals gives you the receipt.
+## 18. Next surface
 
-**Question → Answer → Turn Receipt → Repeat.**
+After the Hermes gate is proven, TokenTotals' next planned first-class integration is OpenClaw.
 
-For technical details, calculation rules, API routes, and implementation boundaries, see the repository README, `TURN_RECEIPTS.md`, and `CALCULATION_TRANSPARENCY.md`.
+OpenClaw will get its own adapter and validation evidence. It will not be documented as complete merely because the Hermes architecture exists.

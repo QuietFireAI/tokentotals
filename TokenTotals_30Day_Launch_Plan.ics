@@ -1,158 +1,78 @@
 BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//QuietFireAI//TokenTotals Launch Plan//EN
+PRODID:-//QuietFireAI//TokenTotals Hermes Launch Plan//EN
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
-X-WR-CALNAME:TokenTotals 30-Day Launch Plan
+X-WR-CALNAME:TokenTotals Hermes-First Launch Plan
 X-WR-TIMEZONE:America/New_York
 BEGIN:VEVENT
-UID:tokentotals-launch-day0-0@quietfireai.com
-DTSTAMP:20260915T230000Z
+UID:tokentotals-hermes-userzero@quietfireai.com
+DTSTAMP:20260916T230000Z
+DTSTART:20260917T090000
+DTEND:20260917T120000
+SUMMARY:TokenTotals Hermes: User-Zero Live Receipt Proof
+DESCRIPTION:Run TokenTotals with the TurnReceipt Hermes plugin in normal Hermes. Launch gate is a normal Hermes prompt and answer followed directly by the matching Turn Receipt. Preserve any failure. Browser/frontier testing is not the launch gate. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+END:VEVENT
+BEGIN:VEVENT
+UID:tokentotals-hermes-hardening@quietfireai.com
+DTSTAMP:20260916T230000Z
+DTSTART:20260918T090000
+DTEND:20260918T120000
+SUMMARY:TokenTotals Hermes: User-Zero Hardening and Recheck
+DESCRIPTION:Repair only demonstrated user-zero defects using diagnose - one repair - recheck - archive evidence. Re-run simple turn, multi-call turn, plugin-disable, and TokenTotals-unavailable tests. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+END:VEVENT
+BEGIN:VEVENT
+UID:tokentotals-hermes-releasegate@quietfireai.com
+DTSTAMP:20260916T230000Z
+DTSTART:20260919T100000
+DTEND:20260919T120000
+SUMMARY:TokenTotals Hermes: Release Gate
+DESCRIPTION:Promote only after live Hermes answer-to-receipt proof, Windows package proof, regression tests, and documentation reconciliation are all green. Do not substitute CI or TokenTotals slash-chat for the live gate. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+END:VEVENT
+BEGIN:VEVENT
+UID:tokentotals-hermes-demo@quietfireai.com
+DTSTAMP:20260916T230000Z
+DTSTART:20260920T100000
+DTEND:20260920T120000
+SUMMARY:TokenTotals Hermes: Record Real Launch Demo
+DESCRIPTION:Record a real Hermes session showing ordinary prompt, ordinary answer, and Turn Receipt directly below it. No canned or hard-wired demo path. Show Expanded detail only after the basic receipt is visibly settled. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+END:VEVENT
+BEGIN:VEVENT
+UID:tokentotals-hermes-publicdrop@quietfireai.com
+DTSTAMP:20260916T230000Z
 DTSTART:20260922T100000
 DTEND:20260922T120000
-SUMMARY:🛡️ TokenTotals Launch: Staging & 60s Demo Recording
-DESCRIPTION:Phase 1: Verify GitHub repo (github.com/QuietFireAI/tokentotals). Record 60-second screen capture of Cursor hitting the configured local pacing threshold, audio chime, and topmost 'I UNDERSTAND' local lockout modal.
+SUMMARY:TokenTotals Hermes: Public Drop
+DESCRIPTION:Publish the Hermes-first release only if the live acceptance gate is proven. Position TokenTotals as the local accounting engine and Turn Receipt integration for Hermes. State browser/frontier work as continuing testing/reference work. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
 STATUS:CONFIRMED
 TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
 END:VEVENT
 BEGIN:VEVENT
-UID:tokentotals-launch-day3-1@quietfireai.com
-DTSTAMP:20260915T230000Z
-DTSTART:20260925T080000
-DTEND:20260925T110000
-SUMMARY:🚀 TokenTotals: Hacker News 'Show HN' Launch
-DESCRIPTION:Phase 2: Post 'Show HN: TokenTotals - Local turn receipts and cost pacing for AI agents' at 8:00 AM ET. Monitor comments and engage with the community.
+UID:tokentotals-openclaw-start@quietfireai.com
+DTSTAMP:20260916T230000Z
+DTSTART:20260924T100000
+DTEND:20260924T120000
+SUMMARY:TokenTotals: Begin OpenClaw Integration
+DESCRIPTION:Start the next first-class adapter after Hermes proof. Test stable turn correlation, multi-call/tool loops, retries, subagents where exposed, and one top-level Turn Receipt with inspectable children. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
 STATUS:CONFIRMED
 TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
 END:VEVENT
 BEGIN:VEVENT
-UID:tokentotals-launch-day4-2@quietfireai.com
-DTSTAMP:20260915T230000Z
-DTSTART:20260926T110000
-DTEND:20260926T130000
-SUMMARY:💬 TokenTotals: Reddit Community Drop
-DESCRIPTION:Phase 2: Post tailored angles across subreddits:\n- r/Cursor & r/Windsurf (Local pacing threshold + turn telemetry)\n- r/LocalLLaMA (Local loopback control plane; permitted provider calls still egress upstream)\n- r/OpenAI (Why local turn-level cost telemetry matters between provider billing updates).
+UID:tokentotals-browser-revisit@quietfireai.com
+DTSTAMP:20260916T230000Z
+DTSTART:20261001T100000
+DTEND:20261001T110000
+SUMMARY:TokenTotals: Review Browser/Frontier Testing Track
+DESCRIPTION:Reassess browser/frontier integrations only after Hermes/OpenClaw evidence and available project resources justify renewed testing. Initial browser work remains preserved as testing/reference work; it is not a launch dependency. TokenTotals provides local turn receipts and cost pacing for AI agents. The local pacing threshold is local admission control, not provider-account clearance; permitted remote-provider requests still egress upstream.
 STATUS:CONFIRMED
 TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day5-3@quietfireai.com
-DTSTAMP:20260915T230000Z
-DTSTART:20260927T120000
-DTEND:20260927T130000
-SUMMARY:🐦 TokenTotals: X/Twitter Launch Thread
-DESCRIPTION:Phase 2: Publish 4-tweet thread with the 60s demo video, GitHub repo link, ORCID attribution, and Buy Me a Coffee link.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day7-4@quietfireai.com
-DTSTAMP:20260915T230000Z
-DTSTART:20260929T090000
-DTEND:20260929T110000
-SUMMARY:✍️ TokenTotals: HackerNoon & Medium Article Drop
-DESCRIPTION:Phase 3: Publish deep dive: 'The $400 Morning Surprise: Why Autonomous AI Workflows Need Local Cost Telemetry and Pacing' on HackerNoon and Medium.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day10-5@quietfireai.com
-DTSTAMP:20260915T230000Z
-DTSTART:20261002T140000
-DTEND:20261002T160000
-SUMMARY:📰 TokenTotals: 404 Media & Tech Press Pitch
-DESCRIPTION:Phase 3: Send personalized pitches to independent tech journalists (404 Media, Ars Technica) highlighting an indie engineer building transparent local AI cost telemetry and pacing tooling.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day15-6@quietfireai.com
-DTSTAMP:20260915T230000Z
-DTSTART:20261007T030000
-DTEND:20261007T070000
-SUMMARY:🏆 TokenTotals: Product Hunt Launch Day
-DESCRIPTION:Phase 4: Launch on Product Hunt at 12:01 AM PT. Engage with hunters, answer questions in comments, and share Product Hunt link on socials.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day17-7@quietfireai.com
-DTSTAMP:20260915T230000Z
-DTSTART:20261009T100000
-DTEND:20261009T120000
-SUMMARY:📬 TokenTotals: AI Newsletter Submissions
-DESCRIPTION:Phase 4: Submit to top AI newsletters:\n- Ben's Bites\n- TLDR AI\n- The Rundown\n- List on There's An AI For That (TAAFT) & AlternativeTo.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day22-8@quietfireai.com
-DTSTAMP:20260915T230000Z
-DTSTART:20261014T100000
-DTEND:20261014T120000
-SUMMARY:📣 TokenTotals: Regional Press & QuietFire Bridge
-DESCRIPTION:Phase 5: Distribute regional press release highlighting local software innovation. Publish announcement on how TokenTotals integrates as the local cost-telemetry and pacing layer for TelsonBase and DispatcherAgents.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
-END:VEVENT
-BEGIN:VEVENT
-UID:tokentotals-launch-day29-9@quietfireai.com
-DTSTAMP:20260915T230000Z
-DTSTART:20261021T150000
-DTEND:20261021T170000
-SUMMARY:📈 TokenTotals: 30-Day Retrospective & Community Review
-DESCRIPTION:Phase 5: Audit GitHub stars, forks, and issues. Review community pull requests and plan the next roadmap from verified runtime behavior and community feedback.
-STATUS:CONFIRMED
-TRANSP:OPAQUE
-BEGIN:VALARM
-ACTION:DISPLAY
-DESCRIPTION:Reminder: TokenTotals Launch Milestone
-TRIGGER:-PT30M
-END:VALARM
 END:VEVENT
 END:VCALENDAR

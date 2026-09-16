@@ -34,7 +34,7 @@ def _resource_path(relative_path: str) -> Path:
 
 
 def run_packaging_smoke_test() -> None:
-    """Validate bundled assets, provider registries, and FastAPI routes."""
+    """Validate bundled assets, provider registries, FastAPI routes, and Hermes modules."""
     try:
         _trace("entry")
 
@@ -87,6 +87,22 @@ def run_packaging_smoke_test() -> None:
                 raise RuntimeError(f"Packaged FastAPI route missing: {required}")
         _trace("proxy_routes_ok")
         _trace("turn_receipt_surfaces_ok")
+
+        _trace("hermes_import_start")
+        import hermes_evidence_store
+        import hermes_turn_ingest
+        import turn_receipt_terminal
+        from hermes_turn_api import router as hermes_router
+        _ = (hermes_evidence_store, hermes_turn_ingest, turn_receipt_terminal)
+        hermes_routes = {getattr(route, "path", None) for route in hermes_router.routes}
+        for required in (
+            "/api/hermes/turn",
+            "/api/hermes/turn/{receipt_id}/receipt.txt",
+            "/api/hermes/turn/{receipt_id}/evidence",
+        ):
+            if required not in hermes_routes:
+                raise RuntimeError(f"Packaged Hermes route missing: {required}")
+        _trace("hermes_routes_ok")
         _trace("complete")
     except BaseException as exc:
         try:
