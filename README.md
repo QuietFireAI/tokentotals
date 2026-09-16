@@ -7,8 +7,14 @@
 [![Local Control Plane](https://img.shields.io/badge/Security-Local%20Control%20Plane-brightgreen.svg)]()
 [![Desktop](https://img.shields.io/badge/Desktop-Windows-lightgrey.svg)]()
 
+🌐 **Product:** [TokenTotals.com](https://tokentotals.com)  
+🧾 **Turn Receipt reference:** [TurnReceipts.com](https://turnreceipts.com)
+
 > [!IMPORTANT]
 > **Operational Scope & Liability Disclaimer:** TokenTotals is an independent developer cost calculator, real-time telemetry estimator, and local notification daemon. It calculates estimated spend from available telemetry, provider-published pricing references, and known provider-specific billing rules. TokenTotals is **not a billing mirror**, does **not** guarantee invoice-exact third-party vendor billing alignment, and does not guarantee absolute network-level traffic blocking under all operating system configurations. Users remain responsible for monitoring their direct cloud provider accounts and final provider invoices.
+
+> [!NOTE]
+> **Turn Receipt** is the term TokenTotals uses for its inspectable per-turn evidence record: what the provider exposed, what TokenTotals derived, what remained unavailable, how the turn reconciled, and which pricing basis/arithmetic produced the estimate. TokenTotals formalizes that project definition in [`TURN_RECEIPTS.md`](TURN_RECEIPTS.md).
 
 ---
 
@@ -46,6 +52,7 @@ That last percentage describes **token-classification coverage, not invoice accu
 
 The full proof sheet documents both **metrics calculated today** and **additional metrics already calculable from the current local ledger but intentionally not surfaced yet**, with prerequisites, formulas, coverage rules, and explicit boundaries for what TokenTotals will not claim.
 
+➡️ **[Read the Turn Receipt definition →](TURN_RECEIPTS.md)**  
 ➡️ **[Open the full Calculation Transparency proof sheet →](CALCULATION_TRANSPARENCY.md)**  
 ➡️ **[Challenge or improve a formula →](CONTRIBUTING.md)**  
 ➡️ **[Inspect verification receipts—including failures →](archive/verification-receipts/)**
@@ -312,6 +319,8 @@ We encourage developers, researchers, and community builders to:
 * **Craft your own telemetry dashboards** and share your widgets with the community.
 * **Submit PRs** to expand provider support, telemetry normalization, pricing mechanics, and local pacing triggers.
 
+The **Turn Receipt** definition is intentionally documented in the open at [`TURN_RECEIPTS.md`](TURN_RECEIPTS.md). Implementations can differ; contributions should keep the evidence semantics explicit enough that a receipt still distinguishes observed, derived, and unavailable information.
+
 ---
 
 ## ⚖️ Operational Scope & Billing Disclaimer
@@ -378,7 +387,11 @@ Potential use cases include:
 ### Commercial, Licensing & Acquisition Inquiries
 TokenTotals is free and open-source under GPLv3. Organizations requiring different licensing, support, documentation, partnership discussions, or acquisition conversations can contact QuietFireAI.
 
-📧 **Contact:** support@quietfireAI.com  
+🌐 **TokenTotals:** https://tokentotals.com  
+🧾 **Turn Receipts:** https://turnreceipts.com  
+📧 **TokenTotals product support:** support@tokentotals.com  
+📧 **Turn Receipt / documentation:** support@turnreceipts.com  
+📧 **QuietFireAI general contact:** support@quietfireAI.com  
 🔗 **ORCID:** [0009-0000-1375-1725](https://orcid.org/0009-0000-1375-1725)
 
 ## 📜 License & Trust
