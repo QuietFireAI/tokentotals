@@ -19,6 +19,7 @@ import turn_ledger
 import telemetry_view
 import turn_notice
 import turn_receipt
+import turn_receipt_renderer
 from openai_pricing import (
     calculate_openai_response_cost,
     estimate_openai_input_cost,
@@ -486,6 +487,40 @@ async def get_turn_receipt_by_id(turn_id: str):
     if receipt is None:
         raise HTTPException(status_code=404, detail=f"No TokenTotals Turn Receipt exists for turn '{key}'.")
     return receipt
+
+
+@app.get("/api/turn-receipt/{turn_id}/render", response_class=HTMLResponse)
+async def render_turn_receipt(turn_id: str, mode: str = "standard"):
+    key = str(turn_id).strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="turn_id must be non-empty")
+
+    selected_mode = str(mode or "standard").strip().lower()
+    if selected_mode not in turn_receipt_renderer.VALID_MODES:
+        raise HTTPException(status_code=400, detail="mode must be 'standard' or 'expanded'")
+
+    try:
+        receipt = turn_receipt.by_id(key)
+    except turn_ledger.LedgerCorruptionError as exc:
+        raise HTTPException(status_code=500, detail=f"TokenTotals turn ledger is corrupt: {exc}")
+    if receipt is None:
+        raise HTTPException(status_code=404, detail=f"No TokenTotals Turn Receipt exists for turn '{key}'.")
+
+    thread_view = None
+    if selected_mode == "expanded":
+        thread_id = str(((receipt.get("turn") or {}).get("thread_id")) or "").strip()
+        if thread_id:
+            try:
+                thread_view = telemetry_view.thread_view(thread_id)
+            except turn_ledger.LedgerCorruptionError as exc:
+                raise HTTPException(status_code=500, detail=f"TokenTotals turn ledger is corrupt: {exc}")
+
+    html = turn_receipt_renderer.render_html(
+        receipt,
+        mode=selected_mode,
+        thread_view=thread_view,
+    )
+    return HTMLResponse(content=html)
 
 
 @app.get("/api/turn-notice")
