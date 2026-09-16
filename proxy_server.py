@@ -20,6 +20,7 @@ import telemetry_view
 import turn_notice
 import turn_receipt
 import turn_receipt_renderer
+import turn_receipt_chat_surface
 from openai_pricing import (
     calculate_openai_response_cost,
     estimate_openai_input_cost,
@@ -594,6 +595,12 @@ async def api_unlock():
 @app.get("/dashboard.html", response_class=HTMLResponse)
 async def serve_dashboard():
     return HTMLResponse(content=DASHBOARD_HTML)
+
+
+@app.get("/chat", response_class=HTMLResponse)
+@app.get("/chat/", response_class=HTMLResponse)
+async def serve_turn_receipt_chat():
+    return HTMLResponse(content=turn_receipt_chat_surface.CHAT_HTML)
 
 
 @app.post("/v1/chat/completions")
