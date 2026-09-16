@@ -11,14 +11,17 @@
     "https://ai.google.dev/api/generate-content",
     "https://ai.google.dev/gemini-api/docs/priority-inference",
     "https://ai.google.dev/gemini-api/docs/flex-inference",
-    "https://ai.google.dev/gemini-api/docs/google-search"
+    "https://ai.google.dev/gemini-api/docs/google-search",
+    "https://ai.google.dev/gemini-api/docs/maps-grounding",
+    "https://ai.google.dev/gemini-api/docs/tool-combination"
   ],
   "tool_pricing": {
-    "gemini_3_search_request_usd": 0.014,
+    "gemini_3_search_query_usd": 0.014,
     "gemini_2_5_search_grounded_prompt_usd": 0.035,
-    "maps_grounded_prompt_usd": 0.025,
+    "gemini_3_maps_search_query_usd": 0.014,
+    "gemini_2_5_maps_grounded_prompt_usd": 0.025,
     "file_search_embedding_per_1m_tokens_usd": 0.15,
-    "free_allowance_note": "Search and Maps include account/project free allowances. TokenTotals cannot infer remaining allowance from a single response, so detected tool activity is list-equivalent and incomplete unless allowance state is supplied externally."
+    "free_allowance_note": "Search and Maps include account/project free allowances. TokenTotals cannot infer remaining allowance from a single response. Gemini 3 Search and Maps are billed per model-executed search query; Gemini 2.5 and older grounding is billed per successful grounded prompt. If the exact Gemini 3 query count is not observable, TokenTotals must not treat one model request as one billable query."
   },
   "models": {
     "gemini-3.8-flash": {
