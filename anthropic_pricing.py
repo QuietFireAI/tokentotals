@@ -50,7 +50,7 @@ def resolve_anthropic_model(model_id):
             result = dict(record)
             result["canonical_model_id"] = canonical
             result["requested_model_id"] = model_id
-            result["verified_at"] = registry.get("verified_at")
+            result["verified_at"] = record.get("verified_at") or registry.get("verified_at")
             return result
     return None
 
@@ -273,6 +273,21 @@ def calculate_anthropic_cost(
     else:
         rates = record["rates"]
 
+    long_context = record.get("long_context")
+    long_context_applied = False
+    if long_context:
+        threshold = int(long_context.get("threshold_prompt_tokens") or 0)
+        if threshold and normalized["total_input_tokens"] > threshold:
+            if speed == "fast":
+                complete = False
+                notes.append("Long-context pricing with fast mode is not registered.")
+            else:
+                rates = long_context["rates"]
+                long_context_applied = True
+                notes.append(
+                    f"Prompt exceeded {threshold:,} tokens (input + cache write + cache read); long-context rates applied."
+                )
+
     geo = normalized["inference_geo"] or inference_geo_hint
     geo_multiplier = 1.0
     if record.get("supports_inference_geo"):
@@ -356,6 +371,7 @@ def calculate_anthropic_cost(
         "speed": speed,
         "inference_geo": geo,
         "geo_multiplier": geo_multiplier,
+        "long_context_applied": long_context_applied,
         "processing_multiplier": mode_multiplier,
         "components_usd": components,
         "known_list_equivalent_usd": known_total,

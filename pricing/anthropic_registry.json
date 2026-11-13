@@ -20,16 +20,104 @@
     "priority_tier": "Priority Tier is contractual/capacity based. A Priority-tier response is not treated as invoice-exact from public list rates.",
     "inference_geo": "Claude 4.6 and later first-party models apply a 1.1x multiplier when inference_geo is us. Response usage is preferred over request assumptions.",
     "batch": "Batch processing applies a 50% discount to token pricing. Fast mode is not available with Batch.",
-    "tools": "Web search has a separate per-request charge. Web fetch has no additional charge beyond token usage. Other tool/session SKUs require their own meters."
+    "tools": "Web search has a separate per-request charge. Web fetch has no additional charge beyond token usage. Other tool/session SKUs require their own meters.",
+    "2026-11-13_addition": "Added claude-fable-5-2, claude-opus-5-5, claude-sonnet-5-5 and claude-haiku-5-5 from the official pricing page on 2026-11-13 (per-model verified_at). Fast-mode cache-write/cache-read rates are not published there, so they are not registered; fast turns with cache activity are marked incomplete. Other models keep the registry-level 2026-09-15 verification."
   },
   "tool_rates": {
     "web_search_request_usd": 0.01,
     "web_fetch_request_usd": 0.0
   },
   "models": {
+    "claude-fable-5-2": {
+      "aliases": [],
+      "rates": {
+        "base_input": 8.0,
+        "cache_write_5m": 10.0,
+        "cache_write_1h": 16.0,
+        "cache_read": 0.2,
+        "output": 40.0
+      },
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": {
+        "base_input": 16.0,
+        "output": 80.0
+      },
+      "limited_availability": false,
+      "verified_at": "2026-11-13"
+    },
+    "claude-opus-5-5": {
+      "aliases": [],
+      "rates": {
+        "base_input": 4.0,
+        "cache_write_5m": 5.0,
+        "cache_write_1h": 8.0,
+        "cache_read": 0.2,
+        "output": 20.0
+      },
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": {
+        "base_input": 8.0,
+        "output": 40.0
+      },
+      "limited_availability": false,
+      "verified_at": "2026-11-13"
+    },
+    "claude-sonnet-5-5": {
+      "aliases": [],
+      "rates": {
+        "base_input": 2.0,
+        "cache_write_5m": 2.5,
+        "cache_write_1h": 4.0,
+        "cache_read": 0.1,
+        "output": 10.0
+      },
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": false,
+      "verified_at": "2026-11-13"
+    },
+    "claude-haiku-5-5": {
+      "aliases": [],
+      "rates": {
+        "base_input": 0.1,
+        "cache_write_5m": 0.125,
+        "cache_write_1h": 0.2,
+        "cache_read": 0.01,
+        "output": 0.5
+      },
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": false,
+      "long_context": {
+        "threshold_prompt_tokens": 100000,
+        "rates": {
+          "base_input": 0.5,
+          "cache_write_5m": 0.625,
+          "cache_write_1h": 1.0,
+          "cache_read": 0.05,
+          "output": 2.5
+        },
+        "basis": "Pricing page lists higher rates 'for prompts over 100,000 tokens'. TokenTotals treats prompt size as input + cache-write + cache-read tokens of the request."
+      },
+      "verified_at": "2026-11-13"
+    },
     "claude-fable-5-1": {
       "aliases": [],
-      "rates": {"base_input": 10.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0, "cache_read": 0.25, "output": 50.0},
+      "rates": {
+        "base_input": 10.0,
+        "cache_write_5m": 12.5,
+        "cache_write_1h": 20.0,
+        "cache_read": 0.25,
+        "output": 50.0
+      },
       "supports_inference_geo": true,
       "inference_geo_us_multiplier": 1.1,
       "batch_multiplier": 0.5,
@@ -38,7 +126,13 @@
     },
     "claude-mythos-5-1": {
       "aliases": [],
-      "rates": {"base_input": 10.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0, "cache_read": 0.25, "output": 50.0},
+      "rates": {
+        "base_input": 10.0,
+        "cache_write_5m": 12.5,
+        "cache_write_1h": 20.0,
+        "cache_read": 0.25,
+        "output": 50.0
+      },
       "supports_inference_geo": true,
       "inference_geo_us_multiplier": 1.1,
       "batch_multiplier": 0.5,
@@ -47,7 +141,13 @@
     },
     "claude-fable-5": {
       "aliases": [],
-      "rates": {"base_input": 10.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0, "cache_read": 1.0, "output": 50.0},
+      "rates": {
+        "base_input": 10.0,
+        "cache_write_5m": 12.5,
+        "cache_write_1h": 20.0,
+        "cache_read": 1.0,
+        "output": 50.0
+      },
       "supports_inference_geo": true,
       "inference_geo_us_multiplier": 1.1,
       "batch_multiplier": 0.5,
@@ -56,7 +156,13 @@
     },
     "claude-mythos-5": {
       "aliases": [],
-      "rates": {"base_input": 10.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0, "cache_read": 1.0, "output": 50.0},
+      "rates": {
+        "base_input": 10.0,
+        "cache_write_5m": 12.5,
+        "cache_write_1h": 20.0,
+        "cache_read": 1.0,
+        "output": 50.0
+      },
       "supports_inference_geo": true,
       "inference_geo_us_multiplier": 1.1,
       "batch_multiplier": 0.5,
@@ -65,25 +171,55 @@
     },
     "claude-opus-5": {
       "aliases": [],
-      "rates": {"base_input": 5.0, "cache_write_5m": 6.25, "cache_write_1h": 10.0, "cache_read": 0.5, "output": 25.0},
+      "rates": {
+        "base_input": 5.0,
+        "cache_write_5m": 6.25,
+        "cache_write_1h": 10.0,
+        "cache_read": 0.5,
+        "output": 25.0
+      },
       "supports_inference_geo": true,
       "inference_geo_us_multiplier": 1.1,
       "batch_multiplier": 0.5,
-      "fast_rates": {"base_input": 10.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0, "cache_read": 1.0, "output": 50.0},
+      "fast_rates": {
+        "base_input": 10.0,
+        "cache_write_5m": 12.5,
+        "cache_write_1h": 20.0,
+        "cache_read": 1.0,
+        "output": 50.0
+      },
       "limited_availability": false
     },
     "claude-opus-4-8": {
       "aliases": [],
-      "rates": {"base_input": 5.0, "cache_write_5m": 6.25, "cache_write_1h": 10.0, "cache_read": 0.5, "output": 25.0},
+      "rates": {
+        "base_input": 5.0,
+        "cache_write_5m": 6.25,
+        "cache_write_1h": 10.0,
+        "cache_read": 0.5,
+        "output": 25.0
+      },
       "supports_inference_geo": true,
       "inference_geo_us_multiplier": 1.1,
       "batch_multiplier": 0.5,
-      "fast_rates": {"base_input": 10.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0, "cache_read": 1.0, "output": 50.0},
+      "fast_rates": {
+        "base_input": 10.0,
+        "cache_write_5m": 12.5,
+        "cache_write_1h": 20.0,
+        "cache_read": 1.0,
+        "output": 50.0
+      },
       "limited_availability": false
     },
     "claude-opus-4-7": {
       "aliases": [],
-      "rates": {"base_input": 5.0, "cache_write_5m": 6.25, "cache_write_1h": 10.0, "cache_read": 0.5, "output": 25.0},
+      "rates": {
+        "base_input": 5.0,
+        "cache_write_5m": 6.25,
+        "cache_write_1h": 10.0,
+        "cache_read": 0.5,
+        "output": 25.0
+      },
       "supports_inference_geo": true,
       "inference_geo_us_multiplier": 1.1,
       "batch_multiplier": 0.5,
@@ -92,7 +228,13 @@
     },
     "claude-opus-4-6": {
       "aliases": [],
-      "rates": {"base_input": 5.0, "cache_write_5m": 6.25, "cache_write_1h": 10.0, "cache_read": 0.5, "output": 25.0},
+      "rates": {
+        "base_input": 5.0,
+        "cache_write_5m": 6.25,
+        "cache_write_1h": 10.0,
+        "cache_read": 0.5,
+        "output": 25.0
+      },
       "supports_inference_geo": true,
       "inference_geo_us_multiplier": 1.1,
       "batch_multiplier": 0.5,
@@ -100,8 +242,16 @@
       "limited_availability": false
     },
     "claude-opus-4-5-20251101": {
-      "aliases": ["claude-opus-4-5"],
-      "rates": {"base_input": 5.0, "cache_write_5m": 6.25, "cache_write_1h": 10.0, "cache_read": 0.5, "output": 25.0},
+      "aliases": [
+        "claude-opus-4-5"
+      ],
+      "rates": {
+        "base_input": 5.0,
+        "cache_write_5m": 6.25,
+        "cache_write_1h": 10.0,
+        "cache_read": 0.5,
+        "output": 25.0
+      },
       "supports_inference_geo": false,
       "inference_geo_us_multiplier": null,
       "batch_multiplier": 0.5,
@@ -110,7 +260,13 @@
     },
     "claude-sonnet-5": {
       "aliases": [],
-      "rates": {"base_input": 2.0, "cache_write_5m": 2.5, "cache_write_1h": 4.0, "cache_read": 0.2, "output": 10.0},
+      "rates": {
+        "base_input": 2.0,
+        "cache_write_5m": 2.5,
+        "cache_write_1h": 4.0,
+        "cache_read": 0.2,
+        "output": 10.0
+      },
       "supports_inference_geo": true,
       "inference_geo_us_multiplier": 1.1,
       "batch_multiplier": 0.5,
@@ -119,7 +275,13 @@
     },
     "claude-sonnet-4-6": {
       "aliases": [],
-      "rates": {"base_input": 3.0, "cache_write_5m": 3.75, "cache_write_1h": 6.0, "cache_read": 0.3, "output": 15.0},
+      "rates": {
+        "base_input": 3.0,
+        "cache_write_5m": 3.75,
+        "cache_write_1h": 6.0,
+        "cache_read": 0.3,
+        "output": 15.0
+      },
       "supports_inference_geo": true,
       "inference_geo_us_multiplier": 1.1,
       "batch_multiplier": 0.5,
@@ -127,8 +289,16 @@
       "limited_availability": false
     },
     "claude-sonnet-4-5-20250929": {
-      "aliases": ["claude-sonnet-4-5"],
-      "rates": {"base_input": 3.0, "cache_write_5m": 3.75, "cache_write_1h": 6.0, "cache_read": 0.3, "output": 15.0},
+      "aliases": [
+        "claude-sonnet-4-5"
+      ],
+      "rates": {
+        "base_input": 3.0,
+        "cache_write_5m": 3.75,
+        "cache_write_1h": 6.0,
+        "cache_read": 0.3,
+        "output": 15.0
+      },
       "supports_inference_geo": false,
       "inference_geo_us_multiplier": null,
       "batch_multiplier": 0.5,
@@ -136,8 +306,16 @@
       "limited_availability": false
     },
     "claude-haiku-4-5-20251001": {
-      "aliases": ["claude-haiku-4-5"],
-      "rates": {"base_input": 1.0, "cache_write_5m": 1.25, "cache_write_1h": 2.0, "cache_read": 0.1, "output": 5.0},
+      "aliases": [
+        "claude-haiku-4-5"
+      ],
+      "rates": {
+        "base_input": 1.0,
+        "cache_write_5m": 1.25,
+        "cache_write_1h": 2.0,
+        "cache_read": 0.1,
+        "output": 5.0
+      },
       "supports_inference_geo": false,
       "inference_geo_us_multiplier": null,
       "batch_multiplier": 0.5,
