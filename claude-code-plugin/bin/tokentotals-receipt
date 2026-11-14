@@ -1,0 +1,2 @@
+#!/bin/sh
+exec sh "$(cd "$(dirname "$0")" && pwd)/tokentotals-run" tt_receipt.py "$@"

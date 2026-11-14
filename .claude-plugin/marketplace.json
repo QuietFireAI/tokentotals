@@ -1,0 +1,17 @@
+{
+  "name": "tokentotals",
+  "owner": {
+    "name": "QuietFireAI"
+  },
+  "metadata": {
+    "description": "TokenTotals Turn Receipts for Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "tokentotals",
+      "source": "./claude-code-plugin",
+      "description": "Turn Receipts for Claude Code: per-turn tokens and list-price cost from Claude Code's own usage telemetry.",
+      "version": "0.1.0"
+    }
+  ]
+}

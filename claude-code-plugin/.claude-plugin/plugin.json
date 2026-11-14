@@ -1,0 +1,10 @@
+{
+  "name": "tokentotals",
+  "version": "0.1.0",
+  "description": "Turn Receipts for Claude Code: a per-turn token and list-price cost receipt built from Claude Code's own usage telemetry, with the arithmetic shown.",
+  "author": { "name": "QuietFireAI" },
+  "homepage": "https://tokentotals.com",
+  "repository": "https://github.com/QuietFireAI/tokentotals",
+  "license": "GPL-3.0-only",
+  "keywords": ["cost", "tokens", "usage", "receipts", "telemetry"]
+}

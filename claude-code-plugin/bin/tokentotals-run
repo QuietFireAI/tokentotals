@@ -1,0 +1,15 @@
+#!/bin/sh
+# Run a TokenTotals script with whichever Python 3 is installed.
+# Usage: tokentotals-run <script.py> [args...]
+here="$(cd "$(dirname "$0")" && pwd)"
+script="$here/../scripts/$1"; shift
+for py in python3 python py; do
+  if command -v "$py" >/dev/null 2>&1; then
+    if [ "$py" = "py" ]; then exec py -3 "$script" "$@"; fi
+    if "$py" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1; then
+      exec "$py" "$script" "$@"
+    fi
+  fi
+done
+echo "TokenTotals needs Python 3.9 or newer on PATH." >&2
+exit 0

@@ -1,0 +1,16 @@
+{
+  "description": "TokenTotals: write a Turn Receipt when each Claude Code turn ends",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/bin/tokentotals-run\" tt_stop_hook.py",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
