@@ -367,5 +367,34 @@ class GooglePricingTests(unittest.TestCase):
         self.assertAlmostEqual(result["total_cost_usd"], 0.00054)
 
 
+class GoogleRegistryRateTests(unittest.TestCase):
+    def test_35_flash_lite_batch_cached_input_rate(self):
+        # aistudio.google.com/docs/pricing (read 2026-11-18): Batch context caching $0.015,
+        # Flex context caching $0.02.
+        import json
+        from pathlib import Path
+
+        path = Path(__file__).resolve().parents[1] / "pricing" / "google_registry.json"
+        registry = json.loads(path.read_text(encoding="utf-8"))
+        found = []
+
+        def walk(node, inside=False):
+            if isinstance(node, dict):
+                for key, value in node.items():
+                    here = inside or key == "gemini-3.5-flash-lite"
+                    if here and key == "modes":
+                        found.append(value)
+                    walk(value, here)
+            elif isinstance(node, list):
+                for item in node:
+                    walk(item, inside)
+
+        walk(registry)
+        self.assertTrue(found)
+        for modes in found:
+            self.assertEqual(modes["batch"]["cached_input"]["default"], 0.015)
+            self.assertEqual(modes["flex"]["cached_input"]["default"], 0.02)
+
+
 if __name__ == "__main__":
     unittest.main()

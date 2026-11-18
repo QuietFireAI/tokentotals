@@ -273,6 +273,22 @@ def calculate_anthropic_cost(
     else:
         rates = record["rates"]
 
+    # Prompt-length pricing (Claude Haiku 5.5): a request whose prompt is over the
+    # threshold pays the higher rates for every token category. Prompt length
+    # counts all input tokens, including cache reads and cache writes.
+    long_context_applied = False
+    long_rules = record.get("long_context")
+    if long_rules and speed != "fast":
+        prompt_tokens = (
+            normalized["input_tokens"]
+            + normalized["cache_write_5m_tokens"]
+            + normalized["cache_write_1h_tokens"]
+            + normalized["cache_read_input_tokens"]
+        )
+        if prompt_tokens > int(long_rules["threshold_prompt_tokens"]):
+            rates = long_rules["rates"]
+            long_context_applied = True
+
     geo = normalized["inference_geo"] or inference_geo_hint
     geo_multiplier = 1.0
     if record.get("supports_inference_geo"):
@@ -354,6 +370,7 @@ def calculate_anthropic_cost(
         "processing_mode": mode,
         "service_tier": actual_tier or requested_tier or "unspecified",
         "speed": speed,
+        "long_context_applied": long_context_applied,
         "inference_geo": geo,
         "geo_multiplier": geo_multiplier,
         "processing_multiplier": mode_multiplier,

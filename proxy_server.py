@@ -141,6 +141,9 @@ def anthropic_preflight_input_estimate(model_id, estimated_tokens, payload):
             return None
     elif speed == "standard":
         rates = record.get("rates") or {}
+        long_rules = record.get("long_context")
+        if long_rules and max(0, estimated_tokens) > int(long_rules["threshold_prompt_tokens"]):
+            rates = long_rules["rates"]
     else:
         return None
 
