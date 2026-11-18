@@ -49,7 +49,6 @@ Provider invoices and authoritative account records remain the final billing aut
 Turn Receipt definition and terminology:
 
 - `TURN_RECEIPTS.md`
-- https://turnreceipts.com
 
 Calculation documentation:
 
@@ -84,4 +83,4 @@ Receipts intentionally preserve failed tests, stale assumptions, and repaired de
 
 Keep changes narrow when possible. For a calculation change, update the implementation, its regression test, and the relevant documentation together. Do not rewrite historical verification receipts to make an earlier result look better; add a new receipt or follow-up evidence instead.
 
-For terminology/documentation questions, contact `support@turnreceipts.com`. For TokenTotals product support, use `support@tokentotals.com`. QuietFireAI general contact remains `support@quietfireAI.com`.
+For terminology, documentation or TokenTotals product support, contact `support@tokentotals.com`. QuietFireAI general contact remains `support@quietfireAI.com`.

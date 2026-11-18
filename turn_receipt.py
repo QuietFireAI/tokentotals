@@ -201,5 +201,5 @@ def standard_view(receipt):
         "pricing_basis": cost.get("basis"),
         "pricing_registry_verified_at": cost.get("registry_verified_at"),
         "disclaimer": "Independent usage estimate by TokenTotals — not a provider invoice.",
-        "website": "TurnReceipt.com",
+        "website": "TokenTotals.com",
     }

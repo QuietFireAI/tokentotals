@@ -89,10 +89,7 @@ class PublicWordingCleanupTests(unittest.TestCase):
         for required in (
             "turn_receipts.md",
             "https://tokentotals.com",
-            "https://turnreceipt.com",
-            "https://turnreceipts.com",
             "support@tokentotals.com",
-            "support@turnreceipts.com",
             "support@quietfireai.com",
         ):
             self.assertIn(required, readme)
@@ -109,15 +106,16 @@ class PublicWordingCleanupTests(unittest.TestCase):
             "current thread aggregate at render time",
             "x-tokentotals-receipt-id",
             "fallback estimate",
-            "https://turnreceipt.com",
-            "https://turnreceipts.com",
             "https://tokentotals.com",
         ):
             self.assertIn(required, definition)
 
         self.assertIn("turn_receipts.md", contributing)
-        self.assertIn("support@turnreceipts.com", contributing)
         self.assertIn("support@tokentotals.com", contributing)
+        # QuietFireAI does not own turnreceipt.com or turnreceipts.com.
+        for text in (readme, definition, contributing, citation):
+            self.assertNotIn("turnreceipt.com", text)
+            self.assertNotIn("turnreceipts.com", text)
         self.assertIn('title: "tokentotals: turn receipts for ai"', citation)
         self.assertIn('repository-code: "https://github.com/quietfireai/tokentotals"', citation)
 

@@ -8,8 +8,7 @@
 [![Desktop](https://img.shields.io/badge/Desktop-Windows-lightgrey.svg)]()
 
 🌐 **Product:** [TokenTotals.com](https://tokentotals.com)
-🧾 **Individual Turn Receipt:** [TurnReceipt.com](https://turnreceipt.com)
-📚 **Turn Receipt reference:** [TurnReceipts.com](https://turnreceipts.com)
+📚 **Turn Receipt reference:** [TURN_RECEIPTS.md](TURN_RECEIPTS.md)
 
 > [!IMPORTANT]
 > **Operational Scope & Liability Disclaimer:** TokenTotals is an independent developer cost calculator, real-time telemetry estimator, and local notification daemon. It calculates estimated spend from available telemetry, provider-published pricing references, and known provider-specific billing rules. TokenTotals is **not a billing mirror**, does **not** guarantee invoice-exact third-party vendor billing alignment, and does not guarantee absolute network-level traffic blocking under all operating system configurations. Users remain responsible for monitoring their direct cloud provider accounts and final provider invoices.
@@ -413,9 +412,7 @@ Potential use cases include:
 TokenTotals is free and open-source under GPLv3. Organizations requiring different licensing, support, documentation, partnership discussions, or acquisition conversations can contact QuietFireAI.
 
 🌐 **TokenTotals:** https://tokentotals.com  
-🧾 **Turn Receipts:** https://turnreceipts.com  
-📧 **TokenTotals product support:** support@tokentotals.com  
-📧 **Turn Receipt / documentation:** support@turnreceipts.com  
+📧 **TokenTotals product and documentation support:** support@tokentotals.com  
 📧 **QuietFireAI general contact:** support@quietfireAI.com  
 🔗 **ORCID:** [0009-0000-1375-1725](https://orcid.org/0009-0000-1375-1725)
 
