@@ -11,7 +11,11 @@ class PublicWordingCleanupTests(unittest.TestCase):
         cls.readme = (ROOT / "README.md").read_text(encoding="utf-8")
         cls.proxy = (ROOT / "proxy_server.py").read_text(encoding="utf-8")
         cls.calendar_source = (ROOT / "generate_launch_calendar.py").read_text(encoding="utf-8-sig")
-        cls.calendar_ics = (ROOT / "TokenTotals_30Day_Launch_Plan.ics").read_text(encoding="utf-8")
+        # The generated launch-plan .ics was removed from the repo on 2026-11-17.
+        # Its generator stays, so its wording is still checked; the .ics itself is
+        # checked only when someone regenerates it locally.
+        ics_path = ROOT / "TokenTotals_30Day_Launch_Plan.ics"
+        cls.calendar_ics = ics_path.read_text(encoding="utf-8") if ics_path.exists() else None
         cls.calculations = (ROOT / "CALCULATION_TRANSPARENCY.md").read_text(encoding="utf-8")
         cls.turn_receipts = (ROOT / "TURN_RECEIPTS.md").read_text(encoding="utf-8")
         cls.contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
@@ -136,7 +140,10 @@ class PublicWordingCleanupTests(unittest.TestCase):
         self.assertIn('"remaining_budget_usd"', self.proxy)
         self.assertIn('"daily_budget_limit_usd"', self.proxy)
 
-        for text in (self.calendar_source.lower(), self.calendar_ics.lower()):
+        calendar_texts = [self.calendar_source.lower()]
+        if self.calendar_ics is not None:
+            calendar_texts.append(self.calendar_ics.lower())
+        for text in calendar_texts:
             self.assertNotIn("zero-egress", text)
             self.assertNotIn("hard $5/day ceiling", text)
             self.assertNotIn("airbag", text)
