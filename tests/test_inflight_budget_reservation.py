@@ -133,7 +133,7 @@ class InflightBudgetReservationTests(unittest.TestCase):
 
         with patch.object(proxy_server, "preflight_input_estimate", return_value=(0.25, "test")), \
              patch.object(proxy_server.litellm, "acompletion", side_effect=fail_upstream):
-            response = TestClient(proxy_server.app).post(
+            response = TestClient(proxy_server.app, base_url="http://127.0.0.1:8080").post(
                 "/v1/chat/completions",
                 headers={"authorization": "Bearer test"},
                 json={
@@ -170,7 +170,7 @@ class InflightBudgetReservationTests(unittest.TestCase):
                 return _FakeResponse()
 
             transport = httpx.ASGITransport(app=proxy_server.app)
-            async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1:8080") as client:
                 with patch.object(proxy_server, "preflight_input_estimate", return_value=(0.30, "test")), \
                      patch.object(proxy_server.litellm, "acompletion", side_effect=held_upstream):
                     first_task = asyncio.create_task(
@@ -214,7 +214,7 @@ class InflightBudgetReservationTests(unittest.TestCase):
         reservation = config_manager.reserve_preflight_budget("status", 0.25, thread_id="A")
         self.assertTrue(reservation["accepted"])
 
-        payload = TestClient(proxy_server.app).get("/api/status").json()
+        payload = TestClient(proxy_server.app, base_url="http://127.0.0.1:8080").get("/api/status").json()
         self.assertEqual(payload["current_spend_usd"], 0.20)
         self.assertEqual(payload["inflight_reserved_usd"], 0.25)
         self.assertEqual(payload["committed_spend_usd"], 0.45)

@@ -9,7 +9,7 @@ import turn_ledger
 
 class TurnReceiptRenderApiTests(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(proxy_server.app)
+        self.client = TestClient(proxy_server.app, base_url="http://127.0.0.1:8080")
         self.receipt = {
             "schema": "tokentotals.turn_receipt",
             "schema_version": 1,

@@ -1,9 +1,19 @@
 import json
 import math
+import re
 import time
 import sys
 import os
+import secrets
 import uuid
+from datetime import datetime
+
+# LiteLLM downloads a live model price map from GitHub at import time unless this
+# is set. TokenTotals pins litellm==1.101.0 and relies on the price map bundled
+# with that version, so force local-only loading. This must run before litellm
+# is imported anywhere in the process.
+_LITELLM_ALREADY_IMPORTED = "litellm" in sys.modules
+os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
 
 if sys.stdout is None:
     sys.stdout = open(os.devnull, "w")
@@ -13,7 +23,15 @@ if sys.stderr is None:
 from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 import litellm
+
+if _LITELLM_ALREADY_IMPORTED:
+    print(
+        "[TokenTotals Pricing Warning] litellm was imported before proxy_server set "
+        "LITELLM_LOCAL_MODEL_COST_MAP=True; its price map may have been fetched remotely."
+    )
 import config_manager
 import turn_ledger
 import telemetry_view
@@ -148,6 +166,63 @@ def anthropic_preflight_input_estimate(model_id, estimated_tokens, payload):
     return (max(0, estimated_tokens) / 1_000_000.0) * float(base_rate) * geo_multiplier
 
 
+# Only these client request fields are forwarded to litellm.acompletion. Anything
+# else is refused, because LiteLLM treats many extra keyword arguments as routing
+# or credential settings (api_base, base_url, api_key, api_version,
+# custom_llm_provider, extra_headers, aws_*/vertex_* credentials, mock_response,
+# fallbacks, ...). A client that could set those could send the user's API key to
+# a server of its choosing or bypass the upstream call entirely.
+FORWARDED_REQUEST_FIELDS = frozenset({
+    # OpenAI Chat Completions parameters
+    "audio",
+    "frequency_penalty",
+    "function_call",
+    "functions",
+    "logit_bias",
+    "logprobs",
+    "max_completion_tokens",
+    "max_tokens",
+    "modalities",
+    "n",
+    "parallel_tool_calls",
+    "prediction",
+    "presence_penalty",
+    "prompt_cache_key",
+    "reasoning_effort",
+    "response_format",
+    "safety_identifier",
+    "seed",
+    "service_tier",
+    "stop",
+    "store",
+    "stream_options",
+    "temperature",
+    "tool_choice",
+    "tools",
+    "top_logprobs",
+    "top_p",
+    "user",
+    "verbosity",
+    "web_search_options",
+    # Provider extras LiteLLM maps and TokenTotals pricing reads
+    "inference_geo",
+    "safety_settings",
+    "speed",
+    "thinking",
+    "top_k",
+})
+# Handled by TokenTotals itself, never forwarded as-is.
+SERVER_HANDLED_REQUEST_FIELDS = frozenset({"model", "messages", "stream", "litellm_metadata"})
+
+
+def rejected_request_fields(payload):
+    return sorted(
+        str(key)
+        for key in payload
+        if key not in FORWARDED_REQUEST_FIELDS and key not in SERVER_HANDLED_REQUEST_FIELDS
+    )
+
+
 def preflight_input_estimate(model_id, estimated_tokens, payload):
     """Return (cost, source) without inventing a cross-provider price."""
     if looks_like_openai_model(model_id):
@@ -186,14 +261,69 @@ def preflight_input_estimate(model_id, estimated_tokens, payload):
 
 app = FastAPI(title="TokenTotals by QuietFireAI")
 
+# The proxy only listens on loopback. Browser access is limited to loopback
+# origins, credentials are never shared cross-origin, and requests carrying any
+# other Host header are refused (blocks DNS-rebinding pages that resolve their
+# own domain to 127.0.0.1).
+LOOPBACK_HOSTNAMES = ("127.0.0.1", "localhost", "[::1]")
+LOOPBACK_ORIGIN_REGEX = r"^http://(127\.0\.0\.1|localhost|\[::1\])(:[0-9]{1,5})?$"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origin_regex=LOOPBACK_ORIGIN_REGEX,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["X-TokenTotals-Receipt-ID"],
 )
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(LOOPBACK_HOSTNAMES))
+
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+_LOOPBACK_ORIGIN_RE = re.compile(LOOPBACK_ORIGIN_REGEX)
+
+
+@app.middleware("http")
+async def refuse_foreign_origin_writes(request: Request, call_next):
+    """Refuse state-changing requests that a non-loopback web page sends.
+
+    CORS only stops a foreign page from reading a response; a "simple" POST is
+    still delivered. Browsers always send Origin on cross-origin POSTs, so a POST
+    whose Origin is not a loopback origin (including "null") is refused before it
+    can reach the proxy route or a control route. Non-browser clients (IDEs, SDKs,
+    curl) send no Origin and are unaffected.
+    """
+    if request.method not in _SAFE_METHODS:
+        origin = request.headers.get("origin")
+        if origin is not None and not _LOOPBACK_ORIGIN_RE.match(origin):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "TokenTotals refuses state-changing requests from non-loopback web origins."},
+            )
+    return await call_next(request)
+
+# State-changing control routes (/api/boost, /api/unlock, /api/turn-notice/config)
+# require this per-launch token. It is embedded only in the same-origin dashboard
+# page; a cross-origin page cannot read it, and a request that names a foreign
+# Origin is refused even when it carries the token.
+CONTROL_TOKEN = secrets.token_urlsafe(32)
+CONTROL_TOKEN_HEADER = "X-TokenTotals-Control-Token"
+
+
+def require_control_access(request: Request):
+    supplied = request.headers.get(CONTROL_TOKEN_HEADER, "")
+    if not supplied or not secrets.compare_digest(supplied, CONTROL_TOKEN):
+        raise HTTPException(
+            status_code=403,
+            detail="TokenTotals control routes require the dashboard's per-launch control token.",
+        )
+    origin = request.headers.get("origin")
+    if origin is not None:
+        host = request.headers.get("host", "")
+        if origin.rstrip("/").lower() != f"http://{host}".lower():
+            raise HTTPException(
+                status_code=403,
+                detail="TokenTotals control routes only accept same-origin dashboard requests.",
+            )
 
 LAST_LATENCY_MS = 0
 THREAD_METADATA_KEY = "tokentotals_thread_id"
@@ -326,9 +456,11 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
                         "This value is incomplete and is not an invoice mirror."
                     )
                 else:
-                    cost = 0.0
+                    # No defensible post-response price. Do not post $0 as if it
+                    # were a price: config_manager records the turn as unpriced.
+                    cost = None
             else:
-                cost = 0.0
+                cost = None
 
         state_after = config_manager.update_spend(
             cost_usd=cost,
@@ -381,7 +513,79 @@ def track_cost_callback(kwargs, completion_response, start_time, end_time):
         print(f"[TokenTotals Pricing Warning] Cost callback failed: {e}")
 
 
-litellm.success_callback = [track_cost_callback]
+# TokenTotals settles each routed turn itself, right after the upstream call
+# returns (non-stream) or the stream finishes. It does NOT register
+# track_cost_callback as a LiteLLM success_callback: LiteLLM 1.101.0 never calls a
+# synchronous success_callback for litellm.acompletion, which is the only call
+# path this proxy uses, so spend was never recorded.
+
+
+def _litellm_response_cost(completion_response):
+    """LiteLLM's own cost for a response, or 0.0 when LiteLLM cannot price it."""
+    cost = None
+    hidden = getattr(completion_response, "_hidden_params", None)
+    if isinstance(hidden, dict):
+        cost = hidden.get("response_cost")
+    if cost is None and completion_response is not None:
+        try:
+            cost = litellm.completion_cost(completion_response=completion_response)
+        except Exception:
+            cost = None
+    try:
+        cost = float(cost)
+    except (TypeError, ValueError):
+        return 0.0
+    if not math.isfinite(cost) or cost < 0:
+        return 0.0
+    return cost
+
+
+def _carry_stream_service_tier(built, chunks):
+    """LiteLLM's stream_chunk_builder drops the resolved service_tier that OpenAI
+    puts on stream chunks; without it the OpenAI engine cannot price the turn."""
+    if built is None or getattr(built, "service_tier", None):
+        return
+    for chunk in reversed(chunks):
+        tier = getattr(chunk, "service_tier", None)
+        if tier:
+            try:
+                setattr(built, "service_tier", tier)
+            except Exception:
+                pass
+            return
+
+
+def settle_routed_turn(
+    *,
+    model_id,
+    thread_id,
+    reservation_id,
+    request_params,
+    completion_response,
+    start_time,
+    end_time,
+):
+    """Settle one routed turn into local spend, the turn ledger and Turn Notice."""
+    try:
+        kwargs = {
+            "model": model_id,
+            "response_cost": _litellm_response_cost(completion_response),
+            "optional_params": dict(request_params or {}),
+            "litellm_params": {
+                "litellm_metadata": {
+                    THREAD_METADATA_KEY: thread_id,
+                    RESERVATION_METADATA_KEY: reservation_id,
+                }
+            },
+        }
+        track_cost_callback(kwargs, completion_response, start_time, end_time)
+    except Exception as e:
+        print(f"[TokenTotals Pricing Warning] Turn settlement failed: {e}")
+    finally:
+        # If settlement failed before spend was posted, do not strand the
+        # reservation's pacing capacity. After a successful settlement this is a
+        # no-op because update_spend already removed the reservation.
+        config_manager.release_preflight_reservation(reservation_id)
 
 
 @app.get("/v1/models")
@@ -393,11 +597,13 @@ async def list_models():
 
 
 @app.get("/api/status")
-async def get_status():
+async def get_status(request: Request):
     conf = config_manager.get_config()
     state = config_manager.get_state()
     pacing = config_manager.get_pacing_snapshot()
-    limit = conf.get("daily_budget_limit_usd", 10.00)
+    configured_limit = conf.get("daily_budget_limit_usd", 10.00)
+    # Effective threshold = configured threshold + same-day "I UNDERSTAND" headroom.
+    limit = pacing.get("daily_budget_limit_usd", configured_limit)
     current = state.get("current_spend_usd", 0.00)
     committed = pacing.get("committed_spend_usd", current)
     pct = round((committed / limit * 100), 1) if limit > 0 else 0
@@ -419,20 +625,28 @@ async def get_status():
         "inflight_preflight_estimate_usd": inflight,
         "combined_local_estimate_usd": committed,
         "pacing_threshold_usd": limit,
+        "configured_threshold_usd": configured_limit,
+        "acknowledged_headroom_usd": pacing.get("acknowledged_headroom_usd", 0.0),
+        "acknowledgment_count": int(state.get("acknowledgment_count", 0) or 0),
+        # Turns that could not be priced after the response. Their preflight input
+        # estimate is included in posted spend; it is not a full turn price.
+        "unpriced_turn_count": int(state.get("unpriced_turn_count", 0) or 0),
+        "unpriced_preflight_estimate_usd": state.get("unpriced_preflight_estimate_usd", 0.0),
         "posted_threshold_pct": posted_pct,
         "combined_threshold_pct": pct,
         "active_thread_id": str(state.get("active_thread_id") or "default"),
         "current_spend_usd": current,
         "inflight_reserved_usd": inflight,
         "committed_spend_usd": committed,
-        "daily_budget_limit_usd": limit,
+        "daily_budget_limit_usd": configured_limit,
         "remaining_budget_usd": pacing.get("available_budget_usd", max(0.0, round(limit - current, 4))),
         "budget_used_pct": posted_pct,
         "budget_committed_pct": pct,
         "thread_spend_usd": state.get("thread_spend_usd", 0.00),
         "last_latency_ms": LAST_LATENCY_MS,
         "is_locked": state.get("is_locked", False),
-        "port": conf.get("port", 8080),
+        "port": bound_port(request),
+        "configured_port": conf.get("port", 8080),
     }
 
 
@@ -544,6 +758,7 @@ async def get_turn_notice(thread_id: str = None):
 
 @app.post("/api/turn-notice/config")
 async def set_turn_notice_config(request: Request):
+    require_control_access(request)
     try:
         payload = await request.json()
     except Exception:
@@ -578,23 +793,51 @@ async def set_turn_notice_config(request: Request):
 
 
 @app.post("/api/boost")
-async def api_quick_boost():
+async def api_quick_boost(request: Request):
+    require_control_access(request)
     new_limit = config_manager.quick_boost(5.00)
     return {"message": "Local pacing threshold increased by $5.00", "new_limit_usd": new_limit, "is_locked": False}
 
 
 @app.post("/api/unlock")
-async def api_unlock():
-    config_manager.unlock_circuit_breaker()
-    return {"message": "Local pacing lock cleared by user acknowledgment.", "is_locked": False}
+async def api_unlock(request: Request):
+    require_control_access(request)
+    result = config_manager.unlock_circuit_breaker()
+    return {
+        "message": (
+            "Local pacing lock cleared by user acknowledgment. Routed requests resume with one more "
+            "configured threshold of headroom for today; the saved threshold is unchanged."
+        ),
+        "is_locked": False,
+        **result,
+    }
 
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
 @app.get("/dashboard/", response_class=HTMLResponse)
 @app.get("/dashboard.html", response_class=HTMLResponse)
-async def serve_dashboard():
-    return HTMLResponse(content=DASHBOARD_HTML)
+async def serve_dashboard(request: Request):
+    return HTMLResponse(content=render_dashboard_html(request))
+
+
+def bound_port(request: Request):
+    """The port this server is actually listening on, not a configured guess."""
+    server = request.scope.get("server")
+    if server and len(server) > 1 and server[1]:
+        try:
+            return int(server[1])
+        except (TypeError, ValueError):
+            pass
+    return int(config_manager.get_config().get("port", 8080))
+
+
+def render_dashboard_html(request: Request):
+    return (
+        DASHBOARD_HTML
+        .replace("__TOKENTOTALS_PORT__", str(bound_port(request)))
+        .replace("__TOKENTOTALS_CONTROL_TOKEN__", CONTROL_TOKEN)
+    )
 
 
 @app.get("/chat", response_class=HTMLResponse)
@@ -631,6 +874,20 @@ async def proxy_openai(request: Request, http_response: Response):
             detail="TokenTotals requires an explicit non-empty model ID; no default model is inferred.",
         )
     model_id = model_id.strip()
+
+    rejected = rejected_request_fields(payload)
+    if rejected:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "TokenTotals does not forward these request fields: "
+                + ", ".join(rejected)
+                + ". Routing and credential settings cannot be set by the client, and "
+                "unsupported fields are refused rather than silently dropped. "
+                "The request was not sent upstream."
+            ),
+        )
+
     thread_id = request.headers.get("x-thread-id") or payload.get("user") or "default"
     thread_id = str(thread_id).strip() or "default"
 
@@ -720,7 +977,10 @@ async def proxy_openai(request: Request, http_response: Response):
     # litellm_metadata is reserved for TokenTotals' request-local callback
     # attribution and pacing reconciliation. Do not let client input replace it.
     payload.pop("litellm_metadata", None)
+    # Everything left was checked against FORWARDED_REQUEST_FIELDS above.
+    forwarded_params = {key: value for key, value in payload.items() if key in FORWARDED_REQUEST_FIELDS}
 
+    start_time = datetime.now()
     try:
         response = await litellm.acompletion(
             model=model_id,
@@ -731,7 +991,7 @@ async def proxy_openai(request: Request, http_response: Response):
                 THREAD_METADATA_KEY: thread_id,
                 RESERVATION_METADATA_KEY: reservation_id,
             },
-            **payload,
+            **forwarded_params,
         )
     except Exception as e:
         config_manager.release_preflight_reservation(reservation_id)
@@ -741,20 +1001,53 @@ async def proxy_openai(request: Request, http_response: Response):
 
     if stream:
         async def generate():
+            chunks = []
+            completed = False
             try:
                 async for chunk in response:
+                    chunks.append(chunk)
                     yield f"data: {chunk.model_dump_json()}\n\n"
+                completed = True
             except Exception as e:
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
             finally:
-                # Normally the LiteLLM success callback settles the reservation.
-                # If a stream aborts before that callback occurs, do not strand
-                # ephemeral pacing capacity indefinitely.
+                if completed:
+                    # Rebuild the full response so the turn is priced from its
+                    # usage. When the provider's stream carries no usage chunk,
+                    # LiteLLM's builder estimates usage by counting tokens.
+                    built = None
+                    try:
+                        built = litellm.stream_chunk_builder(chunks, messages=messages)
+                        _carry_stream_service_tier(built, chunks)
+                    except Exception as build_error:
+                        print(f"[TokenTotals Pricing Warning] Could not rebuild streamed response: {build_error}")
+                    await run_in_threadpool(
+                        settle_routed_turn,
+                        model_id=model_id,
+                        thread_id=thread_id,
+                        reservation_id=reservation_id,
+                        request_params=forwarded_params,
+                        completion_response=built,
+                        start_time=start_time,
+                        end_time=datetime.now(),
+                    )
+                # A stream that aborted before completing is not settled; release
+                # its pacing reservation so capacity is not stranded.
                 config_manager.release_preflight_reservation(reservation_id)
                 yield "data: [DONE]\n\n"
 
         return StreamingResponse(generate(), media_type="text/event-stream", headers={RECEIPT_ID_HEADER: reservation_id})
     else:
+        await run_in_threadpool(
+            settle_routed_turn,
+            model_id=model_id,
+            thread_id=thread_id,
+            reservation_id=reservation_id,
+            request_params=forwarded_params,
+            completion_response=response,
+            start_time=start_time,
+            end_time=datetime.now(),
+        )
         return response.model_dump()
 
 
@@ -851,7 +1144,7 @@ pre { background:#0c0e14; padding:12px; border-radius:8px; font-size:13px; color
     </div>
     <div class="card">
       <div class="metric-title">Proxy Port & Last Observed Latency</div>
-      <div class="metric-value" id="latencyVal" style="font-size:22px;">8080 <span style="font-size:14px; color:var(--subtext);">| 0 ms</span></div>
+      <div class="metric-value" id="latencyVal" style="font-size:22px;">__TOKENTOTALS_PORT__ <span style="font-size:14px; color:var(--subtext);">| 0 ms</span></div>
       <div class="subtle">Local loopback control plane; permitted requests still egress to the selected upstream provider</div>
     </div>
   </div>
@@ -913,15 +1206,15 @@ pre { background:#0c0e14; padding:12px; border-radius:8px; font-size:13px; color
       Point your AI coding tool to TokenTotals' local loopback port to use the local pacing and telemetry layer:
     </p>
     <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
-      <span style="font-size:13px; font-weight:600;">Base URL: <code>http://127.0.0.1:8080/v1</code></span>
-      <button class="btn btn-copy" onclick="navigator.clipboard.writeText('http://127.0.0.1:8080/v1'); alert('Copied to clipboard!')">📋 Copy URL</button>
+      <span style="font-size:13px; font-weight:600;">Base URL: <code>http://127.0.0.1:__TOKENTOTALS_PORT__/v1</code></span>
+      <button class="btn btn-copy" onclick="navigator.clipboard.writeText('http://127.0.0.1:__TOKENTOTALS_PORT__/v1'); alert('Copied to clipboard!')">📋 Copy URL</button>
     </div>
     <pre><code>// Cursor & VS Code Settings:
-"openai.apiBase": "http://127.0.0.1:8080/v1"
+"openai.apiBase": "http://127.0.0.1:__TOKENTOTALS_PORT__/v1"
 
 // Python / OpenAI-compatible client:
 from openai import OpenAI
-client = OpenAI(base_url="http://127.0.0.1:8080/v1", api_key="YOUR_KEY")</code></pre>
+client = OpenAI(base_url="http://127.0.0.1:__TOKENTOTALS_PORT__/v1", api_key="YOUR_KEY")</code></pre>
   </div>
 
   <div class="card">
@@ -1078,6 +1371,11 @@ async function refreshThreadSurfaces(threadId) {
   } catch(e) {}
 }
 
+const TT_CONTROL_TOKEN = "__TOKENTOTALS_CONTROL_TOKEN__";
+function controlHeaders(extra) {
+  return Object.assign({'X-TokenTotals-Control-Token': TT_CONTROL_TOKEN}, extra || {});
+}
+
 async function refresh() {
   try {
     const res = await fetch('/api/status');
@@ -1087,6 +1385,8 @@ async function refresh() {
 
     let combined = 'Combined local estimate: ' + usd(data.combined_local_estimate_usd);
     if (data.inflight_preflight_estimate_usd > 0) combined += ' (includes ' + usd(data.inflight_preflight_estimate_usd) + ' in-flight preflight estimate)';
+    if (data.unpriced_turn_count > 0) combined += ' | ' + data.unpriced_turn_count + ' unpriced turn(s): ' + usd(data.unpriced_preflight_estimate_usd) + ' of posted spend is only their preflight input estimate';
+    if (data.acknowledged_headroom_usd > 0) combined += ' | threshold includes ' + usd(data.acknowledged_headroom_usd, 2) + ' acknowledged for today';
     document.getElementById('remainingVal').textContent = combined;
     document.getElementById('pctVal').textContent = data.combined_threshold_pct.toFixed(1) + '% of local threshold';
     document.getElementById('progressFill').style.width = Math.min(100, data.combined_threshold_pct) + '%';
@@ -1125,7 +1425,7 @@ async function setTurnNoticeThreshold() {
   }
   const res = await fetch('/api/turn-notice/config', {
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:controlHeaders({'Content-Type':'application/json'}),
     body:JSON.stringify({reminder_threshold_usd:value})
   });
   if (!res.ok) {
@@ -1138,14 +1438,14 @@ async function setTurnNoticeThreshold() {
 async function disableTurnNotice() {
   await fetch('/api/turn-notice/config', {
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:controlHeaders({'Content-Type':'application/json'}),
     body:JSON.stringify({reminder_threshold_usd:null})
   });
   refresh();
 }
 
 async function addBoost() {
-  await fetch('/api/boost', {method:'POST'});
+  await fetch('/api/boost', {method:'POST', headers:controlHeaders()});
   refresh();
 }
 

@@ -71,7 +71,7 @@ class OptimizerRetirementTests(unittest.TestCase):
             "auto_economy_mode": True,
         }
         try:
-            payload = TestClient(self.proxy.app).get("/api/status").json()
+            payload = TestClient(self.proxy.app, base_url="http://127.0.0.1:8080").get("/api/status").json()
         finally:
             self.proxy.config_manager.get_state = original_get_state
             self.proxy.config_manager.get_config = original_get_config
@@ -113,7 +113,7 @@ class OptimizerRetirementTests(unittest.TestCase):
         proxy.preflight_input_estimate = lambda *_args, **_kwargs: (0.001, "test")
 
         try:
-            response = TestClient(proxy.app).post(
+            response = TestClient(proxy.app, base_url="http://127.0.0.1:8080").post(
                 "/v1/chat/completions",
                 json={
                     "model": "gpt-4o",

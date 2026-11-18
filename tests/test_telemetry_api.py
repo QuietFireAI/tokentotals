@@ -9,7 +9,7 @@ import turn_ledger
 
 class TelemetryApiTests(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(proxy_server.app)
+        self.client = TestClient(proxy_server.app, base_url="http://127.0.0.1:8080")
 
     def test_thread_telemetry_returns_presentation_object(self):
         expected = {

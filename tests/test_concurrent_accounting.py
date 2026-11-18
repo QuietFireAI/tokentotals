@@ -155,7 +155,7 @@ class ConcurrentAccountingTests(unittest.TestCase):
 
         with patch.object(proxy_server, "preflight_input_estimate", return_value=(0.0, "test")), \
              patch.object(proxy_server.litellm, "acompletion", side_effect=fake_acompletion):
-            client = TestClient(proxy_server.app)
+            client = TestClient(proxy_server.app, base_url="http://127.0.0.1:8080")
             response = client.post(
                 "/v1/chat/completions",
                 headers={"x-thread-id": "trusted-thread", "authorization": "Bearer test"},

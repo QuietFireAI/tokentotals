@@ -8,7 +8,7 @@ import turn_receipt_chat_surface
 
 class TurnReceiptChatSurfaceTests(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(proxy_server.app)
+        self.client = TestClient(proxy_server.app, base_url="http://127.0.0.1:8080")
 
     def test_chat_surface_is_served_inside_local_token_totals_app(self):
         response = self.client.get("/chat")

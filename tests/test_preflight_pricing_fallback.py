@@ -101,7 +101,7 @@ class PreflightPricingFallbackTests(unittest.TestCase):
             "auto_economy_mode": False,
         }
 
-        client = TestClient(self.proxy.app)
+        client = TestClient(self.proxy.app, base_url="http://127.0.0.1:8080")
         response = client.post(
             "/v1/chat/completions",
             json={

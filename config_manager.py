@@ -39,8 +39,32 @@ DEFAULT_STATE = {
     "thread_spend_by_id": {},
     "active_thread_id": "default",
     "is_locked": False,
-    "total_requests": 0
+    "total_requests": 0,
+    # Same-day headroom granted by typing "I UNDERSTAND" (see
+    # unlock_circuit_breaker). Added on top of the configured threshold; the saved
+    # threshold in config.json is never changed by an acknowledgment.
+    "acknowledged_headroom_usd": 0.00,
+    "acknowledgment_count": 0,
+    # Turns whose post-response cost could not be priced. Their preflight input
+    # estimate is posted to spend so the pacing threshold still sees them, and is
+    # tracked here so the posted figure is never presented as a full price.
+    "unpriced_turn_count": 0,
+    "unpriced_preflight_estimate_usd": 0.00,
 }
+
+# Fields reset at the start of each local day.
+_DAILY_RESET_FIELDS = (
+    "current_spend_usd",
+    "thread_spend_usd",
+    "thread_spend_by_id",
+    "active_thread_id",
+    "is_locked",
+    "total_requests",
+    "acknowledged_headroom_usd",
+    "acknowledgment_count",
+    "unpriced_turn_count",
+    "unpriced_preflight_estimate_usd",
+)
 
 
 def _fresh_default_state():
@@ -51,6 +75,21 @@ def _fresh_default_state():
 
 def _money(value):
     return round(float(value or 0.0), INTERNAL_MONEY_DECIMALS)
+
+
+def _configured_limit(conf):
+    return float(conf.get('daily_budget_limit_usd', 10.00) or 0.0)
+
+
+def _effective_limit(conf, state):
+    """Configured threshold plus any same-day "I UNDERSTAND" headroom."""
+    headroom = float(state.get('acknowledged_headroom_usd', 0.0) or 0.0)
+    return _money(_configured_limit(conf) + max(0.0, headroom))
+
+
+def get_effective_limit():
+    with _DATA_LOCK:
+        return _effective_limit(get_config(), get_state())
 
 
 def _inflight_reserved_usd_unlocked():
@@ -105,12 +144,9 @@ def get_state():
             today_str = str(date.today())
             if state.get("date") != today_str:
                 state["date"] = today_str
-                state["current_spend_usd"] = 0.00
-                state["thread_spend_usd"] = 0.00
-                state["thread_spend_by_id"] = {}
-                state["active_thread_id"] = "default"
-                state["is_locked"] = False
-                state["total_requests"] = 0
+                fresh = _fresh_default_state()
+                for key in _DAILY_RESET_FIELDS:
+                    state[key] = fresh[key]
                 save_state(state)
             elif not isinstance(state.get("thread_spend_by_id"), dict):
                 state["thread_spend_by_id"] = {}
@@ -139,7 +175,7 @@ def get_pacing_snapshot():
         conf = get_config()
         current = float(state.get('current_spend_usd', 0.0) or 0.0)
         reserved = _inflight_reserved_usd_unlocked()
-        limit = float(conf.get('daily_budget_limit_usd', 10.00) or 0.0)
+        limit = _effective_limit(conf, state)
         committed = current + reserved
         return {
             'current_spend_usd': _money(current),
@@ -147,6 +183,8 @@ def get_pacing_snapshot():
             'committed_spend_usd': _money(committed),
             'available_budget_usd': _money(max(0.0, limit - committed)),
             'daily_budget_limit_usd': limit,
+            'configured_limit_usd': _configured_limit(conf),
+            'acknowledged_headroom_usd': _money(state.get('acknowledged_headroom_usd', 0.0)),
             'is_locked': bool(state.get('is_locked', False)),
             'reservation_count': len(_INFLIGHT_RESERVATIONS),
         }
@@ -178,7 +216,7 @@ def reserve_preflight_budget(reservation_id, estimated_cost_usd, thread_id=None)
         conf = get_config()
         current = float(state.get('current_spend_usd', 0.0) or 0.0)
         reserved_before = _inflight_reserved_usd_unlocked()
-        limit = float(conf.get('daily_budget_limit_usd', 10.00) or 0.0)
+        limit = _effective_limit(conf, state)
 
         if state.get('is_locked', False):
             return {
@@ -240,6 +278,14 @@ def release_preflight_reservation(reservation_id):
 
 
 def update_spend(cost_usd, thread_id=None, reservation_id=None):
+    """Post one settled turn.
+
+    cost_usd=None means the turn could not be priced after the response. It is
+    NOT posted as $0: the turn's preflight input estimate (the only defensible
+    figure TokenTotals has for it) is posted so the pacing threshold still counts
+    it, and the turn is counted in unpriced_turn_count /
+    unpriced_preflight_estimate_usd so the posted spend is shown as incomplete.
+    """
     with _DATA_LOCK:
         reservation_key = str(reservation_id or '').strip()
         if reservation_key and reservation_key in _SETTLED_RESERVATION_IDS:
@@ -247,7 +293,18 @@ def update_spend(cost_usd, thread_id=None, reservation_id=None):
             return get_state()
 
         state = get_state()
-        cost = _money(cost_usd)
+        if cost_usd is None:
+            reservation = _INFLIGHT_RESERVATIONS.get(reservation_key) if reservation_key else None
+            try:
+                cost = _money((reservation or {}).get('estimated_cost_usd', 0.0))
+            except (TypeError, ValueError):
+                cost = 0.0
+            state['unpriced_turn_count'] = int(state.get('unpriced_turn_count', 0) or 0) + 1
+            state['unpriced_preflight_estimate_usd'] = _money(
+                float(state.get('unpriced_preflight_estimate_usd', 0.0) or 0.0) + cost
+            )
+        else:
+            cost = _money(cost_usd)
         state['current_spend_usd'] = _money(
             float(state.get('current_spend_usd', 0.0) or 0.0) + cost
         )
@@ -275,7 +332,7 @@ def update_spend(cost_usd, thread_id=None, reservation_id=None):
         state['thread_spend_usd'] = thread_totals[thread_key]
 
         conf = get_config()
-        if state['current_spend_usd'] >= conf.get("daily_budget_limit_usd", 10.00):
+        if state['current_spend_usd'] >= _effective_limit(conf, state):
             state['is_locked'] = True
 
         # Persist the actual cost before releasing its reservation. Because both
@@ -309,7 +366,36 @@ def quick_boost(boost_amount=5.00):
 
 
 def unlock_circuit_breaker():
+    """The "I UNDERSTAND" acknowledgment.
+
+    Clearing is_locked alone did nothing: the next request was re-checked against
+    the same threshold and locked again. The acknowledgment now grants one more
+    configured threshold of headroom for the rest of today, measured from the
+    spend posted so far:
+
+        effective threshold = spend posted at acknowledgment + configured threshold
+
+    The saved threshold in config.json is unchanged (that is what +$5 boost is
+    for), the headroom resets at the daily reset, and the lock re-engages if spend
+    reaches the new effective threshold. Each further acknowledgment re-applies
+    the rule from the spend posted at that time.
+    """
     with _DATA_LOCK:
         state = get_state()
+        conf = get_config()
+        current = float(state.get('current_spend_usd', 0.0) or 0.0)
+        configured = _configured_limit(conf)
+        # effective = current + configured, so the headroom over configured is the
+        # spend posted so far.
+        headroom = max(0.0, current)
+        state['acknowledged_headroom_usd'] = _money(
+            max(float(state.get('acknowledged_headroom_usd', 0.0) or 0.0), headroom)
+        )
+        state['acknowledgment_count'] = int(state.get('acknowledgment_count', 0) or 0) + 1
         state['is_locked'] = False
         save_state(state)
+        return {
+            'configured_limit_usd': configured,
+            'acknowledged_headroom_usd': state['acknowledged_headroom_usd'],
+            'effective_limit_usd': _effective_limit(conf, state),
+        }

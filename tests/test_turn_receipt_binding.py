@@ -39,7 +39,7 @@ class TurnReceiptBindingTests(unittest.TestCase):
         conf = config_manager.get_config()
         conf["daily_budget_limit_usd"] = 100.0
         config_manager.save_config(conf)
-        self.client = TestClient(proxy_server.app)
+        self.client = TestClient(proxy_server.app, base_url="http://127.0.0.1:8080")
 
     def _clear_ephemeral_state(self):
         with config_manager._DATA_LOCK:
@@ -104,7 +104,7 @@ class TurnReceiptBindingTests(unittest.TestCase):
         self.assertIsNone(response.headers.get("x-tokentotals-receipt-id"))
         self.assertEqual(config_manager.get_inflight_reserved_usd(), 0.0)
 
-    def test_cors_exposes_receipt_header_to_browser_clients(self):
+    def test_cors_exposes_receipt_header_to_loopback_browser_clients(self):
         async def upstream(**kwargs):
             return _FakeResponse()
         with patch.object(proxy_server, "preflight_input_estimate", return_value=(0.01, "test")), patch.object(proxy_server.litellm, "acompletion", side_effect=upstream):
@@ -112,12 +112,13 @@ class TurnReceiptBindingTests(unittest.TestCase):
                 "/v1/chat/completions",
                 headers={
                     "authorization": "Bearer test",
-                    "origin": "http://example.test",
+                    "origin": "http://localhost:3000",
                 },
                 json={"model": "gpt-4o", "messages": [{"role": "user", "content": "hello"}]},
             )
         exposed = response.headers.get("access-control-expose-headers", "").lower()
         self.assertIn("x-tokentotals-receipt-id", exposed)
+        self.assertEqual(response.headers.get("access-control-allow-origin"), "http://localhost:3000")
 
     def test_stream_does_not_inject_receipt_text_into_provider_content(self):
         async def upstream(**kwargs):

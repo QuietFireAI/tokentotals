@@ -108,6 +108,8 @@ The display mode is a user preference. Switching Standard ↔ Expanded changes p
 
 When TokenTotals cannot perform its normal reconstruction, the receipt says so. A secondary cost source is visibly marked **Fallback estimate** and may be higher or lower than the provider invoice. An unavailable cost remains unavailable rather than becoming `$0`.
 
+For local pacing, an unpriced turn is not counted as `$0` either: its input-side preflight estimate is added to posted spend so the threshold still sees it, and `/api/status` and the dashboard report `unpriced_turn_count` and `unpriced_preflight_estimate_usd` so that figure is never read as a full price.
+
 Any example values or UI snippets in this README are **illustrative UI copy, not a live pricing snapshot**. Runtime receipts use the telemetry available for that request and the versioned pricing basis recorded by TokenTotals.
 
 ### Supporting local surfaces
@@ -162,6 +164,7 @@ Permitted requests still leave the local machine and egress to the selected upst
 * Before a request is sent, TokenTotals calculates a best-effort input-side preflight estimate and compares it with the configured local pacing threshold.
 * If the request would exceed that threshold on its own, TokenTotals rejects that routed request before the upstream completion call and marks the local pacing state locked.
 * A topmost desktop modal can require **`"I UNDERSTAND"`** or allow the user to raise the local threshold before routed requests resume.
+* **What `"I UNDERSTAND"` does:** routed requests resume with one more configured threshold of headroom for the rest of the local day, measured from the spend posted when you acknowledged (effective threshold = posted spend at acknowledgment + configured threshold). The saved threshold in `config.json` is not changed; the headroom resets at the daily reset, and the lock re-engages if spend reaches the new effective threshold. **+$5** permanently raises the saved threshold instead.
 * **Concurrent post-response accounting:** completed responses are attributed through request-local callback metadata, and local spend/state updates are serialized inside the single TokenTotals daemon so overlapping callbacks do not overwrite one another. Same-day thread totals are maintained independently even when completions arrive out of order.
 * **In-flight preflight reservation:** before a permitted request is sent upstream, TokenTotals atomically reserves that request's defensible preflight estimate together with all other active reservations. Two concurrent requests can no longer independently consume the same known local threshold capacity.
 * **Temporary contention is not a permanent lock:** if a request fits against posted spend but not against posted spend plus other active reservations, TokenTotals returns `429` and does not send that request upstream. Once the other request settles or fails, capacity under the configured threshold can become available again.
@@ -205,6 +208,10 @@ For the exact arithmetic behind TokenTotals-derived metrics—including prefligh
 * **No TokenTotals SaaS Telemetry:** No TokenTotals user account or secondary analytics service is required by the local runtime.
 * **Loopback Boundary:** The application listens on loopback and forwards permitted requests to the selected upstream provider through LiteLLM.
 * **Upstream Egress Exists:** permitted provider requests necessarily leave localhost and reach the selected provider.
+* **Browser Boundary:** only loopback web origins get CORS access, requests whose `Host` is not a loopback name are refused (DNS-rebinding protection), and state-changing requests from non-loopback web pages are refused.
+* **Control Routes Need a Per-Launch Token:** `/api/boost`, `/api/unlock` and `/api/turn-notice/config` require the `X-TokenTotals-Control-Token` header. The dashboard page carries the token for the current launch; it changes every time TokenTotals starts.
+* **Client Cannot Redirect Requests:** only standard chat-completion parameters are forwarded upstream. Routing and credential fields such as `api_base`, `base_url`, `api_key` or `extra_headers` are refused with `400`, so a client cannot send your API key to another server.
+* **Pinned Price Map:** TokenTotals sets `LITELLM_LOCAL_MODEL_COST_MAP=True` before LiteLLM loads, so LiteLLM uses the price map bundled with the pinned version instead of downloading one from GitHub at startup.
 * **100% Free & Open Source:** Licensed under **GNU GPLv3**.
 
 ---

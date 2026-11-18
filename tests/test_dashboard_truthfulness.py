@@ -65,7 +65,7 @@ class DashboardTruthfulnessTests(unittest.TestCase):
         }
         self.proxy.LAST_LATENCY_MS = 123
         try:
-            client = TestClient(self.proxy.app)
+            client = TestClient(self.proxy.app, base_url="http://127.0.0.1:8080")
             payload = client.get("/api/status").json()
             dashboard = client.get("/dashboard")
         finally:
@@ -83,7 +83,10 @@ class DashboardTruthfulnessTests(unittest.TestCase):
         self.assertEqual(payload["combined_threshold_pct"], 15.0)
         self.assertEqual(payload["active_thread_id"], "thread-live")
         self.assertEqual(payload["thread_spend_usd"], 0.5)
-        self.assertEqual(payload["port"], 8088)
+        # "port" is the port the server is actually bound to (here the test
+        # client's 127.0.0.1:8080), not the configured value, which can be stale.
+        self.assertEqual(payload["port"], 8080)
+        self.assertEqual(payload["configured_port"], 8088)
         self.assertEqual(payload["last_latency_ms"], 123)
 
         # Legacy names intentionally remain for API compatibility during migration.
