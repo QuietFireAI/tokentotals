@@ -418,7 +418,9 @@ TokenTotals is free and open-source under GPLv3. Organizations requiring differe
 
 ## 📜 License & Trust
 
-Distributed under the **GNU General Public License v3.0 (GPLv3)**. See `LICENSE` for details.
+Copyright (C) 2026 QuietFireAI (Jeff Phillips).
+
+Distributed under the **GNU General Public License v3.0 (GPLv3)**. See `LICENSE` for the full license text.
 
 Built by **QuietFireAI**. Support independent open-source AI telemetry and pacing work at:  
 ☕ [buymeacoffee.com/jeffphillips](https://buymeacoffee.com/jeffphillips)
