@@ -206,8 +206,13 @@ class TurnLedgerIntegrationTests(unittest.TestCase):
         )
 
         state = config_manager.get_state()
-        self.assertEqual(state["current_spend_usd"], 0.0)
+        # Not posted as a fake $0: the turn's $0.01 preflight input estimate is
+        # posted so pacing still counts it, and the turn is flagged unpriced.
+        self.assertEqual(state["current_spend_usd"], 0.01)
+        self.assertEqual(state["unpriced_turn_count"], 1)
+        self.assertEqual(state["unpriced_preflight_estimate_usd"], 0.01)
         self.assertEqual(state["total_requests"], 1)
+        self.assertEqual(config_manager.get_inflight_reserved_usd(), 0.0)
         record = turn_ledger.read_turns()[0]
         self.assertIsNone(record["estimated_cost_usd"])
         self.assertIsNone(record["estimated_cost_picos"])

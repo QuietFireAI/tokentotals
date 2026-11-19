@@ -33,9 +33,65 @@ class OpenAIPricingTests(unittest.TestCase):
         self.assertAlmostEqual(result["total_cost_usd"], 2.7)
 
     def test_fast_multiplier(self):
+        # openai.com/api-fast-mode (read 2026-11-18): Sol Fast is $10 input,
+        # $1 cached input, $60 output per 1M tokens (2.5x / 2.5x / 3x).
         usage = {"input_tokens": 1_000, "output_tokens": 1_000}
         result = pricing.calculate_openai_cost("gpt-5.6-sol", usage, "fast")
-        self.assertAlmostEqual(result["total_cost_usd"], 0.048)
+        self.assertTrue(result["complete"])
+        self.assertAlmostEqual(result["total_cost_usd"], 0.07)
+        self.assertEqual(
+            result["service_tier_multiplier"],
+            {"input": 2.5, "cached_input": 2.5, "cache_write": None, "output": 3.0},
+        )
+
+    def test_sol_fast_cached_input_rate(self):
+        usage = {
+            "input_tokens": 100_000,
+            "input_tokens_details": {"cached_tokens": 100_000, "cache_write_tokens": 0},
+            "output_tokens": 0,
+        }
+        result = pricing.calculate_openai_cost("gpt-5.6-sol", usage, "priority")
+        self.assertTrue(result["complete"])
+        self.assertAlmostEqual(result["total_cost_usd"], 0.1)
+
+    def test_terra_and_luna_fast_stay_2x(self):
+        # Under the 272K long-context threshold: 100K input, 100K output.
+        usage = {"input_tokens": 100_000, "output_tokens": 100_000}
+        terra = pricing.calculate_openai_cost("gpt-5.6-terra", usage, "fast")
+        luna = pricing.calculate_openai_cost("gpt-5.6-luna", usage, "fast")
+        self.assertAlmostEqual(terra["total_cost_usd"], (4.0 + 24.0) / 10)
+        self.assertAlmostEqual(luna["total_cost_usd"], (0.4 + 2.4) / 10)
+
+    def test_fast_cache_write_has_no_published_rate(self):
+        usage = {
+            "input_tokens": 10_000,
+            "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 5_000},
+            "output_tokens": 100,
+        }
+        result = pricing.calculate_openai_cost("gpt-5.6-sol", usage, "fast")
+        self.assertFalse(result["complete"])
+        self.assertIsNone(result["total_cost_usd"])
+        self.assertIsNone(result["components_usd"]["cache_write"])
+
+    def test_fast_long_context_is_not_guessed(self):
+        usage = {"input_tokens": 300_000, "output_tokens": 1_000}
+        for model in ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"):
+            result = pricing.calculate_openai_cost(model, usage, "fast")
+            self.assertFalse(result["complete"], model)
+            self.assertIsNone(result["total_cost_usd"], model)
+            self.assertTrue(any("exclude long context" in n for n in result["notes"]), model)
+
+    def test_astra_fast_long_context_stays_priced(self):
+        # Astra's model page states Fast mode is 2x the applicable rates.
+        usage = {"input_tokens": 300_000, "output_tokens": 1_000}
+        result = pricing.calculate_openai_cost("gpt-6-astra", usage, "fast")
+        self.assertTrue(result["complete"])
+        self.assertAlmostEqual(result["total_cost_usd"], 0.3 * 10 * 2 * 2 + 0.001 * 50 * 1.5 * 2)
+        self.assertEqual(result["service_tier_multiplier"], 2.0)
+
+    def test_sol_promotional_window_date(self):
+        record = pricing.resolve_openai_model("gpt-5.6-sol")
+        self.assertEqual(record["pricing_window"]["valid_through_at_least"], "2026-11-30")
 
     def test_ultrafast_is_recognized_as_unpriced_not_mapped_to_fast_or_standard(self):
         usage = {"input_tokens": 1_000, "output_tokens": 1_000}

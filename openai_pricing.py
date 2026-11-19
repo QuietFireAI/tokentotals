@@ -93,12 +93,35 @@ def normalize_usage(usage):
     }
 
 
+_TIER_CATEGORIES = ("input", "cached_input", "cache_write", "output")
+
+
 def _tier_multiplier(record, service_tier):
+    """Return (per-category multipliers, tier, excludes_long_context).
+
+    A registry tier value is either one number applied to every category or a
+    dict of per-category multipliers. A category missing from the dict has no
+    verified multiplier and is returned as None.
+    """
     tier = (service_tier or "default").lower()
     tiers = record.get("service_tiers", {})
     if tier not in tiers:
-        return None, tier
-    return float(tiers[tier]), tier
+        return None, tier, False
+    value = tiers[tier]
+    if isinstance(value, dict):
+        mults = {
+            key: (float(value[key]) if value.get(key) is not None else None)
+            for key in _TIER_CATEGORIES
+        }
+        return mults, tier, bool(value.get("excludes_long_context"))
+    return {key: float(value) for key in _TIER_CATEGORIES}, tier, False
+
+
+def _display_tier_multiplier(mults):
+    values = set(mults.values())
+    if len(values) == 1:
+        return next(iter(values))
+    return dict(mults)
 
 
 def _hosted_tool_activity(completion_response):
@@ -128,11 +151,11 @@ def calculate_openai_cost(model_id, usage, service_tier=None):
 
     notes = []
     complete = True
-    tier_multiplier, tier = _tier_multiplier(record, service_tier)
-    if tier_multiplier is None:
+    tier_mults, tier, tier_excludes_long_context = _tier_multiplier(record, service_tier)
+    if tier_mults is None:
         complete = False
         notes.append(f"Unsupported or unverified service tier: {tier}.")
-        tier_multiplier = 1.0
+        tier_mults = {key: 1.0 for key in _TIER_CATEGORIES}
 
     if normalized["usage_breakdown_overlap"]:
         complete = False
@@ -155,6 +178,11 @@ def calculate_openai_cost(model_id, usage, service_tier=None):
         cached_mult = float(long_rules.get("cached_input_multiplier", input_mult))
         write_mult = float(long_rules.get("cache_write_multiplier", input_mult))
         output_mult = float(long_rules.get("output_multiplier", 1.0))
+        if tier_excludes_long_context:
+            complete = False
+            notes.append(
+                f"The published {tier} rates exclude long context; no verified rate covers a long-context {tier} request."
+            )
 
     components = {}
     categories = (
@@ -175,11 +203,18 @@ def calculate_openai_cost(model_id, usage, service_tier=None):
             components[rate_key] = None
             continue
 
+        tier_mult = tier_mults.get(rate_key)
+        if tokens and tier_mult is None:
+            complete = False
+            notes.append(f"{rate_key} tokens were reported but no verified {tier} multiplier is registered for them.")
+            components[rate_key] = None
+            continue
+
         cost = (
             (tokens / 1_000_000.0)
             * float(rate or 0.0)
             * category_mult
-            * tier_multiplier
+            * float(tier_mult if tier_mult is not None else 1.0)
         )
         components[rate_key] = round(cost, 12)
         subtotal += cost
@@ -192,7 +227,7 @@ def calculate_openai_cost(model_id, usage, service_tier=None):
         "canonical_model_id": record["canonical_model_id"],
         "verified_at": record.get("verified_at"),
         "service_tier": tier,
-        "service_tier_multiplier": tier_multiplier,
+        "service_tier_multiplier": _display_tier_multiplier(tier_mults),
         "long_context_applied": long_context_applied,
         "components_usd": components,
         "total_cost_usd": total,

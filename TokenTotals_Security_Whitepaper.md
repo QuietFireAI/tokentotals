@@ -126,7 +126,7 @@ Accordingly, in-flight reservation closes the **concurrent reuse of known prefli
 
 When local state is locked, subsequent routed completion requests are rejected by the proxy until the local state is unlocked.
 
-The desktop application can surface a topmost Tkinter modal with an operating-system audio cue. The user can acknowledge the warning with the `"I UNDERSTAND"` phrase or use the local quick-boost control to raise the configured TokenTotals daily threshold and clear the local lock.
+The desktop application can surface a topmost Tkinter modal with an operating-system audio cue. The user can acknowledge the warning with the `"I UNDERSTAND"` phrase or use the local quick-boost control to raise the configured TokenTotals daily threshold and clear the local lock. Acknowledging lets routed requests resume with one more configured threshold of headroom for the rest of the local day, measured from the spend posted at acknowledgment; the saved threshold is unchanged and the headroom resets at the daily reset.
 
 This mechanism changes TokenTotals' local pacing state. It does not modify the provider's own billing limit, account balance, or provider-side quota.
 

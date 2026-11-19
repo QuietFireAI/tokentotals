@@ -39,7 +39,7 @@ class TurnNoticeIntegrationTests(unittest.TestCase):
         conf["daily_budget_limit_usd"] = 100.0
         conf["turn_notice_threshold_usd"] = 0.20
         config_manager.save_config(conf)
-        self.client = TestClient(proxy_server.app)
+        self.client = TestClient(proxy_server.app, base_url="http://127.0.0.1:8080")
 
     def _clear_runtime_state(self):
         with config_manager._DATA_LOCK:

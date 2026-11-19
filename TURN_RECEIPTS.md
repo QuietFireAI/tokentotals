@@ -3,8 +3,6 @@
 **Project term:** Turn Receipt  
 **Reference implementation:** TokenTotals by QuietFireAI  
 **Definition established in this repository:** 2026-09-15  
-**Individual receipt:** https://turnreceipt.com  
-**Concept site:** https://turnreceipts.com  
 **Product site:** https://tokentotals.com
 
 ## Definition
@@ -115,12 +113,9 @@ That distinction is intentional. The value of the term should come from a useful
 
 ## Canonical project surfaces
 
-- **Individual Turn Receipt:** https://turnreceipt.com
-- **Turn Receipt concept:** https://turnreceipts.com
 - **TokenTotals product:** https://tokentotals.com
 - **Source code and verification history:** https://github.com/QuietFireAI/TokenTotals
-- **Turn Receipt / documentation contact:** support@turnreceipts.com
-- **TokenTotals product support:** support@tokentotals.com
+- **TokenTotals product and documentation support:** support@tokentotals.com
 - **QuietFireAI general contact:** support@quietfireAI.com
 
 ## Short form

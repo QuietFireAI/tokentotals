@@ -5,6 +5,7 @@
   "currency": "USD",
   "unit": "per_1m_tokens",
   "verified_at": "2026-09-15",
+  "partial_recheck": {"date": "2026-11-18", "scope": "Gemini 3.8 Flash, 3.6 Flash and 3.5 Flash-Lite rates were re-read from aistudio.google.com/docs/pricing. The 3.5 Flash-Lite Batch cached-input rate was corrected from 0.02 to 0.015. Other entries were not re-read on that date."},
   "accuracy_statement": "Best-effort public-list estimate from observed Gemini telemetry and versioned Google pricing mechanics. Not an invoice mirror or guarantee of final billed amount.",
   "sources": [
     "https://ai.google.dev/gemini-api/docs/pricing",
@@ -63,7 +64,7 @@
       "aliases": [], "generation": 3,
       "modes": {
         "standard": {"input": {"default": 0.30}, "output": {"default": 2.50}, "cached_input": {"default": 0.03}, "cache_storage_per_million_token_hour": 1.00},
-        "batch": {"input": {"default": 0.15}, "output": {"default": 1.25}, "cached_input": {"default": 0.02}, "cache_storage_per_million_token_hour": 1.00},
+        "batch": {"input": {"default": 0.15}, "output": {"default": 1.25}, "cached_input": {"default": 0.015}, "cache_storage_per_million_token_hour": 1.00},
         "flex": {"input": {"default": 0.15}, "output": {"default": 1.25}, "cached_input": {"default": 0.02}, "cache_storage_per_million_token_hour": 1.00},
         "priority": {"input": {"default": 0.54}, "output": {"default": 4.50}, "cached_input": {"default": 0.05}, "cache_storage_per_million_token_hour": 1.00}
       }

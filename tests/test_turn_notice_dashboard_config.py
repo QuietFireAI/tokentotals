@@ -26,7 +26,9 @@ class TurnNoticeDashboardConfigTests(unittest.TestCase):
         config_manager.init_files()
         turn_notice.reset_runtime_notices()
         self.addCleanup(turn_notice.reset_runtime_notices)
-        self.client = TestClient(proxy_server.app)
+        self.client = TestClient(proxy_server.app, base_url="http://127.0.0.1:8080")
+        # /api/turn-notice/config is a control route; the dashboard sends this token.
+        self.client.headers[proxy_server.CONTROL_TOKEN_HEADER] = proxy_server.CONTROL_TOKEN
 
     def test_positive_reminder_threshold_can_be_set_and_read_back(self):
         response = self.client.post(

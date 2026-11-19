@@ -20,7 +20,7 @@ class RuntimeModelCatalogTests(unittest.TestCase):
             side_effect=AssertionError("upstream must not be called")
         )
         try:
-            client = TestClient(self.proxy.app)
+            client = TestClient(self.proxy.app, base_url="http://127.0.0.1:8080")
             return client.post("/v1/chat/completions", json=payload)
         finally:
             if had_acompletion:
@@ -66,7 +66,7 @@ class RuntimeModelCatalogTests(unittest.TestCase):
                         self.assertNotIn(alias, advertised)
 
     def test_endpoint_matches_registry_catalog_exactly(self):
-        client = TestClient(self.proxy.app)
+        client = TestClient(self.proxy.app, base_url="http://127.0.0.1:8080")
         response = client.get("/v1/models")
         self.assertEqual(response.status_code, 200)
         payload = response.json()

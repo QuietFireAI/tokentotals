@@ -195,7 +195,8 @@ def monitor_state_loop():
             time.sleep(2)
             state = config_manager.get_state()
             conf = config_manager.get_config()
-            limit = conf.get("daily_budget_limit_usd", 10.0)
+            # Includes same-day "I UNDERSTAND" headroom, matching the proxy's check.
+            limit = config_manager.get_effective_limit()
             current = state.get("current_spend_usd", 0.0)
             pct = (current / limit * 100) if limit > 0 else 0
 
@@ -262,7 +263,7 @@ def get_status_text(item):
     state = config_manager.get_state()
     conf = config_manager.get_config()
     spend = state.get("current_spend_usd", 0.0)
-    limit = conf.get("daily_budget_limit_usd", 10.0)
+    limit = config_manager.get_effective_limit()
     if state.get("is_locked"):
         return f"🔴 Local Threshold Reached: ${spend:.4f} / ${limit:.2f}"
     pct = (spend / limit * 100) if limit > 0 else 0

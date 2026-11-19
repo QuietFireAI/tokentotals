@@ -337,6 +337,6 @@ def render_html(receipt, mode="standard", thread_view=None):
         + body
         + '<footer class="tt-receipt-footer"><span>Receipt ID: '
         + _display(view.get("receipt_id"))
-        + '</span><a href="https://turnreceipt.com/" rel="noopener">TURNRECEIPT.COM</a></footer>'
+        + '</span><a href="https://tokentotals.com/" rel="noopener">TOKENTOTALS.COM</a></footer>'
         + "</article>"
     )

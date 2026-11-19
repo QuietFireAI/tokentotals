@@ -271,5 +271,126 @@ class AnthropicPricingTests(unittest.TestCase):
         self.assertEqual(result["usage"]["input_basis"], "litellm_ambiguous_cache_basis")
 
 
+class CurrentAnthropicModelRateTests(unittest.TestCase):
+    """Rates read from platform.claude.com/docs/en/about-claude/pricing on 2026-11-18."""
+
+    GLOBAL_STANDARD = {"inference_geo": "global", "service_tier": "standard", "speed": "standard"}
+
+    def _cost(self, model, usage, **kwargs):
+        merged = dict(self.GLOBAL_STANDARD)
+        merged.update(usage)
+        return pricing.calculate_anthropic_cost(model, merged, **kwargs)
+
+    def _per_million(self, model):
+        # 100,000 tokens per category (at, not over, Haiku 5.5's 100K threshold),
+        # scaled back to a per-1M rate.
+        n = 100_000
+        out = {}
+        for key in ("input_tokens", "cache_read_input_tokens", "output_tokens"):
+            usage = {"input_tokens": 0, "output_tokens": 0}
+            usage[key] = n
+            result = self._cost(model, usage)
+            self.assertTrue(result["complete"], (model, key, result["notes"]))
+            out[key] = round(result["total_cost_usd"] * 1_000_000 / n, 9)
+        for ttl, key in (("5m", "ephemeral_5m_input_tokens"), ("1h", "ephemeral_1h_input_tokens")):
+            usage = {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cache_creation_input_tokens": n,
+                "cache_creation": {key: n},
+            }
+            result = self._cost(model, usage)
+            self.assertTrue(result["complete"], (model, ttl, result["notes"]))
+            out["write_" + ttl] = round(result["total_cost_usd"] * 1_000_000 / n, 9)
+        return out
+
+    def test_standard_rates(self):
+        expected = {
+            "claude-fable-5-2": (8.0, 10.0, 16.0, 0.20, 40.0),
+            "claude-mythos-5-2": (8.0, 10.0, 16.0, 0.20, 40.0),
+            "claude-opus-5-5": (4.0, 5.0, 8.0, 0.20, 20.0),
+            "claude-sonnet-5-5": (2.0, 2.50, 4.0, 0.10, 10.0),
+            "claude-haiku-5-5": (0.10, 0.125, 0.20, 0.01, 0.50),
+        }
+        for model, (inp, w5, w1, read, out) in expected.items():
+            self.assertEqual(
+                self._per_million(model),
+                {"input_tokens": inp, "cache_read_input_tokens": read, "output_tokens": out,
+                 "write_5m": w5, "write_1h": w1},
+                model,
+            )
+
+    def test_batch_is_half(self):
+        result = self._cost(
+            "claude-opus-5-5", {"input_tokens": 1_000_000, "output_tokens": 1_000_000},
+            processing_mode="batch",
+        )
+        self.assertTrue(result["complete"])
+        self.assertAlmostEqual(result["total_cost_usd"], 2.0 + 10.0)
+
+    def test_fast_mode_rates(self):
+        usage = {"input_tokens": 1_000_000, "output_tokens": 1_000_000, "speed": "fast"}
+        for model, total in (("claude-fable-5-2", 96.0), ("claude-mythos-5-2", 96.0), ("claude-opus-5-5", 48.0)):
+            result = self._cost(model, usage)
+            self.assertTrue(result["complete"], model)
+            self.assertAlmostEqual(result["total_cost_usd"], total)
+
+    def test_fast_mode_cache_read_uses_cache_multiplier_on_fast_price(self):
+        usage = {"input_tokens": 0, "cache_read_input_tokens": 1_000_000, "output_tokens": 0, "speed": "fast"}
+        self.assertAlmostEqual(self._cost("claude-fable-5-2", usage)["total_cost_usd"], 0.40)
+        self.assertAlmostEqual(self._cost("claude-opus-5-5", usage)["total_cost_usd"], 0.40)
+
+    def test_no_fast_rates_for_sonnet_and_haiku_55(self):
+        usage = {"input_tokens": 1_000, "output_tokens": 1_000, "speed": "fast"}
+        for model in ("claude-sonnet-5-5", "claude-haiku-5-5"):
+            self.assertFalse(self._cost(model, usage)["complete"], model)
+
+    def test_us_geo_multiplier_applies(self):
+        usage = {"input_tokens": 1_000_000, "output_tokens": 0, "inference_geo": "us"}
+        self.assertAlmostEqual(self._cost("claude-sonnet-5-5", usage)["total_cost_usd"], 2.2)
+
+    def test_haiku_55_at_threshold_uses_lower_rates(self):
+        result = self._cost("claude-haiku-5-5", {"input_tokens": 100_000, "output_tokens": 1_000_000})
+        self.assertFalse(result["long_context_applied"])
+        self.assertAlmostEqual(result["total_cost_usd"], 0.01 + 0.50)
+
+    def test_haiku_55_over_threshold_uses_higher_rates_for_every_category(self):
+        result = self._cost("claude-haiku-5-5", {"input_tokens": 100_001, "output_tokens": 1_000_000})
+        self.assertTrue(result["long_context_applied"])
+        self.assertAlmostEqual(result["total_cost_usd"], 100_001 / 1e6 * 0.50 + 2.50)
+
+    def test_haiku_55_prompt_length_counts_cache_reads_and_writes(self):
+        usage = {
+            "input_tokens": 1_000,
+            "cache_read_input_tokens": 90_000,
+            "cache_creation_input_tokens": 10_000,
+            "cache_creation": {"ephemeral_5m_input_tokens": 10_000},
+            "output_tokens": 0,
+        }
+        result = self._cost("claude-haiku-5-5", usage)
+        self.assertTrue(result["complete"], result["notes"])
+        self.assertTrue(result["long_context_applied"])
+        expected = 1_000 / 1e6 * 0.50 + 90_000 / 1e6 * 0.05 + 10_000 / 1e6 * 0.625
+        self.assertAlmostEqual(result["total_cost_usd"], expected)
+
+    def test_haiku_55_long_context_with_batch_and_us_geo(self):
+        result = self._cost(
+            "claude-haiku-5-5",
+            {"input_tokens": 200_000, "output_tokens": 0, "inference_geo": "us"},
+            processing_mode="batch",
+        )
+        self.assertAlmostEqual(result["total_cost_usd"], 0.2 * 0.50 * 0.5 * 1.1)
+
+    def test_haiku_55_preflight_uses_higher_rate_over_threshold(self):
+        import proxy_server
+
+        estimate = proxy_server.anthropic_preflight_input_estimate
+        self.assertAlmostEqual(estimate("claude-haiku-5-5", 100_000, {"inference_geo": "global"}), 0.01)
+        self.assertAlmostEqual(estimate("claude-haiku-5-5", 200_000, {"inference_geo": "global"}), 0.1)
+
+    def test_mythos_52_is_marked_limited_availability(self):
+        self.assertTrue(pricing.resolve_anthropic_model("claude-mythos-5-2")["limited_availability"])
+
+
 if __name__ == "__main__":
     unittest.main()

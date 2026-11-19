@@ -208,7 +208,7 @@ class TurnReceiptTests(unittest.TestCase):
         self.assertEqual(view["output_tokens"], 400)
         self.assertEqual(view["turn_estimate_usd"], 0.012345)
         self.assertEqual(view["pricing_basis"], "provider_registry_complete")
-        self.assertEqual(view["website"], "TurnReceipt.com")
+        self.assertEqual(view["website"], "TokenTotals.com")
         self.assertIn("not a provider invoice", view["disclaimer"])
         self.assertNotIn("thread_estimate_usd", view)
         self.assertNotIn("thread_turn_count", view)

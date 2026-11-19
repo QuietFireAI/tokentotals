@@ -149,9 +149,9 @@ Current package proof after artifact-identity reconciliation:
 
 The earlier roadmap/receipt values that treated one artifact ID/size/hash as though they identified both the inner release ZIP and the Actions wrapper are superseded by the reconciled evidence above. The receipt preserves that earlier record and marks it non-authoritative rather than deleting it.
 
-The intended next public version is **v2.6.0**. `CITATION.cff` carries that intended version but does not claim a release date before publication. Release-identity metadata changes are now required to trigger Windows package proof.
+**v2.6.0 is released.** The `v2.6.0` tag points at commit `ef72901a4b72ee3145c1a0fc628c01b2973ff526`, and the GitHub release was published on 2026-09-16 with the asset `TokenTotals_Windows_v2.6.0.zip` (83,685,797 bytes). `CITATION.cff` carries version 2.6.0. Release-identity metadata changes are required to trigger Windows package proof.
 
-A public release tag is intentionally **not** created by this roadmap closeout; tagging/publication should occur only as an explicit release action from a commit that is green in both normal regression CI and Windows package proof.
+This roadmap closeout did not itself create the tag; the release was a separate, explicit release action. Later releases should follow the same rule: tag and publish only from a commit that is green in both normal regression CI and Windows package proof.
 
 ## Post-drop / Community Labs
 

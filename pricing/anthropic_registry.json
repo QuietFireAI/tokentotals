@@ -4,7 +4,7 @@
   "platform_scope": "claude_api_list_pricing",
   "currency": "USD",
   "unit": "per_1m_tokens",
-  "verified_at": "2026-09-15",
+  "verified_at": "2026-11-18",
   "accuracy_statement": "Versioned Anthropic list-price reference for best-effort estimation. Not an invoice mirror.",
   "sources": [
     "https://platform.claude.com/docs/en/about-claude/pricing",
@@ -27,6 +27,52 @@
     "web_fetch_request_usd": 0.0
   },
   "models": {
+    "claude-fable-5-2": {
+      "aliases": [],
+      "rates": {"base_input": 8.0, "cache_write_5m": 10.0, "cache_write_1h": 16.0, "cache_read": 0.2, "output": 40.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": {"base_input": 16.0, "cache_write_5m": 20.0, "cache_write_1h": 32.0, "cache_read": 0.4, "output": 80.0},
+      "limited_availability": false
+    },
+    "claude-mythos-5-2": {
+      "aliases": [],
+      "rates": {"base_input": 8.0, "cache_write_5m": 10.0, "cache_write_1h": 16.0, "cache_read": 0.2, "output": 40.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": {"base_input": 16.0, "cache_write_5m": 20.0, "cache_write_1h": 32.0, "cache_read": 0.4, "output": 80.0},
+      "limited_availability": true
+    },
+    "claude-opus-5-5": {
+      "aliases": [],
+      "rates": {"base_input": 4.0, "cache_write_5m": 5.0, "cache_write_1h": 8.0, "cache_read": 0.2, "output": 20.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": {"base_input": 8.0, "cache_write_5m": 10.0, "cache_write_1h": 16.0, "cache_read": 0.4, "output": 40.0},
+      "limited_availability": false
+    },
+    "claude-sonnet-5-5": {
+      "aliases": [],
+      "rates": {"base_input": 2.0, "cache_write_5m": 2.5, "cache_write_1h": 4.0, "cache_read": 0.1, "output": 10.0},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "limited_availability": false
+    },
+    "claude-haiku-5-5": {
+      "aliases": [],
+      "rates": {"base_input": 0.1, "cache_write_5m": 0.125, "cache_write_1h": 0.2, "cache_read": 0.01, "output": 0.5},
+      "supports_inference_geo": true,
+      "inference_geo_us_multiplier": 1.1,
+      "batch_multiplier": 0.5,
+      "fast_rates": null,
+      "long_context": {"threshold_prompt_tokens": 100000, "rates": {"base_input": 0.5, "cache_write_5m": 0.625, "cache_write_1h": 1.0, "cache_read": 0.05, "output": 2.5}},
+      "limited_availability": false
+    },
     "claude-fable-5-1": {
       "aliases": [],
       "rates": {"base_input": 10.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0, "cache_read": 0.25, "output": 50.0},
